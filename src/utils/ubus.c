@@ -318,7 +318,7 @@ int parse_to_beacon_rep(struct blob_attr *msg)
     if (hwaddr_aton(blobmsg_data(tb[BEACON_REP_BSSID]), msg_bssid.u8))
         return UBUS_STATUS_INVALID_ARGUMENT;
 
-    if (mac_is_null(msg_bssid.u8)) {
+    if (mac_is_null(msg_bssid)) {
         fprintf(stderr, "Received NULL MAC! Client is strange!\n");
         return -1;
     }
