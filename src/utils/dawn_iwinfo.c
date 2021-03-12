@@ -371,20 +371,19 @@ int support_ht(const char *ifname)
 int support_vht(const char *ifname)
 {
     const struct iwinfo_ops *iw;
+    int htmodes = 0;
+
     if (strcmp(ifname, "global") == 0)
         return 0;
+
     iw = iwinfo_backend(ifname);
-    int htmodes = 0;
 
     if (iw->htmodelist(ifname, &htmodes)) {
         fprintf(stderr, "No VHT mode information available\n");
-        iwinfo_finish();
-        return 0;
     }
 
-    // TODO: 1 << 2 duplicated here, and also appears as HT mode mask
-    uint32_t vht_support_bitmask = (1 << 2) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6);
-    int ret = htmodes & vht_support_bitmask ? 1 : 0;
     iwinfo_finish();
-    return ret;
+
+    return htmodes & (IWINFO_HTMODE_VHT20 | IWINFO_HTMODE_VHT40 | IWINFO_HTMODE_VHT80 |
+                      IWINFO_HTMODE_VHT80_80 | IWINFO_HTMODE_VHT160);
 }
