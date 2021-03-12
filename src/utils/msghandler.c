@@ -50,8 +50,8 @@ static const struct blobmsg_policy prob_policy[__PROB_MAX] = {
     [PROB_TARGET_ADDR] = {.name = "target", .type = BLOBMSG_TYPE_STRING},
     [PROB_SIGNAL] = {.name = "signal", .type = BLOBMSG_TYPE_INT32},
     [PROB_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
-    [PROB_HT_CAPABILITIES] = {.name = "ht_capabilities", .type = BLOBMSG_TYPE_TABLE},   //ToDo: Change to int8?
-    [PROB_VHT_CAPABILITIES] = {.name = "vht_capabilities", .type = BLOBMSG_TYPE_TABLE}, //ToDo: Change to int8?
+    [PROB_HT_CAPABILITIES] = {.name = "ht_capabilities", .type = BLOBMSG_TYPE_TABLE},   /* TODO: Change to int8? */
+    [PROB_VHT_CAPABILITIES] = {.name = "vht_capabilities", .type = BLOBMSG_TYPE_TABLE}, /* TODO: Change to int8? */
     [PROB_RCPI] = {.name = "rcpi", .type = BLOBMSG_TYPE_INT32},
     [PROB_RSNI] = {.name = "rsni", .type = BLOBMSG_TYPE_INT32},
 };
@@ -125,7 +125,6 @@ static const struct blobmsg_policy client_policy[__CLIENT_MAX] = {
 };
 
 static int handle_set_probe(struct blob_attr *msg);
-
 static int handle_uci_config(struct blob_attr *msg);
 
 int parse_to_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_req)
@@ -147,27 +146,24 @@ probe_entry *parse_to_probe_req(struct blob_attr *msg)
 {
     struct blob_attr *tb[__PROB_MAX];
 
-    probe_entry *prob_req = dawn_malloc(sizeof(probe_entry));
+    probe_entry *prob_req = dawn_malloc(sizeof (probe_entry));
     if (prob_req == NULL) {
         fprintf(stderr, "dawn_malloc of probe_entry failed!\n");
-        return NULL;
+        goto exit;
     }
 
     blobmsg_parse(prob_policy, __PROB_MAX, tb, blob_data(msg), blob_len(msg));
 
     if (hwaddr_aton(blobmsg_data(tb[PROB_BSSID_ADDR]), prob_req->bssid_addr.u8)) {
-        dawn_free(prob_req);
-        return NULL;
+        goto error;
     }
 
     if (hwaddr_aton(blobmsg_data(tb[PROB_CLIENT_ADDR]), prob_req->client_addr.u8)) {
-        dawn_free(prob_req);
-        return NULL;
+        goto error;
     }
 
     if (hwaddr_aton(blobmsg_data(tb[PROB_TARGET_ADDR]), prob_req->target_addr.u8)) {
-        dawn_free(prob_req);
-        return NULL;
+        goto error;
     }
 
     if (tb[PROB_SIGNAL]) {
@@ -206,13 +202,17 @@ probe_entry *parse_to_probe_req(struct blob_attr *msg)
         prob_req->vht_capabilities = false;
     }
 
+exit:
     return prob_req;
+error:
+    dawn_free(prob_req);
+    return NULL;
 }
 
 int handle_deauth_req(struct blob_attr *msg)
 {
-
     hostapd_notify_entry notify_req;
+
     parse_to_hostapd_notify(msg, &notify_req);
 
     pthread_mutex_lock(&client_array_mutex);
@@ -230,8 +230,8 @@ int handle_deauth_req(struct blob_attr *msg)
 
 static int handle_set_probe(struct blob_attr *msg)
 {
-
     hostapd_notify_entry notify_req;
+
     parse_to_hostapd_notify(msg, &notify_req);
 
     probe_array_set_all_probe_count(notify_req.client_addr, dawn_metric.min_probe_count);

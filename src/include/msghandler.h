@@ -1,5 +1,5 @@
-#ifndef __DAWN_MSGHANDLER_H
-#define __DAWN_MSGHANDLER_H
+#ifndef DAWN_MSGHANDLER_H
+#define DAWN_MSGHANDLER_H
 
 #include <libubox/blobmsg_json.h>
 
@@ -43,4 +43,4 @@ int handle_network_msg(char *msg);
 
 int handle_deauth_req(struct blob_attr *msg);
 
-#endif
+#endif /* DAWN_MSGHANDLER_H */
