@@ -1,20 +1,24 @@
-#ifndef __DAWN_UBUS_H
-#define __DAWN_UBUS_H
+#ifndef DAWN_UBUS_H
+#define DAWN_UBUS_H
 
 #include <libubox/blobmsg_json.h>
 #include <libubox/uloop.h>
 
 #include "datastorage.h"
 
-// 802.11 Status codes
-#define WLAN_STATUS_SUCCESS 0
-#define WLAN_STATUS_AP_UNABLE_TO_HANDLE_NEW_STA 17
-#define WLAN_STATUS_DENIED_NOT_HT_SUPPORT 27
-#define WLAN_STATUS_DENIED_NOT_VHT_SUPPORT 104
+/* 802.11 Status codes */
+enum {
+    WLAN_STATUS_SUCCESS = 0,
+    WLAN_STATUS_AP_UNABLE_TO_HANDLE_NEW_STA = 17,
+    WLAN_STATUS_DENIED_NOT_HT_SUPPORT = 27,
+    WLAN_STATUS_DENIED_NOT_VHT_SUPPORT = 104,
+};
 
-// Disassociation Reason
-#define UNSPECIFIED_REASON 0
-#define NO_MORE_STAS 5
+/* Disassociation Reason */
+enum {
+    UNSPECIFIED_REASON = 0,
+    NO_MORE_STAS = 5,
+};
 
 /**
  * Init ubus.
@@ -29,13 +33,13 @@ int dawn_init_ubus(const char *ubus_socket, const char *hostapd_dir);
 /**
  * Start the umdns timer for updating the zeroconfiguration properties.
  */
-void start_tcp_con_update();
+void start_tcp_con_update(void);
 
 /**
  * Call umdns update to update the TCP connections.
  * @return
  */
-int ubus_call_umdns();
+int ubus_call_umdns(void);
 
 /**
  * Parse to authentication request.
@@ -69,19 +73,12 @@ void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reaso
 void update_hostapd_sockets(struct uloop_timeout *t);
 
 void ubus_send_beacon_report(struct dawn_mac client, int id);
-
-void uloop_add_data_cbs();
-
-int uci_send_via_network();
-
+void uloop_add_data_cbs(void);
+int uci_send_via_network(void);
 int build_hearing_map_sort_client(struct blob_buf *b);
-
 int build_network_overview(struct blob_buf *b);
-
 int ap_get_nr(struct blob_buf *b, struct dawn_mac own_bssid_addr);
-
 int parse_add_mac_to_file(struct blob_attr *msg);
-
 int handle_auth_req(struct blob_attr *msg);
 
 /**
@@ -148,4 +145,4 @@ int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *
  */
 int send_add_mac(struct dawn_mac client_addr);
 
-#endif
+#endif /* DAWN_UBUS_H */
