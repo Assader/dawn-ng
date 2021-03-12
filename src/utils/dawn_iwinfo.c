@@ -149,16 +149,15 @@ int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rat
 
 int get_rssi_iwinfo(struct dawn_mac client_addr)
 {
-
-    DIR *dirp;
     struct dirent *entry;
-    dirp = opendir(hostapd_dir_glob); // error handling?
+    int rssi = INT_MIN;
+    DIR *dirp;
+
+    dirp = opendir(hostapd_dir_glob);
     if (!dirp) {
         fprintf(stderr, "[RSSI INFO] No hostapd sockets!\n");
-        return INT_MIN;
+        goto exit;
     }
-
-    int rssi = INT_MIN;
 
     while ((entry = readdir(dirp)) != NULL) {
         if (entry->d_type == DT_SOCK) {
@@ -167,7 +166,10 @@ int get_rssi_iwinfo(struct dawn_mac client_addr)
                 break;
         }
     }
+
     closedir(dirp);
+
+exit:
     return rssi;
 }
 
