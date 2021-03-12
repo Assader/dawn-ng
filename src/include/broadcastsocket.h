@@ -5,8 +5,8 @@
 
 /**
  * Function that setups a broadcast socket.
- * @param _broadcast_ip - The broadcast ip to use.
- * @param _broadcast_port - The broadcast port to use.
+ * @param broadcast_ip - The broadcast ip to use.
+ * @param broadcast_port - The broadcast port to use.
  * @param addr The sockaddr_in struct.
  * @return the socket that was created.
  */
