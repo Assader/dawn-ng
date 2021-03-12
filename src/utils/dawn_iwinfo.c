@@ -9,8 +9,8 @@
 
 char hostapd_dir_glob[HOSTAPD_DIR_LEN];
 
-int get_rssi(const char *ifname, struct dawn_mac client_addr);
-int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
+static int get_rssi(const char *ifname, struct dawn_mac client_addr);
+static int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
 
 #define IWINFO_BUFSIZE 24 * 1024
 
