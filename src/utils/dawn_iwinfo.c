@@ -5,8 +5,6 @@
 #include "dawn_iwinfo.h"
 #include "mac_utils.h"
 
-#define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
-
 char hostapd_dir_glob[HOSTAPD_DIR_LEN];
 
 static int get_rssi(const char *ifname, struct dawn_mac client_addr);
