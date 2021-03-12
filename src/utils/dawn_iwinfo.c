@@ -351,21 +351,20 @@ int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uin
 int support_ht(const char *ifname)
 {
     const struct iwinfo_ops *iw;
+    int htmodes = 0;
+
     if (strcmp(ifname, "global") == 0)
         return 0;
+
     iw = iwinfo_backend(ifname);
-    int htmodes = 0;
 
     if (iw->htmodelist(ifname, &htmodes)) {
         printf("No HT mode information available\n");
-        iwinfo_finish();
-        return 0;
     }
 
-    uint32_t ht_support_bitmask = (1 << 0) | (1 << 2);
-    int ret = htmodes & ht_support_bitmask ? 1 : 0;
     iwinfo_finish();
-    return ret;
+
+    return htmodes & (IWINFO_HTMODE_HT20 | IWINFO_HTMODE_HT40);
 }
 
 int support_vht(const char *ifname)
