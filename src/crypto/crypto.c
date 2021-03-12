@@ -78,6 +78,7 @@ char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
         fprintf(stderr, "gcry_cipher_encrypt failed:  %s/%s\n",
                 gcry_strsource(gcry_error_handle),
                 gcry_strerror(gcry_error_handle));
+        dawn_free(out);
         return NULL;
     }
 
