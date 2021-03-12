@@ -1,14 +1,15 @@
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
 #include <ctype.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
-#include "utils.h"
 #include "mac_utils.h"
+#include "utils.h"
 
 // source: https://elixir.bootlin.com/linux/v4.9/source/lib/hexdump.c#L28
 // based on: hostapd src/utils/common.c
-int hwaddr_aton(const char* txt, uint8_t* addr) {
+int hwaddr_aton(const char *txt, uint8_t *addr)
+{
     int i;
 
     for (i = 0; i < ETH_ALEN; i++) {
@@ -46,8 +47,9 @@ int hwaddr_aton(const char* txt, uint8_t* addr) {
     return 0;
 }
 
-void write_mac_to_file(char* path, struct dawn_mac addr) {
-    FILE* f = fopen(path, "a");
+void write_mac_to_file(char *path, struct dawn_mac addr)
+{
+    FILE *f = fopen(path, "a");
     if (f == NULL) {
         fprintf(stderr, "Error opening mac file!\n");
 

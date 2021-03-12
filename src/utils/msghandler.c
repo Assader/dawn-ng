@@ -1,11 +1,10 @@
 #include <libubus.h>
 
-#include "memory_utils.h"
-#include "dawn_uci.h"
 #include "datastorage.h"
-#include "ubus.h"
+#include "dawn_uci.h"
+#include "memory_utils.h"
 #include "msghandler.h"
-
+#include "ubus.h"
 
 static struct blob_buf network_buf;
 static struct blob_buf data_buf;
@@ -17,8 +16,8 @@ enum {
 };
 
 static const struct blobmsg_policy network_policy[__NETWORK_MAX] = {
-        [NETWORK_METHOD] = {.name = "method", .type = BLOBMSG_TYPE_STRING},
-        [NETWORK_DATA] = {.name = "data", .type = BLOBMSG_TYPE_STRING},
+    [NETWORK_METHOD] = {.name = "method", .type = BLOBMSG_TYPE_STRING},
+    [NETWORK_DATA] = {.name = "data", .type = BLOBMSG_TYPE_STRING},
 };
 
 enum {
@@ -28,8 +27,8 @@ enum {
 };
 
 static const struct blobmsg_policy hostapd_notify_policy[__HOSTAPD_NOTIFY_MAX] = {
-        [HOSTAPD_NOTIFY_BSSID_ADDR] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
-        [HOSTAPD_NOTIFY_CLIENT_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
+    [HOSTAPD_NOTIFY_BSSID_ADDR] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
+    [HOSTAPD_NOTIFY_CLIENT_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
 };
 
 enum {
@@ -46,15 +45,15 @@ enum {
 };
 
 static const struct blobmsg_policy prob_policy[__PROB_MAX] = {
-        [PROB_BSSID_ADDR] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
-        [PROB_CLIENT_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
-        [PROB_TARGET_ADDR] = {.name = "target", .type = BLOBMSG_TYPE_STRING},
-        [PROB_SIGNAL] = {.name = "signal", .type = BLOBMSG_TYPE_INT32},
-        [PROB_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
-        [PROB_HT_CAPABILITIES] = {.name = "ht_capabilities", .type = BLOBMSG_TYPE_TABLE}, //ToDo: Change to int8?
-        [PROB_VHT_CAPABILITIES] = {.name = "vht_capabilities", .type = BLOBMSG_TYPE_TABLE}, //ToDo: Change to int8?
-        [PROB_RCPI] = {.name = "rcpi", .type = BLOBMSG_TYPE_INT32},
-        [PROB_RSNI] = {.name = "rsni", .type = BLOBMSG_TYPE_INT32},
+    [PROB_BSSID_ADDR] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
+    [PROB_CLIENT_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
+    [PROB_TARGET_ADDR] = {.name = "target", .type = BLOBMSG_TYPE_STRING},
+    [PROB_SIGNAL] = {.name = "signal", .type = BLOBMSG_TYPE_INT32},
+    [PROB_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
+    [PROB_HT_CAPABILITIES] = {.name = "ht_capabilities", .type = BLOBMSG_TYPE_TABLE},   //ToDo: Change to int8?
+    [PROB_VHT_CAPABILITIES] = {.name = "vht_capabilities", .type = BLOBMSG_TYPE_TABLE}, //ToDo: Change to int8?
+    [PROB_RCPI] = {.name = "rcpi", .type = BLOBMSG_TYPE_INT32},
+    [PROB_RSNI] = {.name = "rsni", .type = BLOBMSG_TYPE_INT32},
 };
 
 enum {
@@ -76,20 +75,20 @@ enum {
 };
 
 static const struct blobmsg_policy client_table_policy[__CLIENT_TABLE_MAX] = {
-        [CLIENT_TABLE] = {.name = "clients", .type = BLOBMSG_TYPE_TABLE},
-        [CLIENT_TABLE_BSSID] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
-        [CLIENT_TABLE_SSID] = {.name = "ssid", .type = BLOBMSG_TYPE_STRING},
-        [CLIENT_TABLE_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
-        [CLIENT_TABLE_HT] = {.name = "ht_supported", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_TABLE_VHT] = {.name = "vht_supported", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_TABLE_CHAN_UTIL] = {.name = "channel_utilization", .type = BLOBMSG_TYPE_INT32},
-        [CLIENT_TABLE_NUM_STA] = {.name = "num_sta", .type = BLOBMSG_TYPE_INT32},
-        [CLIENT_TABLE_COL_DOMAIN] = {.name = "collision_domain", .type = BLOBMSG_TYPE_INT32},
-        [CLIENT_TABLE_BANDWIDTH] = {.name = "bandwidth", .type = BLOBMSG_TYPE_INT32},
-        [CLIENT_TABLE_WEIGHT] = {.name = "ap_weight", .type = BLOBMSG_TYPE_INT32},
-        [CLIENT_TABLE_NEIGHBOR] = {.name = "neighbor_report", .type = BLOBMSG_TYPE_STRING},
-        [CLIENT_TABLE_IFACE] = {.name = "iface", .type = BLOBMSG_TYPE_STRING},
-        [CLIENT_TABLE_HOSTNAME] = {.name = "hostname", .type = BLOBMSG_TYPE_STRING},
+    [CLIENT_TABLE] = {.name = "clients", .type = BLOBMSG_TYPE_TABLE},
+    [CLIENT_TABLE_BSSID] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
+    [CLIENT_TABLE_SSID] = {.name = "ssid", .type = BLOBMSG_TYPE_STRING},
+    [CLIENT_TABLE_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
+    [CLIENT_TABLE_HT] = {.name = "ht_supported", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_TABLE_VHT] = {.name = "vht_supported", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_TABLE_CHAN_UTIL] = {.name = "channel_utilization", .type = BLOBMSG_TYPE_INT32},
+    [CLIENT_TABLE_NUM_STA] = {.name = "num_sta", .type = BLOBMSG_TYPE_INT32},
+    [CLIENT_TABLE_COL_DOMAIN] = {.name = "collision_domain", .type = BLOBMSG_TYPE_INT32},
+    [CLIENT_TABLE_BANDWIDTH] = {.name = "bandwidth", .type = BLOBMSG_TYPE_INT32},
+    [CLIENT_TABLE_WEIGHT] = {.name = "ap_weight", .type = BLOBMSG_TYPE_INT32},
+    [CLIENT_TABLE_NEIGHBOR] = {.name = "neighbor_report", .type = BLOBMSG_TYPE_STRING},
+    [CLIENT_TABLE_IFACE] = {.name = "iface", .type = BLOBMSG_TYPE_STRING},
+    [CLIENT_TABLE_HOSTNAME] = {.name = "hostname", .type = BLOBMSG_TYPE_STRING},
 };
 
 enum {
@@ -110,28 +109,28 @@ enum {
 };
 
 static const struct blobmsg_policy client_policy[__CLIENT_MAX] = {
-        [CLIENT_SIGNATURE] = {.name = "signature", .type = BLOBMSG_TYPE_STRING},
-        [CLIENT_AUTH] = {.name = "auth", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_ASSOC] = {.name = "assoc", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_AUTHORIZED] = {.name = "authorized", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_PREAUTH] = {.name = "preauth", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_WDS] = {.name = "wds", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_WMM] = {.name = "wmm", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_HT] = {.name = "ht", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_VHT] = {.name = "vht", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_WPS] = {.name = "wps", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_MFP] = {.name = "mfp", .type = BLOBMSG_TYPE_INT8},
-        [CLIENT_AID] = {.name = "aid", .type = BLOBMSG_TYPE_INT32},
-        [CLIENT_RRM] = {.name = "rrm", .type = BLOBMSG_TYPE_ARRAY},
+    [CLIENT_SIGNATURE] = {.name = "signature", .type = BLOBMSG_TYPE_STRING},
+    [CLIENT_AUTH] = {.name = "auth", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_ASSOC] = {.name = "assoc", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_AUTHORIZED] = {.name = "authorized", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_PREAUTH] = {.name = "preauth", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_WDS] = {.name = "wds", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_WMM] = {.name = "wmm", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_HT] = {.name = "ht", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_VHT] = {.name = "vht", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_WPS] = {.name = "wps", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_MFP] = {.name = "mfp", .type = BLOBMSG_TYPE_INT8},
+    [CLIENT_AID] = {.name = "aid", .type = BLOBMSG_TYPE_INT32},
+    [CLIENT_RRM] = {.name = "rrm", .type = BLOBMSG_TYPE_ARRAY},
 };
 
-static int handle_set_probe(struct blob_attr* msg);
+static int handle_set_probe(struct blob_attr *msg);
 
-static int handle_uci_config(struct blob_attr* msg);
+static int handle_uci_config(struct blob_attr *msg);
 
-
-int parse_to_hostapd_notify(struct blob_attr* msg, hostapd_notify_entry* notify_req) {
-    struct blob_attr* tb[__HOSTAPD_NOTIFY_MAX];
+int parse_to_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_req)
+{
+    struct blob_attr *tb[__HOSTAPD_NOTIFY_MAX];
 
     blobmsg_parse(hostapd_notify_policy, __HOSTAPD_NOTIFY_MAX, tb, blob_data(msg), blob_len(msg));
 
@@ -144,32 +143,29 @@ int parse_to_hostapd_notify(struct blob_attr* msg, hostapd_notify_entry* notify_
     return 0;
 }
 
-probe_entry *parse_to_probe_req(struct blob_attr* msg) {
-    struct blob_attr* tb[__PROB_MAX];
+probe_entry *parse_to_probe_req(struct blob_attr *msg)
+{
+    struct blob_attr *tb[__PROB_MAX];
 
-    probe_entry* prob_req = dawn_malloc(sizeof(probe_entry));
-    if (prob_req == NULL)
-    {
+    probe_entry *prob_req = dawn_malloc(sizeof(probe_entry));
+    if (prob_req == NULL) {
         fprintf(stderr, "dawn_malloc of probe_entry failed!\n");
         return NULL;
     }
 
     blobmsg_parse(prob_policy, __PROB_MAX, tb, blob_data(msg), blob_len(msg));
 
-    if (hwaddr_aton(blobmsg_data(tb[PROB_BSSID_ADDR]), prob_req->bssid_addr.u8))
-    {
+    if (hwaddr_aton(blobmsg_data(tb[PROB_BSSID_ADDR]), prob_req->bssid_addr.u8)) {
         dawn_free(prob_req);
         return NULL;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[PROB_CLIENT_ADDR]), prob_req->client_addr.u8))
-    {
+    if (hwaddr_aton(blobmsg_data(tb[PROB_CLIENT_ADDR]), prob_req->client_addr.u8)) {
         dawn_free(prob_req);
         return NULL;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[PROB_TARGET_ADDR]), prob_req->target_addr.u8))
-    {
+    if (hwaddr_aton(blobmsg_data(tb[PROB_TARGET_ADDR]), prob_req->target_addr.u8)) {
         dawn_free(prob_req);
         return NULL;
     }
@@ -199,30 +195,29 @@ probe_entry *parse_to_probe_req(struct blob_attr* msg) {
     if (tb[PROB_HT_CAPABILITIES]) {
         prob_req->ht_capabilities = true;
     }
-    else
-    {
+    else {
         prob_req->ht_capabilities = false;
     }
 
     if (tb[PROB_VHT_CAPABILITIES]) {
         prob_req->vht_capabilities = true;
     }
-    else
-    {
+    else {
         prob_req->vht_capabilities = false;
     }
 
     return prob_req;
 }
 
-int handle_deauth_req(struct blob_attr* msg) {
+int handle_deauth_req(struct blob_attr *msg)
+{
 
     hostapd_notify_entry notify_req;
     parse_to_hostapd_notify(msg, &notify_req);
 
     pthread_mutex_lock(&client_array_mutex);
 
-    client* client_entry = client_array_get_client(notify_req.client_addr);
+    client *client_entry = client_array_get_client(notify_req.client_addr);
     if (client_entry != NULL)
         client_array_delete(client_entry, false);
 
@@ -233,7 +228,8 @@ int handle_deauth_req(struct blob_attr* msg) {
     return 0;
 }
 
-static int handle_set_probe(struct blob_attr* msg) {
+static int handle_set_probe(struct blob_attr *msg)
+{
 
     hostapd_notify_entry notify_req;
     parse_to_hostapd_notify(msg, &notify_req);
@@ -243,10 +239,11 @@ static int handle_set_probe(struct blob_attr* msg) {
     return 0;
 }
 
-int handle_network_msg(char* msg) {
-    struct blob_attr* tb[__NETWORK_MAX];
-    char* method;
-    char* data;
+int handle_network_msg(char *msg)
+{
+    struct blob_attr *tb[__NETWORK_MAX];
+    char *method;
+    char *data;
 
     blob_buf_init(&network_buf, 0);
     blobmsg_add_json_from_string(&network_buf, msg);
@@ -279,7 +276,7 @@ int handle_network_msg(char* msg) {
 
     // add inactive death...
 
-// TODO: strncmp() look wrong - should all tests be for n = 5 characters? Shorthand checks?
+    // TODO: strncmp() look wrong - should all tests be for n = 5 characters? Shorthand checks?
     if (strncmp(method, "probe", 5) == 0) {
         probe_entry *entry = parse_to_probe_req(data_buf.head);
         if (entry != NULL) {
@@ -320,20 +317,19 @@ int handle_network_msg(char* msg) {
         //probe_entry entry; // for now just stay at probe entry stuff...
         //parse_to_beacon_rep(data_buf.head, &entry, true);
     }
-    else
-    {
+    else {
         printf("No method fonud for: %s\n", method);
     }
 
     return 0;
 }
 
-static uint8_t dump_rrm_data(void* data, int len, int type) //modify from examples/blobmsg-example.c in libubox
+static uint8_t dump_rrm_data(void *data, int len, int type) //modify from examples/blobmsg-example.c in libubox
 {
     uint32_t ret = 0;
     switch (type) {
     case BLOBMSG_TYPE_INT32:
-        ret = *(uint32_t*)data;
+        ret = *(uint32_t *)data;
         break;
     default:
         fprintf(stderr, "wrong type of rrm array\n");
@@ -342,25 +338,26 @@ static uint8_t dump_rrm_data(void* data, int len, int type) //modify from exampl
 }
 
 static uint8_t
-dump_rrm_table(struct blob_attr* head, int len) //modify from examples/blobmsg-example.c in libubox
+dump_rrm_table(struct blob_attr *head, int len) //modify from examples/blobmsg-example.c in libubox
 {
-    struct blob_attr* attr;
+    struct blob_attr *attr;
     uint8_t ret = 0;
 
-    __blob_for_each_attr(attr, head, len) {
+    __blob_for_each_attr(attr, head, len)
+    {
         ret = dump_rrm_data(blobmsg_data(attr), blobmsg_data_len(attr), blob_id(attr));
-        return ret;// get the first rrm byte
+        return ret; // get the first rrm byte
     }
     return ret;
 }
 
 // TOOD: Refactor this!
 static void
-dump_client(struct blob_attr** tb, struct dawn_mac client_addr, const char* bssid_addr, uint32_t freq, uint8_t ht_supported,
-    uint8_t vht_supported) {
+dump_client(struct blob_attr **tb, struct dawn_mac client_addr, const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
+            uint8_t vht_supported)
+{
     client *client_entry = dawn_malloc(sizeof(struct client_s));
-    if (client_entry == NULL)
-    {
+    if (client_entry == NULL) {
         // MUSTDO: Error handling?
         return;
     }
@@ -407,8 +404,8 @@ dump_client(struct blob_attr** tb, struct dawn_mac client_addr, const char* bssi
     /* RRM Caps */
     if (tb[CLIENT_RRM]) {
         client_entry->rrm_enabled_capa = dump_rrm_table(blobmsg_data(tb[CLIENT_RRM]),
-            blobmsg_data_len(tb[CLIENT_RRM]));// get the first byte from rrm array
-//ap_entry.ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_RRM]);
+                                                        blobmsg_data_len(tb[CLIENT_RRM])); // get the first byte from rrm array
+                                                                                           //ap_entry.ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_RRM]);
     }
     else {
         client_entry->rrm_enabled_capa = 0;
@@ -419,8 +416,7 @@ dump_client(struct blob_attr** tb, struct dawn_mac client_addr, const char* bssi
     if (tb[CLIENT_SIGNATURE]) {
         strncpy(client_entry->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN * sizeof(char));
     }
-    else
-    {
+    else {
         memset(client_entry->signature, 0, SIGNATURE_LEN);
     }
 
@@ -432,23 +428,24 @@ dump_client(struct blob_attr** tb, struct dawn_mac client_addr, const char* bssi
 }
 
 static int
-dump_client_table(struct blob_attr* head, int len, const char* bssid_addr, uint32_t freq, uint8_t ht_supported,
-    uint8_t vht_supported) {
-    struct blob_attr* attr;
-    struct blobmsg_hdr* hdr;
+dump_client_table(struct blob_attr *head, int len, const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
+                  uint8_t vht_supported)
+{
+    struct blob_attr *attr;
+    struct blobmsg_hdr *hdr;
     int station_count = 0;
 
     __blob_for_each_attr(attr, head, len)
     {
         hdr = blob_data(attr);
 
-        struct blob_attr* tb[__CLIENT_MAX];
+        struct blob_attr *tb[__CLIENT_MAX];
         blobmsg_parse(client_policy, __CLIENT_MAX, tb, blobmsg_data(attr), blobmsg_len(attr));
         //char* str = blobmsg_format_json_indent(attr, true, -1);
 
         int tmp_int_mac[ETH_ALEN];
         struct dawn_mac tmp_mac;
-        sscanf((char*)hdr->name, MACSTR, STR2MAC(tmp_int_mac));
+        sscanf((char *)hdr->name, MACSTR, STR2MAC(tmp_int_mac));
         for (int i = 0; i < ETH_ALEN; ++i)
             tmp_mac.u8[i] = (uint8_t)tmp_int_mac[i];
 
@@ -458,8 +455,9 @@ dump_client_table(struct blob_attr* head, int len, const char* bssid_addr, uint3
     return station_count;
 }
 
-int parse_to_clients(struct blob_attr* msg, int do_kick, uint32_t id) {
-    struct blob_attr* tb[__CLIENT_TABLE_MAX];
+int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id)
+{
+    struct blob_attr *tb[__CLIENT_TABLE_MAX];
 
     if (!msg) {
         return -1;
@@ -478,8 +476,8 @@ int parse_to_clients(struct blob_attr* msg, int do_kick, uint32_t id) {
     if (tb[CLIENT_TABLE] && tb[CLIENT_TABLE_BSSID] && tb[CLIENT_TABLE_FREQ]) {
         int num_stations = 0;
         num_stations = dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
-            blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
-            blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
+                                         blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
+                                         blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
         ap *ap_entry = dawn_malloc(sizeof(struct ap_s));
         hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid_addr.u8);
         ap_entry->freq = blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]);
@@ -494,8 +492,7 @@ int parse_to_clients(struct blob_attr* msg, int do_kick, uint32_t id) {
         if (tb[CLIENT_TABLE_VHT]) {
             ap_entry->vht_support = blobmsg_get_u8(tb[CLIENT_TABLE_VHT]);
         }
-        else
-        {
+        else {
             ap_entry->vht_support = false;
         }
 
@@ -508,7 +505,7 @@ int parse_to_clients(struct blob_attr* msg, int do_kick, uint32_t id) {
         }
 
         if (tb[CLIENT_TABLE_SSID]) {
-            strcpy((char*)ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
+            strcpy((char *)ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
         }
 
         if (tb[CLIENT_TABLE_COL_DOMAIN]) {
@@ -533,7 +530,6 @@ int parse_to_clients(struct blob_attr* msg, int do_kick, uint32_t id) {
         else {
             ap_entry->ap_weight = 0;
         }
-
 
         if (tb[CLIENT_TABLE_NEIGHBOR]) {
             strncpy(ap_entry->neighbor_report, blobmsg_get_string(tb[CLIENT_TABLE_NEIGHBOR]), NEIGHBOR_REPORT_LEN);
@@ -621,62 +617,62 @@ enum {
 };
 
 static const struct blobmsg_policy uci_table_policy[__UCI_TABLE_MAX] = {
-        [UCI_TABLE_METRIC] = {.name = "metric", .type = BLOBMSG_TYPE_TABLE},
-        [UCI_TABLE_TIMES] = {.name = "times", .type = BLOBMSG_TYPE_TABLE}
-};
+    [UCI_TABLE_METRIC] = {.name = "metric", .type = BLOBMSG_TYPE_TABLE},
+    [UCI_TABLE_TIMES] = {.name = "times", .type = BLOBMSG_TYPE_TABLE}};
 
 static const struct blobmsg_policy uci_metric_policy[__UCI_METIC_MAX] = {
-        [UCI_HT_SUPPORT] = {.name = "ht_support", .type = BLOBMSG_TYPE_INT32},
-        [UCI_VHT_SUPPORT] = {.name = "vht_support", .type = BLOBMSG_TYPE_INT32},
-        [UCI_NO_HT_SUPPORT] = {.name = "no_ht_support", .type = BLOBMSG_TYPE_INT32},
-        [UCI_NO_VHT_SUPPORT] = {.name = "no_vht_support", .type = BLOBMSG_TYPE_INT32},
-        [UCI_RSSI] = {.name = "rssi", .type = BLOBMSG_TYPE_INT32},
-        [UCI_LOW_RSSI] = {.name = "low_rssi", .type = BLOBMSG_TYPE_INT32},
-        [UCI_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
-        [UCI_CHAN_UTIL] = {.name = "chan_util", .type = BLOBMSG_TYPE_INT32},
-        [UCI_MAX_CHAN_UTIL] = {.name = "max_chan_util", .type = BLOBMSG_TYPE_INT32},
-        [UCI_RSSI_VAL] = {.name = "rssi_val", .type = BLOBMSG_TYPE_INT32},
-        [UCI_LOW_RSSI_VAL] = {.name = "low_rssi_val", .type = BLOBMSG_TYPE_INT32},
-        [UCI_CHAN_UTIL_VAL] = {.name = "chan_util_val", .type = BLOBMSG_TYPE_INT32},
-        [UCI_MAX_CHAN_UTIL_VAL] = {.name = "max_chan_util_val", .type = BLOBMSG_TYPE_INT32},
-        [UCI_MIN_PROBE_COUNT] = {.name = "min_probe_count", .type = BLOBMSG_TYPE_INT32},
-        [UCI_BANDWIDTH_THRESHOLD] = {.name = "bandwidth_threshold", .type = BLOBMSG_TYPE_INT32},
-        [UCI_USE_STATION_COUNT] = {.name = "use_station_count", .type = BLOBMSG_TYPE_INT32},
-        [UCI_MAX_STATION_DIFF] = {.name = "max_station_diff", .type = BLOBMSG_TYPE_INT32},
-        [UCI_EVAL_PROBE_REQ] = {.name = "eval_probe_req", .type = BLOBMSG_TYPE_INT32},
-        [UCI_EVAL_AUTH_REQ] = {.name = "eval_auth_req", .type = BLOBMSG_TYPE_INT32},
-        [UCI_EVAL_ASSOC_REQ] = {.name = "eval_assoc_req", .type = BLOBMSG_TYPE_INT32},
-        [UCI_KICKING] = {.name = "kicking", .type = BLOBMSG_TYPE_INT32},
-        [UCI_DENY_AUTH_REASON] = {.name = "deny_auth_reason", .type = BLOBMSG_TYPE_INT32},
-        [UCI_DENY_ASSOC_REASON] = {.name = "deny_assoc_reason", .type = BLOBMSG_TYPE_INT32},
-        [UCI_USE_DRIVER_RECOG] = {.name = "use_driver_recog", .type = BLOBMSG_TYPE_INT32},
-        [UCI_MIN_NUMBER_TO_KICK] = {.name = "min_number_to_kick", .type = BLOBMSG_TYPE_INT32},
-        [UCI_CHAN_UTIL_AVG_PERIOD] = {.name = "chan_util_avg_period", .type = BLOBMSG_TYPE_INT32},
-        [UCI_SET_HOSTAPD_NR] = {.name = "set_hostapd_nr", .type = BLOBMSG_TYPE_INT32},
-        [UCI_OP_CLASS] = {.name = "op_class", .type = BLOBMSG_TYPE_INT32},
-        [UCI_DURATION] = {.name = "duration", .type = BLOBMSG_TYPE_INT32},
-        [UCI_MODE] = {.name = "mode", .type = BLOBMSG_TYPE_INT32},
-        [UCI_SCAN_CHANNEL] = {.name = "mode", .type = BLOBMSG_TYPE_INT32},
+    [UCI_HT_SUPPORT] = {.name = "ht_support", .type = BLOBMSG_TYPE_INT32},
+    [UCI_VHT_SUPPORT] = {.name = "vht_support", .type = BLOBMSG_TYPE_INT32},
+    [UCI_NO_HT_SUPPORT] = {.name = "no_ht_support", .type = BLOBMSG_TYPE_INT32},
+    [UCI_NO_VHT_SUPPORT] = {.name = "no_vht_support", .type = BLOBMSG_TYPE_INT32},
+    [UCI_RSSI] = {.name = "rssi", .type = BLOBMSG_TYPE_INT32},
+    [UCI_LOW_RSSI] = {.name = "low_rssi", .type = BLOBMSG_TYPE_INT32},
+    [UCI_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
+    [UCI_CHAN_UTIL] = {.name = "chan_util", .type = BLOBMSG_TYPE_INT32},
+    [UCI_MAX_CHAN_UTIL] = {.name = "max_chan_util", .type = BLOBMSG_TYPE_INT32},
+    [UCI_RSSI_VAL] = {.name = "rssi_val", .type = BLOBMSG_TYPE_INT32},
+    [UCI_LOW_RSSI_VAL] = {.name = "low_rssi_val", .type = BLOBMSG_TYPE_INT32},
+    [UCI_CHAN_UTIL_VAL] = {.name = "chan_util_val", .type = BLOBMSG_TYPE_INT32},
+    [UCI_MAX_CHAN_UTIL_VAL] = {.name = "max_chan_util_val", .type = BLOBMSG_TYPE_INT32},
+    [UCI_MIN_PROBE_COUNT] = {.name = "min_probe_count", .type = BLOBMSG_TYPE_INT32},
+    [UCI_BANDWIDTH_THRESHOLD] = {.name = "bandwidth_threshold", .type = BLOBMSG_TYPE_INT32},
+    [UCI_USE_STATION_COUNT] = {.name = "use_station_count", .type = BLOBMSG_TYPE_INT32},
+    [UCI_MAX_STATION_DIFF] = {.name = "max_station_diff", .type = BLOBMSG_TYPE_INT32},
+    [UCI_EVAL_PROBE_REQ] = {.name = "eval_probe_req", .type = BLOBMSG_TYPE_INT32},
+    [UCI_EVAL_AUTH_REQ] = {.name = "eval_auth_req", .type = BLOBMSG_TYPE_INT32},
+    [UCI_EVAL_ASSOC_REQ] = {.name = "eval_assoc_req", .type = BLOBMSG_TYPE_INT32},
+    [UCI_KICKING] = {.name = "kicking", .type = BLOBMSG_TYPE_INT32},
+    [UCI_DENY_AUTH_REASON] = {.name = "deny_auth_reason", .type = BLOBMSG_TYPE_INT32},
+    [UCI_DENY_ASSOC_REASON] = {.name = "deny_assoc_reason", .type = BLOBMSG_TYPE_INT32},
+    [UCI_USE_DRIVER_RECOG] = {.name = "use_driver_recog", .type = BLOBMSG_TYPE_INT32},
+    [UCI_MIN_NUMBER_TO_KICK] = {.name = "min_number_to_kick", .type = BLOBMSG_TYPE_INT32},
+    [UCI_CHAN_UTIL_AVG_PERIOD] = {.name = "chan_util_avg_period", .type = BLOBMSG_TYPE_INT32},
+    [UCI_SET_HOSTAPD_NR] = {.name = "set_hostapd_nr", .type = BLOBMSG_TYPE_INT32},
+    [UCI_OP_CLASS] = {.name = "op_class", .type = BLOBMSG_TYPE_INT32},
+    [UCI_DURATION] = {.name = "duration", .type = BLOBMSG_TYPE_INT32},
+    [UCI_MODE] = {.name = "mode", .type = BLOBMSG_TYPE_INT32},
+    [UCI_SCAN_CHANNEL] = {.name = "mode", .type = BLOBMSG_TYPE_INT32},
 };
 
 static const struct blobmsg_policy uci_times_policy[__UCI_TIMES_MAX] = {
-        [UCI_UPDATE_CLIENT] = {.name = "update_client", .type = BLOBMSG_TYPE_INT32},
-        [UCI_DENIED_REQ_THRESHOLD] = {.name = "denied_req_threshold", .type = BLOBMSG_TYPE_INT32},
-        [UCI_REMOVE_CLIENT] = {.name = "remove_client", .type = BLOBMSG_TYPE_INT32},
-        [UCI_REMOVE_PROBE] = {.name = "remove_probe", .type = BLOBMSG_TYPE_INT32},
-        [UCI_REMOVE_AP] = {.name = "remove_ap", .type = BLOBMSG_TYPE_INT32},
-        [UCI_UPDATE_HOSTAPD] = {.name = "update_hostapd", .type = BLOBMSG_TYPE_INT32},
-        [UCI_UPDATE_TCP_CON] = {.name = "update_tcp_con", .type = BLOBMSG_TYPE_INT32},
-        [UCI_UPDATE_CHAN_UTIL] = {.name = "update_chan_util", .type = BLOBMSG_TYPE_INT32},
-        [UCI_UPDATE_BEACON_REPORTS] = {.name = "update_beacon_reports", .type = BLOBMSG_TYPE_INT32},
+    [UCI_UPDATE_CLIENT] = {.name = "update_client", .type = BLOBMSG_TYPE_INT32},
+    [UCI_DENIED_REQ_THRESHOLD] = {.name = "denied_req_threshold", .type = BLOBMSG_TYPE_INT32},
+    [UCI_REMOVE_CLIENT] = {.name = "remove_client", .type = BLOBMSG_TYPE_INT32},
+    [UCI_REMOVE_PROBE] = {.name = "remove_probe", .type = BLOBMSG_TYPE_INT32},
+    [UCI_REMOVE_AP] = {.name = "remove_ap", .type = BLOBMSG_TYPE_INT32},
+    [UCI_UPDATE_HOSTAPD] = {.name = "update_hostapd", .type = BLOBMSG_TYPE_INT32},
+    [UCI_UPDATE_TCP_CON] = {.name = "update_tcp_con", .type = BLOBMSG_TYPE_INT32},
+    [UCI_UPDATE_CHAN_UTIL] = {.name = "update_chan_util", .type = BLOBMSG_TYPE_INT32},
+    [UCI_UPDATE_BEACON_REPORTS] = {.name = "update_beacon_reports", .type = BLOBMSG_TYPE_INT32},
 };
 
-static int handle_uci_config(struct blob_attr* msg) {
+static int handle_uci_config(struct blob_attr *msg)
+{
 
-    struct blob_attr* tb[__UCI_TABLE_MAX];
+    struct blob_attr *tb[__UCI_TABLE_MAX];
     blobmsg_parse(uci_table_policy, __UCI_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
 
-    struct blob_attr* tb_metric[__UCI_METIC_MAX];
+    struct blob_attr *tb_metric[__UCI_METIC_MAX];
     blobmsg_parse(uci_metric_policy, __UCI_METIC_MAX, tb_metric, blobmsg_data(tb[UCI_TABLE_METRIC]), blobmsg_len(tb[UCI_TABLE_METRIC]));
 
     // TODO: Magic number?
@@ -774,7 +770,7 @@ static int handle_uci_config(struct blob_attr* msg) {
     sprintf(cmd_buffer, "dawn.@metric[0].scan_channel=%d", blobmsg_get_u32(tb_metric[UCI_SCAN_CHANNEL]));
     uci_set_network(cmd_buffer);
 
-    struct blob_attr* tb_times[__UCI_TIMES_MAX];
+    struct blob_attr *tb_times[__UCI_TIMES_MAX];
     blobmsg_parse(uci_times_policy, __UCI_TIMES_MAX, tb_times, blobmsg_data(tb[UCI_TABLE_TIMES]), blobmsg_len(tb[UCI_TABLE_TIMES]));
 
     sprintf(cmd_buffer, "dawn.@times[0].update_client=%d", blobmsg_get_u32(tb_times[UCI_UPDATE_CLIENT]));

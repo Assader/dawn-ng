@@ -1,11 +1,11 @@
-#include <libubox/usock.h>
 #include <arpa/inet.h>
 #include <inttypes.h>
+#include <libubox/usock.h>
 
-#include "memory_utils.h"
-#include "msghandler.h"
 #include "crypto.h"
 #include "datastorage.h"
+#include "memory_utils.h"
+#include "msghandler.h"
 #include "tcpsocket.h"
 
 #define STR_EVAL(x) #x
@@ -32,14 +32,14 @@ struct client {
     struct ustream_fd s;
     int ctr;
     int counter;
-    char *str; // message buffer
+    char *str;                     // message buffer
     enum socket_read_status state; // messge read state
-    uint32_t final_len; // full message length
-    uint32_t curr_len; // bytes read so far
+    uint32_t final_len;            // full message length
+    uint32_t curr_len;             // bytes read so far
 };
 
-
-static void client_close(struct ustream *s) {
+static void client_close(struct ustream *s)
+{
     struct client *cl = container_of(s, struct client, s.stream);
 
     fprintf(stderr, "Connection closed\n");
@@ -48,13 +48,15 @@ static void client_close(struct ustream *s) {
     dawn_free(cl);
 }
 
-static void client_notify_write(struct ustream *s, int bytes) {
+static void client_notify_write(struct ustream *s, int bytes)
+{
     return;
 }
 
-static void client_notify_state(struct ustream *s) {
+static void client_notify_state(struct ustream *s)
+{
     struct client *cl = container_of(s,
-    struct client, s.stream);
+                                     struct client, s.stream);
 
     if (!s->eof)
         return;
@@ -63,12 +65,12 @@ static void client_notify_state(struct ustream *s) {
 
     if (!s->w.data_bytes)
         return client_close(s);
-
 }
 
-static void client_to_server_close(struct ustream *s) {
+static void client_to_server_close(struct ustream *s)
+{
     struct network_con_s *con = container_of(s,
-    struct network_con_s, stream.stream);
+                                             struct network_con_s, stream.stream);
 
     fprintf(stderr, "Connection to server closed\n");
     ustream_free(s);
@@ -77,9 +79,10 @@ static void client_to_server_close(struct ustream *s) {
     dawn_free(con);
 }
 
-static void client_to_server_state(struct ustream *s) {
+static void client_to_server_state(struct ustream *s)
+{
     struct client *cl = container_of(s,
-    struct client, s.stream);
+                                     struct client, s.stream);
 
     if (!s->eof)
         return;
@@ -88,26 +91,25 @@ static void client_to_server_state(struct ustream *s) {
 
     if (!s->w.data_bytes)
         return client_to_server_close(s);
-
 }
 
-static void client_read_cb(struct ustream *s, int bytes) {
+static void client_read_cb(struct ustream *s, int bytes)
+{
     struct client *cl = container_of(s, struct client, s.stream);
 
-    while(1) {
-        if (cl->state == READ_STATUS_READY)
-        {
+    while (1) {
+        if (cl->state == READ_STATUS_READY) {
             printf("tcp_socket: commencing message...\n");
             uint32_t min_len = sizeof(uint32_t); // big enough to get msg length
             cl->str = dawn_malloc(HEADER_SIZE);
             if (!cl->str) {
-                fprintf(stderr,"not enough memory (" STR_QUOTE(__LINE__) ")\n");
+                fprintf(stderr, "not enough memory (" STR_QUOTE(__LINE__) ")\n");
                 break;
             }
 
             uint32_t avail_len = ustream_pending_data(s, false);
 
-            if (avail_len < HEADER_SIZE){//ensure recv sizeof(uint32_t)
+            if (avail_len < HEADER_SIZE) { //ensure recv sizeof(uint32_t)
                 printf("not complete msg, len:%d, expected len:%u\n", avail_len, min_len);
                 dawn_free(cl->str);
                 cl->str = NULL;
@@ -116,7 +118,7 @@ static void client_read_cb(struct ustream *s, int bytes) {
 
             if (ustream_read(s, cl->str, HEADER_SIZE) != HEADER_SIZE) // read msg length bytes
             {
-                fprintf(stdout,"msg length read failed\n");
+                fprintf(stdout, "msg length read failed\n");
                 dawn_free(cl->str);
                 cl->str = NULL;
                 break;
@@ -129,7 +131,7 @@ static void client_read_cb(struct ustream *s, int bytes) {
             // remains valid and may need to be deallocated.
             char *str_tmp = dawn_realloc(cl->str, cl->final_len);
             if (!str_tmp) {
-                fprintf(stderr,"not enough memory (%" PRIu32 " @ " STR_QUOTE(__LINE__) ")\n", cl->final_len);
+                fprintf(stderr, "not enough memory (%" PRIu32 " @ " STR_QUOTE(__LINE__) ")\n", cl->final_len);
                 dawn_free(cl->str);
                 cl->str = NULL;
                 break;
@@ -140,8 +142,7 @@ static void client_read_cb(struct ustream *s, int bytes) {
             cl->state = READ_STATUS_COMMENCED;
         }
 
-        if (cl->state == READ_STATUS_COMMENCED)
-        {
+        if (cl->state == READ_STATUS_COMMENCED) {
             printf("tcp_socket: reading message...\n");
             uint32_t read_len = ustream_pending_data(s, false);
 
@@ -149,36 +150,36 @@ static void client_read_cb(struct ustream *s, int bytes) {
                 break;
 
             if (read_len > (cl->final_len - cl->curr_len))
-                    read_len = cl->final_len - cl->curr_len;
+                read_len = cl->final_len - cl->curr_len;
 
             printf("tcp_socket: reading %" PRIu32 " bytes to add to %" PRIu32 " of %" PRIu32 "...\n",
-                    read_len, cl->curr_len, cl->final_len);
+                   read_len, cl->curr_len, cl->final_len);
 
             uint32_t this_read = ustream_read(s, cl->str + cl->curr_len, read_len);
             cl->curr_len += this_read;
             printf("tcp_socket: ...and we're back, now have %" PRIu32 " bytes\n", cl->curr_len);
-            if (cl->curr_len == cl->final_len){//ensure recv final_len bytes.
+            if (cl->curr_len == cl->final_len) { //ensure recv final_len bytes.
                 // Full message now received
                 cl->state = READ_STATUS_COMPLETE;
                 printf("tcp_socket: message completed\n");
             }
         }
 
-        if (cl->state == READ_STATUS_COMPLETE)
-        {
+        if (cl->state == READ_STATUS_COMPLETE) {
             printf("tcp_socket: processing message...\n");
             if (network_config.use_symm_enc) {
-                char *dec = gcrypt_decrypt_msg(cl->str + HEADER_SIZE, cl->final_len - HEADER_SIZE);//len of str is final_len
+                char *dec = gcrypt_decrypt_msg(cl->str + HEADER_SIZE, cl->final_len - HEADER_SIZE); //len of str is final_len
                 if (!dec) {
-                    fprintf(stderr,"not enough memory (" STR_QUOTE(__LINE__) ")\n");
+                    fprintf(stderr, "not enough memory (" STR_QUOTE(__LINE__) ")\n");
                     dawn_free(cl->str);
                     cl->str = NULL;
                     break;
                 }
                 handle_network_msg(dec);
                 dawn_free(dec);
-            } else {
-                handle_network_msg(cl->str + HEADER_SIZE);//len of str is final_len
+            }
+            else {
+                handle_network_msg(cl->str + HEADER_SIZE); //len of str is final_len
             }
 
             cl->state = READ_STATUS_READY;
@@ -194,7 +195,8 @@ static void client_read_cb(struct ustream *s, int bytes) {
     return;
 }
 
-static void server_cb(struct uloop_fd *fd, unsigned int events) {
+static void server_cb(struct uloop_fd *fd, unsigned int events)
+{
     struct client *cl; //MUSTDO: check free() of this
     unsigned int sl = sizeof(struct sockaddr_in);
     int sfd;
@@ -204,7 +206,7 @@ static void server_cb(struct uloop_fd *fd, unsigned int events) {
 
     cl = next_client;
 
-    sfd = accept(server.fd, (struct sockaddr *) &cl->sin, &sl);
+    sfd = accept(server.fd, (struct sockaddr *)&cl->sin, &sl);
     if (sfd < 0) {
         fprintf(stderr, "Accept failed\n");
         return;
@@ -215,11 +217,12 @@ static void server_cb(struct uloop_fd *fd, unsigned int events) {
     cl->s.stream.notify_state = client_notify_state;
     cl->s.stream.notify_write = client_notify_write;
     ustream_fd_init(&cl->s, sfd);
-    next_client = NULL;  // TODO: Why is this here?  To avoid resetting if above return happens?
+    next_client = NULL; // TODO: Why is this here?  To avoid resetting if above return happens?
     fprintf(stderr, "New connection\n");
 }
 
-int run_server(int port) {
+int run_server(int port)
+{
     printf("Adding socket!\n");
     char port_str[12];
     sprintf(port_str, "%d", port);
@@ -236,7 +239,8 @@ int run_server(int port) {
     return 0;
 }
 
-static void client_not_be_used_read_cb(struct ustream *s, int bytes) {
+static void client_not_be_used_read_cb(struct ustream *s, int bytes)
+{
     int len;
     char buf[2048];
 
@@ -245,7 +249,8 @@ static void client_not_be_used_read_cb(struct ustream *s, int bytes) {
     printf("Read %d bytes from SSL connection: %s\n", len, buf);
 }
 
-static void connect_cb(struct uloop_fd *f, unsigned int events) {
+static void connect_cb(struct uloop_fd *f, unsigned int events)
+{
 
     struct network_con_s *entry = container_of(f, struct network_con_s, fd);
 
@@ -267,7 +272,8 @@ static void connect_cb(struct uloop_fd *f, unsigned int events) {
     entry->connected = 1;
 }
 
-int add_tcp_conncection(char *ipv4, int port) {
+int add_tcp_conncection(char *ipv4, int port)
+{
     struct sockaddr_in serv_addr;
 
     char port_str[12];
@@ -280,10 +286,10 @@ int add_tcp_conncection(char *ipv4, int port) {
 
     struct network_con_s *tmp = tcp_list_contains_address(serv_addr);
     if (tmp != NULL) {
-        if(tmp->connected == true)
-        {
+        if (tmp->connected == true) {
             return 0;
-        } else{
+        }
+        else {
             // Delete already existing entry
             close(tmp->fd.fd);
             list_del(&tmp->list);
@@ -308,35 +314,36 @@ int add_tcp_conncection(char *ipv4, int port) {
     return 0;
 }
 
-void send_tcp(char *msg) {
+void send_tcp(char *msg)
+{
     print_tcp_array();
     struct network_con_s *con, *tmp;
     if (network_config.use_symm_enc) {
         int length_enc;
-        size_t msglen = strlen(msg)+1;
+        size_t msglen = strlen(msg) + 1;
         char *enc = gcrypt_encrypt_msg(msg, msglen, &length_enc);
-        if (!enc){
+        if (!enc) {
             fprintf(stderr, "Ustream error: not enought memory (" STR_QUOTE(__LINE__) ")\n");
             return;
         }
 
         uint32_t final_len = length_enc + sizeof(final_len);
         char *final_str = dawn_malloc(final_len);
-        if (!final_str){
+        if (!final_str) {
             dawn_free(enc);
             fprintf(stderr, "Ustream error: not enought memory (" STR_QUOTE(__LINE__) ")\n");
             return;
         }
         uint32_t *msg_header = (uint32_t *)final_str;
         *msg_header = htonl(final_len);
-        memcpy(final_str+sizeof(final_len), enc, length_enc);
+        memcpy(final_str + sizeof(final_len), enc, length_enc);
         list_for_each_entry_safe(con, tmp, &tcp_sock_list, list)
         {
             if (con->connected) {
                 int len_ustream = ustream_write(&con->stream.stream, final_str, final_len, 0);
                 printf("Ustream send: %d\n", len_ustream);
                 if (len_ustream <= 0) {
-                    fprintf(stderr,"Ustream error(" STR_QUOTE(__LINE__) ")!\n");
+                    fprintf(stderr, "Ustream error(" STR_QUOTE(__LINE__) ")!\n");
                     //ERROR HANDLING!
                     if (con->stream.stream.write_error) {
                         ustream_free(&con->stream.stream);
@@ -346,22 +353,22 @@ void send_tcp(char *msg) {
                     }
                 }
             }
-
         }
 
         dawn_free(final_str);
         dawn_free(enc);
-    } else {
+    }
+    else {
         size_t msglen = strlen(msg) + 1;
         uint32_t final_len = msglen + sizeof(final_len);
         char *final_str = dawn_malloc(final_len);
-        if (!final_str){
+        if (!final_str) {
             fprintf(stderr, "Ustream error: not enought memory (" STR_QUOTE(__LINE__) ")\n");
             return;
         }
         uint32_t *msg_header = (uint32_t *)final_str;
         *msg_header = htonl(final_len);
-        memcpy(final_str+sizeof(final_len), msg, msglen);
+        memcpy(final_str + sizeof(final_len), msg, msglen);
 
         list_for_each_entry_safe(con, tmp, &tcp_sock_list, list)
         {
@@ -370,7 +377,7 @@ void send_tcp(char *msg) {
                 printf("Ustream send: %d\n", len_ustream);
                 if (len_ustream <= 0) {
                     //ERROR HANDLING!
-                    fprintf(stderr,"Ustream error(" STR_QUOTE(__LINE__) ")!\n");
+                    fprintf(stderr, "Ustream error(" STR_QUOTE(__LINE__) ")!\n");
                     if (con->stream.stream.write_error) {
                         ustream_free(&con->stream.stream);
                         close(con->fd.fd);
@@ -384,20 +391,21 @@ void send_tcp(char *msg) {
     }
 }
 
-struct network_con_s* tcp_list_contains_address(struct sockaddr_in entry) {
+struct network_con_s *tcp_list_contains_address(struct sockaddr_in entry)
+{
     struct network_con_s *con;
 
     list_for_each_entry(con, &tcp_sock_list, list)
     {
-        if(entry.sin_addr.s_addr == con->sock_addr.sin_addr.s_addr)
-        {
+        if (entry.sin_addr.s_addr == con->sock_addr.sin_addr.s_addr) {
             return con;
         }
     }
     return NULL;
 }
 
-void print_tcp_array() {
+void print_tcp_array()
+{
     struct network_con_s *con;
 
     printf("--------Connections------\n");

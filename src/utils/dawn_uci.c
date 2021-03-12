@@ -1,12 +1,11 @@
-#include <uci.h>
 #include <stdlib.h>
 #include <string.h>
+#include <uci.h>
 
-#include "memory_utils.h"
 #include "datastorage.h"
 #include "dawn_iwinfo.h"
 #include "dawn_uci.h"
-
+#include "memory_utils.h"
 
 static struct uci_context *uci_ctx = NULL;
 static struct uci_package *uci_pkg = NULL;
@@ -14,35 +13,34 @@ static struct uci_package *uci_pkg = NULL;
 // why is this not included in uci lib...?!
 // found here: https://github.com/br101/pingcheck/blob/master/uci.c
 static int uci_lookup_option_int(struct uci_context *uci, struct uci_section *s,
-                                 const char *name) {
+                                 const char *name)
+{
     const char *str = uci_lookup_option_string(uci, s, name);
     return str == NULL ? -1 : atoi(str);
 }
 
-void uci_get_hostname(char* hostname)
+void uci_get_hostname(char *hostname)
 {
-    char path[]= "system.@system[0].hostname";
-    struct  uci_ptr ptr;
-    struct  uci_context *c = uci_alloc_context();
+    char path[] = "system.@system[0].hostname";
+    struct uci_ptr ptr;
+    struct uci_context *c = uci_alloc_context();
     dawn_regmem(c);
 
-    if(!c){
+    if (!c) {
         return;
     }
 
-    if ((uci_lookup_ptr(c, &ptr, path, true) != UCI_OK) || (ptr.o==NULL || ptr.o->v.string==NULL)){
+    if ((uci_lookup_ptr(c, &ptr, path, true) != UCI_OK) || (ptr.o == NULL || ptr.o->v.string == NULL)) {
         uci_free_context(c);
         dawn_unregmem(c);
         return;
     }
 
-    if(ptr.flags & UCI_LOOKUP_COMPLETE)
-    {
+    if (ptr.flags & UCI_LOOKUP_COMPLETE) {
         char *dot = strchr(ptr.o->v.string, '.');
         size_t len = HOST_NAME_MAX - 1;
 
-        if (dot && dot < ptr.o->v.string + len)
-        {
+        if (dot && dot < ptr.o->v.string + len) {
             len = dot - ptr.o->v.string;
         }
         snprintf(hostname, HOST_NAME_MAX, "%.*s", (int)len, ptr.o->v.string);
@@ -52,7 +50,8 @@ void uci_get_hostname(char* hostname)
     dawn_unregmem(c);
 }
 
-struct time_config_s uci_get_time_config() {
+struct time_config_s uci_get_time_config()
+{
     struct time_config_s ret;
 
     struct uci_element *e;
@@ -77,7 +76,8 @@ struct time_config_s uci_get_time_config() {
     return ret;
 }
 
-struct probe_metric_s uci_get_dawn_metric() {
+struct probe_metric_s uci_get_dawn_metric()
+{
     struct probe_metric_s ret;
 
     struct uci_element *e;
@@ -125,7 +125,8 @@ struct probe_metric_s uci_get_dawn_metric() {
     return ret;
 }
 
-struct network_config_s uci_get_dawn_network() {
+struct network_config_s uci_get_dawn_network()
+{
     struct network_config_s ret;
     memset(&ret, 0, sizeof(ret));
 
@@ -135,21 +136,21 @@ struct network_config_s uci_get_dawn_network() {
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "network") == 0) {
-            const char* str_broadcast = uci_lookup_option_string(uci_ctx, s, "broadcast_ip");
+            const char *str_broadcast = uci_lookup_option_string(uci_ctx, s, "broadcast_ip");
             strncpy(ret.broadcast_ip, str_broadcast, MAX_IP_LENGTH);
 
-            const char* str_server_ip = uci_lookup_option_string(uci_ctx, s, "server_ip");
-            if(str_server_ip)
+            const char *str_server_ip = uci_lookup_option_string(uci_ctx, s, "server_ip");
+            if (str_server_ip)
                 strncpy(ret.server_ip, str_server_ip, MAX_IP_LENGTH);
             else
                 ret.server_ip[0] = '\0';
 
             ret.broadcast_port = uci_lookup_option_int(uci_ctx, s, "broadcast_port");
 
-            const char* str_shared_key = uci_lookup_option_string(uci_ctx, s, "shared_key");
+            const char *str_shared_key = uci_lookup_option_string(uci_ctx, s, "shared_key");
             strncpy(ret.shared_key, str_shared_key, MAX_KEY_LENGTH);
 
-            const char* str_iv = uci_lookup_option_string(uci_ctx, s, "iv");
+            const char *str_iv = uci_lookup_option_string(uci_ctx, s, "iv");
             strncpy(ret.iv, str_iv, MAX_KEY_LENGTH);
 
             ret.network_option = uci_lookup_option_int(uci_ctx, s, "network_option");
@@ -164,14 +165,15 @@ struct network_config_s uci_get_dawn_network() {
     return ret;
 }
 
-bool uci_get_dawn_hostapd_dir() {
+bool uci_get_dawn_hostapd_dir()
+{
     struct uci_element *e;
     uci_foreach_element(&uci_pkg->sections, e)
     {
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "hostapd") == 0) {
-            const char* str = uci_lookup_option_string(uci_ctx, s, "hostapd_dir");
+            const char *str = uci_lookup_option_string(uci_ctx, s, "hostapd_dir");
             strncpy(hostapd_dir_glob, str, HOSTAPD_DIR_LEN);
             return true;
         }
@@ -179,14 +181,15 @@ bool uci_get_dawn_hostapd_dir() {
     return false;
 }
 
-bool uci_get_dawn_sort_order() {
+bool uci_get_dawn_sort_order()
+{
     struct uci_element *e;
     uci_foreach_element(&uci_pkg->sections, e)
     {
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "ordering") == 0) {
-            const char* str = uci_lookup_option_string(uci_ctx, s, "sort_order");
+            const char *str = uci_lookup_option_string(uci_ctx, s, "sort_order");
             strncpy(sort_string, str, SORT_LENGTH);
             return true;
         }
@@ -212,7 +215,8 @@ int uci_reset()
     return 0;
 }
 
-int uci_init() {
+int uci_init()
+{
     struct uci_context *ctx = uci_ctx;
 
     if (!ctx) {
@@ -221,12 +225,12 @@ int uci_init() {
         uci_ctx = ctx;
 
         ctx->flags &= ~UCI_FLAG_STRICT;
-    } else {
+    }
+    else {
         ctx->flags &= ~UCI_FLAG_STRICT;
         // shouldn't happen?
         uci_pkg = uci_lookup_package(ctx, "dawn");
-        if (uci_pkg)
-        {
+        if (uci_pkg) {
             uci_unload(ctx, uci_pkg);
             dawn_unregmem(uci_pkg);
             uci_pkg = NULL;
@@ -241,7 +245,8 @@ int uci_init() {
     return 1;
 }
 
-int uci_clear() {
+int uci_clear()
+{
     if (uci_pkg != NULL) {
         uci_unload(uci_ctx, uci_pkg);
         dawn_unregmem(uci_pkg);
@@ -254,11 +259,11 @@ int uci_clear() {
     return 1;
 }
 
-int uci_set_network(char* uci_cmd)
+int uci_set_network(char *uci_cmd)
 {
     struct uci_ptr ptr;
     int ret = UCI_OK;
-    struct uci_context *ctx  = uci_ctx;
+    struct uci_context *ctx = uci_ctx;
 
     if (!ctx) {
         ctx = uci_alloc_context();
@@ -273,7 +278,6 @@ int uci_set_network(char* uci_cmd)
     }
 
     ret = uci_set(ctx, &ptr);
-
 
     if (uci_lookup_ptr(ctx, &ptr, "dawn", 1) != UCI_OK) {
         return 1;

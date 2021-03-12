@@ -11,7 +11,7 @@
  * @param prob_req
  * @return
  */
-probe_entry *parse_to_probe_req(struct blob_attr* msg);
+probe_entry *parse_to_probe_req(struct blob_attr *msg);
 
 /**
  * Dump a client array into the database.
@@ -20,7 +20,7 @@ probe_entry *parse_to_probe_req(struct blob_attr* msg);
  * @param id - ubus id.
  * @return
  */
-int parse_to_clients(struct blob_attr* msg, int do_kick, uint32_t id);
+int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id);
 
 /**
  * Parse to hostapd notify.
@@ -32,16 +32,15 @@ int parse_to_clients(struct blob_attr* msg, int do_kick, uint32_t id);
  * @param notify_req
  * @return
  */
-int parse_to_hostapd_notify(struct blob_attr* msg, hostapd_notify_entry* notify_req);
+int parse_to_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_req);
 
 /**
  * Handle network messages.
  * @param msg
  * @return
  */
-int handle_network_msg(char* msg);
+int handle_network_msg(char *msg);
 
-
-int handle_deauth_req(struct blob_attr* msg);
+int handle_deauth_req(struct blob_attr *msg);
 
 #endif

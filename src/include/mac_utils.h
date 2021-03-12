@@ -15,9 +15,8 @@
 #endif
 
 // Simplify some handling of MAC addresses
-struct __attribute__((__packed__)) dawn_mac
-{
-        uint8_t u8[ETH_ALEN];
+struct __attribute__((__packed__)) dawn_mac {
+    uint8_t u8[ETH_ALEN];
 };
 
 // Compare a raw MAC address to 00:00:00:00:00:00
@@ -36,13 +35,13 @@ struct __attribute__((__packed__)) dawn_mac
  * @param addr
  * @return
  */
-int hwaddr_aton(const char* txt, uint8_t* addr);
+int hwaddr_aton(const char *txt, uint8_t *addr);
 
 /**
  * Write mac to a file.
  * @param path
  * @param addr
  */
-void write_mac_to_file(char* path, struct dawn_mac addr);
+void write_mac_to_file(char *path, struct dawn_mac addr);
 
 #endif

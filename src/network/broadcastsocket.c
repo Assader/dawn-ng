@@ -4,7 +4,8 @@
 
 #include "broadcastsocket.h"
 
-int setup_broadcast_socket(const char *_broadcast_ip, unsigned short _broadcast_port, struct sockaddr_in *addr) {
+int setup_broadcast_socket(const char *_broadcast_ip, unsigned short _broadcast_port, struct sockaddr_in *addr)
+{
     int sock;
     int broadcast_permission;
 
@@ -16,7 +17,7 @@ int setup_broadcast_socket(const char *_broadcast_ip, unsigned short _broadcast_
 
     // Allow broadcast
     broadcast_permission = 1;
-    if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (void *) &broadcast_permission,
+    if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (void *)&broadcast_permission,
                    sizeof(broadcast_permission)) < 0) {
         fprintf(stderr, "Failed to create socket.\n");
         return -1;
@@ -29,7 +30,7 @@ int setup_broadcast_socket(const char *_broadcast_ip, unsigned short _broadcast_
     addr->sin_port = htons(_broadcast_port);
 
     // Bind socket
-    while (bind(sock, (struct sockaddr *) addr, sizeof(*addr)) < 0) {
+    while (bind(sock, (struct sockaddr *)addr, sizeof(*addr)) < 0) {
         fprintf(stderr, "Binding socket failed!\n");
         sleep(1);
     }

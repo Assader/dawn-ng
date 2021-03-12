@@ -1,8 +1,8 @@
 #ifndef DAWN_UCI_H
 #define DAWN_UCI_H
 
-#include <time.h>
 #include <stdbool.h>
+#include <time.h>
 
 /**
  * Init uci. Call this function before using the other functions!
@@ -46,12 +46,12 @@ bool uci_get_dawn_hostapd_dir();
  */
 bool uci_get_dawn_sort_order();
 
-int uci_set_network(char* uci_cmd);
+int uci_set_network(char *uci_cmd);
 
 /**
  * Function that writes the hostname in the given char buffer.
 */
-void uci_get_hostname(char* hostname);
+void uci_get_hostname(char *hostname);
 
 int uci_reset();
 

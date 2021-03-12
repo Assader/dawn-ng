@@ -74,15 +74,15 @@ void uloop_add_data_cbs();
 
 int uci_send_via_network();
 
-int build_hearing_map_sort_client(struct blob_buf* b);
+int build_hearing_map_sort_client(struct blob_buf *b);
 
-int build_network_overview(struct blob_buf* b);
+int build_network_overview(struct blob_buf *b);
 
-int ap_get_nr(struct blob_buf* b, struct dawn_mac own_bssid_addr);
+int ap_get_nr(struct blob_buf *b, struct dawn_mac own_bssid_addr);
 
-int parse_add_mac_to_file(struct blob_attr* msg);
+int parse_add_mac_to_file(struct blob_attr *msg);
 
-int handle_auth_req(struct blob_attr* msg);
+int handle_auth_req(struct blob_attr *msg);
 
 /**
  * Send probe message via the network.
@@ -105,7 +105,7 @@ void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct da
  * @param method
  * @return
  */
-int send_blob_attr_via_network(struct blob_attr* msg, char* method);
+int send_blob_attr_via_network(struct blob_attr *msg, char *method);
 
 /**
  * Set client timer for updating the clients.
@@ -139,7 +139,7 @@ int send_set_probe(struct dawn_mac client_addr);
  * @param duration
  * @return - 0 = asynchronous (client has been told to remove itself, and caller should manage arrays); 1 = synchronous (caller should assume arrays are updated)
  */
-int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char* dest_ap, uint32_t duration);
+int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *dest_ap, uint32_t duration);
 
 /**
  * Send control message to all hosts to add the mac to a don't control list.

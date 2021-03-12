@@ -1,9 +1,9 @@
 #include <iwinfo.h>
 #include <limits.h>
 
-#include "mac_utils.h"
 #include "datastorage.h"
 #include "dawn_iwinfo.h"
+#include "mac_utils.h"
 
 #define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
 
@@ -17,11 +17,12 @@ int get_rssi(const char *ifname, struct dawn_mac client_addr);
 
 int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
 
-#define IWINFO_BUFSIZE    24 * 1024
+#define IWINFO_BUFSIZE 24 * 1024
 
-#define IWINFO_ESSID_MAX_SIZE    32
+#define IWINFO_ESSID_MAX_SIZE 32
 
-int compare_essid_iwinfo(struct dawn_mac bssid_addr, struct dawn_mac bssid_addr_to_compare) {
+int compare_essid_iwinfo(struct dawn_mac bssid_addr, struct dawn_mac bssid_addr_to_compare)
+{
     const struct iwinfo_ops *iw;
 
     char mac_buf[20];
@@ -31,7 +32,7 @@ int compare_essid_iwinfo(struct dawn_mac bssid_addr, struct dawn_mac bssid_addr_
 
     DIR *dirp;
     struct dirent *entry;
-    dirp = opendir(hostapd_dir_glob);  // error handling?
+    dirp = opendir(hostapd_dir_glob); // error handling?
     if (!dirp) {
         fprintf(stderr, "[COMPARE ESSID] Failed to open %s\n", hostapd_dir_glob);
         return 0;
@@ -85,11 +86,12 @@ int compare_essid_iwinfo(struct dawn_mac bssid_addr, struct dawn_mac bssid_addr_
     return -1;
 }
 
-int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_rate) {
+int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
+{
 
     DIR *dirp;
     struct dirent *entry;
-    dirp = opendir(hostapd_dir_glob);  // error handling?
+    dirp = opendir(hostapd_dir_glob); // error handling?
     if (!dirp) {
         fprintf(stderr, "[BANDWIDTH INFO] Failed to open %s\n", hostapd_dir_glob);
         return 0;
@@ -109,7 +111,8 @@ int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_
     return sucess;
 }
 
-int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate) {
+int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
+{
 
     int i, len;
     char buf[IWINFO_BUFSIZE];
@@ -123,14 +126,15 @@ int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rat
         fprintf(stdout, "No information available\n");
         iwinfo_finish();
         return 0;
-    } else if (len <= 0) {
+    }
+    else if (len <= 0) {
         fprintf(stdout, "No station connected\n");
         iwinfo_finish();
         return 0;
     }
 
     for (i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
-        e = (struct iwinfo_assoclist_entry *) &buf[i];
+        e = (struct iwinfo_assoclist_entry *)&buf[i];
 
         if (mac_is_equal(client_addr.u8, e->mac)) {
             *rx_rate = e->rx_rate.rate / 1000;
@@ -143,11 +147,12 @@ int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rat
     return 0;
 }
 
-int get_rssi_iwinfo(struct dawn_mac client_addr) {
+int get_rssi_iwinfo(struct dawn_mac client_addr)
+{
 
     DIR *dirp;
     struct dirent *entry;
-    dirp = opendir(hostapd_dir_glob);  // error handling?
+    dirp = opendir(hostapd_dir_glob); // error handling?
     if (!dirp) {
         fprintf(stderr, "[RSSI INFO] No hostapd sockets!\n");
         return INT_MIN;
@@ -166,7 +171,8 @@ int get_rssi_iwinfo(struct dawn_mac client_addr) {
     return rssi;
 }
 
-int get_rssi(const char *ifname, struct dawn_mac client_addr) {
+int get_rssi(const char *ifname, struct dawn_mac client_addr)
+{
 
     int i, len;
     char buf[IWINFO_BUFSIZE];
@@ -180,14 +186,15 @@ int get_rssi(const char *ifname, struct dawn_mac client_addr) {
         fprintf(stdout, "No information available\n");
         iwinfo_finish();
         return INT_MIN;
-    } else if (len <= 0) {
+    }
+    else if (len <= 0) {
         fprintf(stdout, "No station connected\n");
         iwinfo_finish();
         return INT_MIN;
     }
 
     for (i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
-        e = (struct iwinfo_assoclist_entry *) &buf[i];
+        e = (struct iwinfo_assoclist_entry *)&buf[i];
 
         if (mac_is_equal(client_addr.u8, e->mac)) {
             iwinfo_finish();
@@ -199,11 +206,12 @@ int get_rssi(const char *ifname, struct dawn_mac client_addr) {
     return INT_MIN;
 }
 
-int get_expected_throughput_iwinfo(struct dawn_mac client_addr) {
+int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
+{
 
     DIR *dirp;
     struct dirent *entry;
-    dirp = opendir(hostapd_dir_glob);  // error handling?
+    dirp = opendir(hostapd_dir_glob); // error handling?
     if (!dirp) {
         fprintf(stderr, "[RSSI INFO] Failed to open dir:%s\n", hostapd_dir_glob);
         return INT_MIN;
@@ -222,7 +230,8 @@ int get_expected_throughput_iwinfo(struct dawn_mac client_addr) {
     return exp_thr;
 }
 
-int get_expected_throughput(const char *ifname, struct dawn_mac client_addr) {
+int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
+{
 
     int i, len;
     char buf[IWINFO_BUFSIZE];
@@ -236,14 +245,15 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr) {
         fprintf(stdout, "No information available\n");
         iwinfo_finish();
         return INT_MIN;
-    } else if (len <= 0) {
+    }
+    else if (len <= 0) {
         fprintf(stdout, "No station connected\n");
         iwinfo_finish();
         return INT_MIN;
     }
 
     for (i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
-        e = (struct iwinfo_assoclist_entry *) &buf[i];
+        e = (struct iwinfo_assoclist_entry *)&buf[i];
 
         if (mac_is_equal(client_addr.u8, e->mac)) {
             iwinfo_finish();
@@ -255,26 +265,28 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr) {
     return INT_MIN;
 }
 
-int get_bssid(const char *ifname, uint8_t bssid_addr[]) {
+int get_bssid(const char *ifname, uint8_t bssid_addr[])
+{
     const struct iwinfo_ops *iw;
     if (strcmp(ifname, "global") == 0)
         return 0;
     iw = iwinfo_backend(ifname);
 
-    static char buf[18] = { 0 };
+    static char buf[18] = {0};
 
     if (iw->bssid(ifname, buf))
         snprintf(buf, sizeof(buf), "00:00:00:00:00:00");
 
-    hwaddr_aton(buf,bssid_addr);
+    hwaddr_aton(buf, bssid_addr);
     iwinfo_finish();
 
     return 0;
 }
 
-int get_ssid(const char *ifname, char* ssid, size_t ssidmax) {
+int get_ssid(const char *ifname, char *ssid, size_t ssidmax)
+{
     const struct iwinfo_ops *iw;
-    char buf[IWINFO_ESSID_MAX_SIZE+1] = { 0 };
+    char buf[IWINFO_ESSID_MAX_SIZE + 1] = {0};
     if (strcmp(ifname, "global") == 0)
         return 0;
     iw = iwinfo_backend(ifname);
@@ -287,7 +299,8 @@ int get_ssid(const char *ifname, char* ssid, size_t ssidmax) {
     return 0;
 }
 
-int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy) {
+int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy)
+{
 
     int len;
     const struct iwinfo_ops *iw;
@@ -299,37 +312,32 @@ int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uin
     iw = iwinfo_backend(ifname);
 
     int freq;
-    if (iw->frequency(ifname, &freq))
-    {
+    if (iw->frequency(ifname, &freq)) {
         iwinfo_finish();
         return 0;
     }
 
-    if (iw->survey(ifname, buf, &len))
-    {
+    if (iw->survey(ifname, buf, &len)) {
         fprintf(stderr, "Survey not possible!\n\n");
         iwinfo_finish();
         return 0;
     }
-    else if (len <= 0)
-    {
+    else if (len <= 0) {
         fprintf(stderr, "No survey results\n\n");
         iwinfo_finish();
         return 0;
     }
 
-    for (int i = 0, x = 1; i < len; i += sizeof(struct iwinfo_survey_entry), x++)
-    {
-        e = (struct iwinfo_survey_entry *) &buf[i];
+    for (int i = 0, x = 1; i < len; i += sizeof(struct iwinfo_survey_entry), x++) {
+        e = (struct iwinfo_survey_entry *)&buf[i];
 
-        if(e->mhz == freq)
-        {
+        if (e->mhz == freq) {
             uint64_t dividend = e->busy_time - *last_channel_time_busy;
-            uint64_t divisor =  e->active_time - *last_channel_time;
+            uint64_t divisor = e->active_time - *last_channel_time;
             *last_channel_time = e->active_time;
             *last_channel_time_busy = e->busy_time;
 
-            if(divisor)
+            if (divisor)
                 ret = (int)(dividend * 255 / divisor);
 
             break;
@@ -340,15 +348,15 @@ int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uin
     return ret;
 }
 
-int support_ht(const char *ifname) {
+int support_ht(const char *ifname)
+{
     const struct iwinfo_ops *iw;
     if (strcmp(ifname, "global") == 0)
         return 0;
     iw = iwinfo_backend(ifname);
     int htmodes = 0;
 
-    if (iw->htmodelist(ifname, &htmodes))
-    {
+    if (iw->htmodelist(ifname, &htmodes)) {
         printf("No HT mode information available\n");
         iwinfo_finish();
         return 0;
@@ -360,15 +368,15 @@ int support_ht(const char *ifname) {
     return ret;
 }
 
-int support_vht(const char *ifname) {
+int support_vht(const char *ifname)
+{
     const struct iwinfo_ops *iw;
     if (strcmp(ifname, "global") == 0)
         return 0;
     iw = iwinfo_backend(ifname);
     int htmodes = 0;
 
-    if (iw->htmodelist(ifname, &htmodes))
-    {
+    if (iw->htmodelist(ifname, &htmodes)) {
         fprintf(stderr, "No VHT mode information available\n");
         iwinfo_finish();
         return 0;

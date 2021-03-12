@@ -1,10 +1,10 @@
 #ifndef __DAWN_DATASTORAGE_H
 #define __DAWN_DATASTORAGE_H
 
+#include <limits.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <time.h>
-#include <limits.h>
 
 #include "mac_utils.h"
 #include "utils.h"
@@ -24,7 +24,7 @@
 extern struct mac_entry_s *mac_set;
 
 struct mac_entry_s {
-    struct mac_entry_s* next_mac;
+    struct mac_entry_s *next_mac;
     struct dawn_mac mac;
 };
 
@@ -35,34 +35,33 @@ int insert_to_maclist(struct dawn_mac mac);
 
 int mac_in_maclist(struct dawn_mac mac);
 
-struct mac_entry_s* insert_to_mac_array(struct mac_entry_s* entry, struct mac_entry_s** insert_pos);
+struct mac_entry_s *insert_to_mac_array(struct mac_entry_s *entry, struct mac_entry_s **insert_pos);
 
-void mac_array_delete(struct mac_entry_s* entry);
-
+void mac_array_delete(struct mac_entry_s *entry);
 
 // ---------------- Global variables ----------------
 /*** Metrics and configuration data ***/
 
 // ---------------- Structs ----------------
 struct probe_metric_s {
-    int ap_weight; // TODO: Never evaluated?
-    int ht_support; // eval_probe_metric()()
-    int vht_support; // eval_probe_metric()()
-    int no_ht_support; // eval_probe_metric()()
-    int no_vht_support; // eval_probe_metric()()
-    int rssi; // eval_probe_metric()()
-    int low_rssi; // eval_probe_metric()()
-    int freq; // eval_probe_metric()()
-    int chan_util; // eval_probe_metric()()
-    int max_chan_util; // eval_probe_metric()()
-    int rssi_val; // eval_probe_metric()()
-    int low_rssi_val; // eval_probe_metric()()
-    int chan_util_val; // eval_probe_metric()()
+    int ap_weight;         // TODO: Never evaluated?
+    int ht_support;        // eval_probe_metric()()
+    int vht_support;       // eval_probe_metric()()
+    int no_ht_support;     // eval_probe_metric()()
+    int no_vht_support;    // eval_probe_metric()()
+    int rssi;              // eval_probe_metric()()
+    int low_rssi;          // eval_probe_metric()()
+    int freq;              // eval_probe_metric()()
+    int chan_util;         // eval_probe_metric()()
+    int max_chan_util;     // eval_probe_metric()()
+    int rssi_val;          // eval_probe_metric()()
+    int low_rssi_val;      // eval_probe_metric()()
+    int chan_util_val;     // eval_probe_metric()()
     int max_chan_util_val; // eval_probe_metric()()
     int min_probe_count;
     int bandwidth_threshold; // kick_clients()
-    int use_station_count; // better_ap_available()
-    int max_station_diff; // compare_station_count() <- better_ap_available()
+    int use_station_count;   // better_ap_available()
+    int max_station_diff;    // compare_station_count() <- better_ap_available()
     int eval_probe_req;
     int eval_auth_req;
     int eval_assoc_req;
@@ -124,19 +123,19 @@ extern struct probe_metric_s dawn_metric;
 
 // ---------------- Structs ----------------
 typedef struct probe_entry_s {
-    struct probe_entry_s* next_probe;
-    struct probe_entry_s* next_probe_skip;
+    struct probe_entry_s *next_probe;
+    struct probe_entry_s *next_probe_skip;
     struct dawn_mac client_addr;
     struct dawn_mac bssid_addr;
     struct dawn_mac target_addr; // TODO: Never evaluated?
-    uint32_t signal; // eval_probe_metric()
-    uint32_t freq; // eval_probe_metric()
-    uint8_t ht_capabilities; // eval_probe_metric()
-    uint8_t vht_capabilities; // eval_probe_metric()
-    time_t time; // remove_old...entries
+    uint32_t signal;             // eval_probe_metric()
+    uint32_t freq;               // eval_probe_metric()
+    uint8_t ht_capabilities;     // eval_probe_metric()
+    uint8_t vht_capabilities;    // eval_probe_metric()
+    time_t time;                 // remove_old...entries
     int counter;
 #ifndef DAWN_NO_OUTPUT
-    int deny_counter; // TODO: Never used?
+    int deny_counter;          // TODO: Never used?
     uint8_t max_supp_datarate; // TODO: Never used?
     uint8_t min_supp_datarate; // TODO: Never used?
 #endif
@@ -151,13 +150,13 @@ typedef struct probe_entry_s {
 //};
 
 typedef struct auth_entry_s {
-    struct auth_entry_s* next_auth;
+    struct auth_entry_s *next_auth;
     struct dawn_mac bssid_addr;
     struct dawn_mac client_addr;
     struct dawn_mac target_addr; // TODO: Never evaluated?
-    uint32_t signal; // TODO: Never evaluated?
-    uint32_t freq; // TODO: Never evaluated?
-    time_t time; // Never used for removal?
+    uint32_t signal;             // TODO: Never evaluated?
+    uint32_t freq;               // TODO: Never evaluated?
+    time_t time;                 // Never used for removal?
     int counter;
 } auth_entry;
 
@@ -191,47 +190,47 @@ extern pthread_mutex_t probe_array_mutex;
 //#define DAWN_CLIENT_SCAN_BC_ONLY
 
 typedef struct client_s {
-    struct client_s* next_entry_bc;
-    struct client_s* next_skip_entry_bc;
+    struct client_s *next_entry_bc;
+    struct client_s *next_skip_entry_bc;
 #ifndef DAWN_CLIENT_SCAN_BC_ONLY
-    struct client_s* next_entry_c;
+    struct client_s *next_entry_c;
 #endif
     struct dawn_mac bssid_addr;
     struct dawn_mac client_addr;
     char signature[SIGNATURE_LEN]; // TODO: Never evaluated?
-    uint8_t ht_supported; // TODO: Never evaluated?
-    uint8_t vht_supported; // TODO: Never evaluated?
-    uint32_t freq; // TODO: Never evaluated?
-    uint8_t auth; // TODO: Never evaluated?
-    uint8_t assoc; // TODO: Never evaluated?
-    uint8_t authorized; // TODO: Never evaluated?
-    uint8_t preauth; // TODO: Never evaluated?
-    uint8_t wds; // TODO: Never evaluated?
-    uint8_t wmm;  // TODO: Never evaluated?
-    uint8_t ht; // TODO: Never evaluated?
-    uint8_t vht; // TODO: Never evaluated?
-    uint8_t wps; // TODO: Never evaluated?
-    uint8_t mfp; // TODO: Never evaluated?
-    time_t time; // remove_old...entries
-    uint32_t aid; // TODO: Never evaluated?
-    uint32_t kick_count; // kick_clients()
-    uint8_t rrm_enabled_capa; //the first byte is enough
+    uint8_t ht_supported;          // TODO: Never evaluated?
+    uint8_t vht_supported;         // TODO: Never evaluated?
+    uint32_t freq;                 // TODO: Never evaluated?
+    uint8_t auth;                  // TODO: Never evaluated?
+    uint8_t assoc;                 // TODO: Never evaluated?
+    uint8_t authorized;            // TODO: Never evaluated?
+    uint8_t preauth;               // TODO: Never evaluated?
+    uint8_t wds;                   // TODO: Never evaluated?
+    uint8_t wmm;                   // TODO: Never evaluated?
+    uint8_t ht;                    // TODO: Never evaluated?
+    uint8_t vht;                   // TODO: Never evaluated?
+    uint8_t wps;                   // TODO: Never evaluated?
+    uint8_t mfp;                   // TODO: Never evaluated?
+    time_t time;                   // remove_old...entries
+    uint32_t aid;                  // TODO: Never evaluated?
+    uint32_t kick_count;           // kick_clients()
+    uint8_t rrm_enabled_capa;      //the first byte is enough
 } client;
 
 typedef struct ap_s {
-    struct ap_s* next_ap;
+    struct ap_s *next_ap;
     struct dawn_mac bssid_addr;
-    uint32_t freq; // TODO: Never evaluated?
-    uint8_t ht_support; // eval_probe_metric()
-    uint8_t vht_support; // eval_probe_metric()
+    uint32_t freq;                // TODO: Never evaluated?
+    uint8_t ht_support;           // eval_probe_metric()
+    uint8_t vht_support;          // eval_probe_metric()
     uint32_t channel_utilization; // eval_probe_metric()
-    time_t time; // remove_old...entries
-    uint32_t station_count; // compare_station_count() <- better_ap_available()
-    uint8_t ssid[SSID_MAX_LEN]; // compare_sid() < -better_ap_available()
+    time_t time;                  // remove_old...entries
+    uint32_t station_count;       // compare_station_count() <- better_ap_available()
+    uint8_t ssid[SSID_MAX_LEN];   // compare_sid() < -better_ap_available()
     char neighbor_report[NEIGHBOR_REPORT_LEN];
-    uint32_t collision_domain;  // TODO: ap_get_collision_count() never evaluated?
-    uint32_t bandwidth; // TODO: Never evaluated?
-    uint32_t ap_weight; // eval_probe_metric()
+    uint32_t collision_domain; // TODO: ap_get_collision_count() never evaluated?
+    uint32_t bandwidth;        // TODO: Never evaluated?
+    uint32_t ap_weight;        // eval_probe_metric()
     char iface[MAX_INTERFACE_NAME];
     char hostname[HOST_NAME_MAX];
 } ap;
@@ -244,7 +243,7 @@ typedef struct ap_s {
 #define TIME_THRESHOLD_CLIENT_KICK 60
 
 // ---------------- Global variables ----------------
-extern struct ap_s* ap_set;
+extern struct ap_s *ap_set;
 extern pthread_mutex_t ap_array_mutex;
 
 extern struct client_s *client_set_bc;
@@ -263,11 +262,11 @@ void print_probe_array();
 
 void print_probe_entry(probe_entry *entry);
 
-int eval_probe_metric(struct probe_entry_s * probe_entry, ap *ap_entry);
+int eval_probe_metric(struct probe_entry_s *probe_entry, ap *ap_entry);
 
 void denied_req_array_delete(auth_entry *entry);
 
-auth_entry *insert_to_denied_req_array(auth_entry*entry, int inc_counter, time_t expiry);
+auth_entry *insert_to_denied_req_array(auth_entry *entry, int inc_counter, time_t expiry);
 
 void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac);
 
@@ -283,11 +282,11 @@ void remove_old_client_entries(time_t current_time, long long int threshold);
 
 client *insert_client_to_array(client *entry, time_t expiry);
 
-int kick_clients(ap* kicking_ap, uint32_t id);
+int kick_clients(ap *kicking_ap, uint32_t id);
 
 void update_iw_info(struct dawn_mac bssid);
 
-void client_array_insert(client *entry, client ** insert_pos);
+void client_array_insert(client *entry, client **insert_pos);
 
 client *client_array_get_client(const struct dawn_mac client_addr);
 
@@ -320,9 +319,8 @@ void send_beacon_reports(struct dawn_mac bssid, int id);
 #define SORT_LENGTH 5
 extern char sort_string[];
 
-
 // ---------------- Functions -------------------
-int better_ap_available(ap *kicking_ap, struct dawn_mac client_addr, char* neighbor_report);
+int better_ap_available(ap *kicking_ap, struct dawn_mac client_addr, char *neighbor_report);
 
 // All users of datastorage should call init_ / destroy_mutex at initialisation and termination respectively
 int init_mutex();

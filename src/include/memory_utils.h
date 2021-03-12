@@ -3,8 +3,7 @@
 
 #include <memory.h>
 
-enum dawn_memop
-{
+enum dawn_memop {
     DAWN_MALLOC,
     DAWN_CALLOC,
     DAWN_REALLOC,
@@ -33,13 +32,13 @@ enum dawn_memop
 #define dawn_unregmem(p)
 #endif
 
-void* dawn_memory_alloc(enum dawn_memop type, char* file, int line, size_t nmemb, size_t size, void *ptr);
+void *dawn_memory_alloc(enum dawn_memop type, char *file, int line, size_t nmemb, size_t size, void *ptr);
 
-void* dawn_memory_register(enum dawn_memop type, char* file, int line, size_t size, void *ptr);
+void *dawn_memory_register(enum dawn_memop type, char *file, int line, size_t size, void *ptr);
 
-void dawn_memory_free(enum dawn_memop type, char* file, int line, void* ptr);
+void dawn_memory_free(enum dawn_memop type, char *file, int line, void *ptr);
 
-void dawn_memory_unregister(enum dawn_memop type, char* file, int line, void* ptr);
+void dawn_memory_unregister(enum dawn_memop type, char *file, int line, void *ptr);
 
 void dawn_memory_audit();
 #endif

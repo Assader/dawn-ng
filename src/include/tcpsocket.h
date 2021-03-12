@@ -41,5 +41,4 @@ void send_tcp(char *msg);
  */
 void print_tcp_array();
 
-
 #endif //DAWN_TCPSOCKET_H

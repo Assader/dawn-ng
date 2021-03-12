@@ -1,17 +1,17 @@
 #include <libubus.h>
-#include <stdio.h>
 #include <signal.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
 
-#include "memory_utils.h"
-#include "datastorage.h"
-#include "networksocket.h"
-#include "ubus.h"
-#include "dawn_uci.h"
-#include "dawn_iwinfo.h"
-#include "tcpsocket.h"
 #include "crypto.h"
+#include "datastorage.h"
+#include "dawn_iwinfo.h"
+#include "dawn_uci.h"
+#include "memory_utils.h"
+#include "networksocket.h"
+#include "tcpsocket.h"
+#include "ubus.h"
 
 void daemon_shutdown();
 
@@ -19,7 +19,8 @@ void signal_handler(int sig);
 
 struct sigaction signal_action;
 
-void daemon_shutdown() {
+void daemon_shutdown()
+{
     // kill threads
     close_socket();
     uci_clear();
@@ -28,25 +29,27 @@ void daemon_shutdown() {
     destroy_mutex();
 }
 
-void signal_handler(int sig) {
+void signal_handler(int sig)
+{
     switch (sig) {
-        case SIGHUP:
-            //daemon_shutdown();
-            dawn_memory_audit();
-            break;
-        case SIGINT:
-            daemon_shutdown();
-            break;
-        case SIGTERM:
-            daemon_shutdown();
-            exit(EXIT_SUCCESS);
-        default:
-            daemon_shutdown();
-            break;
+    case SIGHUP:
+        //daemon_shutdown();
+        dawn_memory_audit();
+        break;
+    case SIGINT:
+        daemon_shutdown();
+        break;
+    case SIGTERM:
+        daemon_shutdown();
+        exit(EXIT_SUCCESS);
+    default:
+        daemon_shutdown();
+        break;
     }
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
 
     const char *ubus_socket = NULL;
 
@@ -80,14 +83,14 @@ int main(int argc, char **argv) {
     init_mutex();
 
     switch (net_config.network_option) {
-        case 0:
-            init_socket_runopts(net_config.broadcast_ip, net_config.broadcast_port, 0);
-            break;
-        case 1:
-            init_socket_runopts(net_config.broadcast_ip, net_config.broadcast_port, 1);
-            break;
-        default:
-            break;
+    case 0:
+        init_socket_runopts(net_config.broadcast_ip, net_config.broadcast_port, 0);
+        break;
+    case 1:
+        init_socket_runopts(net_config.broadcast_ip, net_config.broadcast_port, 1);
+        break;
+    default:
+        break;
     }
 
     insert_macs_from_file();

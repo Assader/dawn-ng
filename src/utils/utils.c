@@ -1,12 +1,13 @@
-#include <string.h>
 #include <ctype.h>
+#include <string.h>
 
 #include "utils.h"
 
-int string_is_greater(char *str, char *str_2) {
+int string_is_greater(char *str, char *str_2)
+{
 
-    int length_1 = strlen((char *) str);
-    int length_2 = strlen((char *) str_2);
+    int length_1 = strlen((char *)str);
+    int length_2 = strlen((char *)str_2);
 
     int length = length_1 < length_2 ? length_1 : length_2;
 

@@ -3,8 +3,8 @@
 
 #include <gcrypt.h>
 
-#include "memory_utils.h"
 #include "crypto.h"
+#include "memory_utils.h"
 
 #define GCRY_CIPHER GCRY_CIPHER_AES128   // Pick the cipher here
 #define GCRY_C_MODE GCRY_CIPHER_MODE_ECB // Pick the cipher mode here
@@ -12,7 +12,8 @@
 gcry_error_t gcry_error_handle;
 gcry_cipher_hd_t gcry_cipher_hd;
 
-void gcrypt_init() {
+void gcrypt_init()
+{
     if (!gcry_check_version(GCRYPT_VERSION)) {
         fprintf(stderr, "gcrypt: library version mismatch");
     }
@@ -27,15 +28,16 @@ void gcrypt_init() {
     }
 }
 
-void gcrypt_set_key_and_iv(const char *key, const char *iv) {
+void gcrypt_set_key_and_iv(const char *key, const char *iv)
+{
     size_t keylen = gcry_cipher_get_algo_keylen(GCRY_CIPHER);
     size_t blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
 
     gcry_error_handle = gcry_cipher_open(
-            &gcry_cipher_hd, // gcry_cipher_hd_t *
-            GCRY_CIPHER,   // int
-            GCRY_C_MODE,   // int
-            0);
+        &gcry_cipher_hd, // gcry_cipher_hd_t *
+        GCRY_CIPHER,     // int
+        GCRY_C_MODE,     // int
+        0);
     if (gcry_error_handle) {
         fprintf(stderr, "gcry_cipher_open failed:  %s/%s\n",
                 gcry_strsource(gcry_error_handle),
@@ -61,12 +63,13 @@ void gcrypt_set_key_and_iv(const char *key, const char *iv) {
 }
 
 // free out buffer after using!
-char *gcrypt_encrypt_msg(char *msg, size_t msg_length, int *out_length) {
+char *gcrypt_encrypt_msg(char *msg, size_t msg_length, int *out_length)
+{
     if (0U != (msg_length & 0xfU))
         msg_length += 0x10U - (msg_length & 0xfU);
 
     char *out = dawn_malloc(msg_length);
-    if (!out){
+    if (!out) {
         fprintf(stderr, "gcry_cipher_encrypt error: not enought memory\n");
         return NULL;
     }
@@ -82,12 +85,13 @@ char *gcrypt_encrypt_msg(char *msg, size_t msg_length, int *out_length) {
 }
 
 // free out buffer after using!
-char *gcrypt_decrypt_msg(char *msg, size_t msg_length) {
+char *gcrypt_decrypt_msg(char *msg, size_t msg_length)
+{
     if (0U != (msg_length & 0xfU))
         msg_length += 0x10U - (msg_length & 0xfU);
 
     char *out_buffer = dawn_malloc(msg_length);
-    if (!out_buffer){
+    if (!out_buffer) {
         fprintf(stderr, "gcry_cipher_decrypt error: not enought memory\n");
         return NULL;
     }
@@ -100,7 +104,7 @@ char *gcrypt_decrypt_msg(char *msg, size_t msg_length) {
         return NULL;
     }
     char *out = dawn_malloc(strlen(out_buffer) + 1);
-    if (!out){
+    if (!out) {
         dawn_free(out_buffer);
         fprintf(stderr, "gcry_cipher_decrypt error: not enought memory\n");
         return NULL;
@@ -109,4 +113,3 @@ char *gcrypt_decrypt_msg(char *msg, size_t msg_length) {
     dawn_free(out_buffer);
     return out;
 }
-
