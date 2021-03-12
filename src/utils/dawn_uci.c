@@ -252,6 +252,7 @@ void uci_clear(void)
     if (uci_ctx != NULL) {
         uci_free_context(uci_ctx);
         dawn_unregmem(uci_ctx);
+        uci_ctx = NULL;
     }
 }
 
