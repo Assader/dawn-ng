@@ -14,10 +14,10 @@
 int setup_multicast_socket(const char *multicast_ip, unsigned short multicast_port, struct sockaddr_in *addr);
 
 /**
- * Removes the multicast socket.
+ * Drops a multicast group membership on socket.
  * @param socket
  * @return
  */
-int remove_multicast_socket(int sock);
+int drop_multicast_group_membership(int sock);
 
 #endif /* DAWN_MULTICASTSOCKET_H */

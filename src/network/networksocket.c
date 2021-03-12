@@ -187,7 +187,7 @@ int send_string_enc(char *msg)
 void close_socket()
 {
     if (multicast_socket) {
-        remove_multicast_socket(sock);
+        drop_multicast_group_membership(sock);
     }
     close(sock);
 }

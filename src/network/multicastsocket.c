@@ -55,7 +55,7 @@ int setup_multicast_socket(const char *multicast_ip, unsigned short multicast_po
     return sock;
 }
 
-int remove_multicast_socket(int sock)
+int drop_multicast_group_membership(int sock)
 {
     int err;
 
