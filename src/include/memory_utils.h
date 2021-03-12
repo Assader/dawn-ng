@@ -33,12 +33,9 @@ enum dawn_memop {
 #endif
 
 void *dawn_memory_alloc(enum dawn_memop type, char *file, int line, size_t nmemb, size_t size, void *ptr);
-
 void *dawn_memory_register(enum dawn_memop type, char *file, int line, size_t size, void *ptr);
-
 void dawn_memory_free(enum dawn_memop type, char *file, int line, void *ptr);
-
 void dawn_memory_unregister(enum dawn_memop type, char *file, int line, void *ptr);
+void dawn_memory_audit(void);
 
-void dawn_memory_audit();
-#endif
+#endif /* DAWN_UTIL_MEMORY */
