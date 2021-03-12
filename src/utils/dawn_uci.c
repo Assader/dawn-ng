@@ -263,12 +263,6 @@ int uci_set_network(char *uci_cmd)
     int ret = UCI_OK;
     struct uci_context *ctx = uci_ctx;
 
-    if (!ctx) {
-        ctx = uci_alloc_context();
-        dawn_regmem(ctx);
-        uci_ctx = ctx;
-    }
-
     ctx->flags |= UCI_FLAG_STRICT;
 
     if (uci_lookup_ptr(ctx, &ptr, uci_cmd, 1) != UCI_OK) {
