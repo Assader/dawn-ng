@@ -232,37 +232,39 @@ int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
 
 int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
 {
-
-    int i, len;
-    char buf[IWINFO_BUFSIZE];
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
+    char buf[IWINFO_BUFSIZE];
+    int len, throughput = INT_MIN;
+
     if (strcmp(ifname, "global") == 0)
-        return INT_MIN;
+        goto exit;
+
     iw = iwinfo_backend(ifname);
 
     if (iw->assoclist(ifname, buf, &len)) {
         fprintf(stdout, "No information available\n");
-        iwinfo_finish();
-        return INT_MIN;
-    }
-    else if (len <= 0) {
-        fprintf(stdout, "No station connected\n");
-        iwinfo_finish();
-        return INT_MIN;
+        goto exit;
     }
 
-    for (i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
-        e = (struct iwinfo_assoclist_entry *)&buf[i];
+    if (len <= 0) {
+        fprintf(stdout, "No station connected\n");
+        goto exit;
+    }
+
+    for (int i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
+        e = (struct iwinfo_assoclist_entry *) &buf[i];
 
         if (mac_is_equal(client_addr.u8, e->mac)) {
-            iwinfo_finish();
-            return e->thr;
+            throughput = e->thr;
+            break;
         }
     }
+
+exit:
     iwinfo_finish();
 
-    return INT_MIN;
+    return throughput;
 }
 
 int get_bssid(const char *ifname, uint8_t *bssid_addr)
