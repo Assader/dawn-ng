@@ -5,12 +5,12 @@
 
 /**
  * Init a socket using the runopts.
- * @param ip - ip to use.
- * @param port - port to use.
- * @param multicast_socket - if socket should be multicast or broadcast.
+ * @param ip_str - ip to use.
+ * @param host_port - port to use.
+ * @param mcast_socket - if socket should be multicast or broadcast.
  * @return the socket.
  */
-int init_socket_runopts(const char *ip, int port, int multicast_socket);
+int init_socket_runopts(const char *ip_str, int host_port, int mcast_socket);
 
 /**
  * Send message via network.
