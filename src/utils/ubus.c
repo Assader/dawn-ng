@@ -17,8 +17,7 @@ enum {
     REQ_TYPE_ASSOC = 2,
 };
 
-static struct ubus_context *ctx = NULL;
-
+static struct ubus_context *ctx;
 static struct blob_buf b;
 static struct blob_buf b_send_network;
 static struct blob_buf b_probe;
