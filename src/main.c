@@ -22,9 +22,6 @@ int main(int argc, char **argv)
 {
     const char *ubus_socket = NULL;
 
-    argc -= optind;
-    argv += optind;
-
     /* connect signals */
     signal_action.sa_handler = signal_handler;
     sigemptyset(&signal_action.sa_mask);
@@ -34,29 +31,22 @@ int main(int argc, char **argv)
     sigaction(SIGINT, &signal_action, NULL);
 
     uci_init();
-    // TODO: Why the extra loacl struct to retuen into?
-    struct network_config_s net_config = uci_get_dawn_network();
-    network_config = net_config;
-
-    // init crypto
-    gcrypt_init();
-    gcrypt_set_key_and_iv(net_config.shared_key, net_config.iv);
-
-    // TODO: Why the extra loacl struct to retuen into?
-    struct time_config_s time_config = uci_get_time_config();
-    timeout_config = time_config; // TODO: Refactor...
-
+    network_config = uci_get_dawn_network();
+    timeout_config = uci_get_time_config();
     uci_get_dawn_hostapd_dir();
     uci_get_dawn_sort_order();
 
+    gcrypt_init();
+    gcrypt_set_key_and_iv(network_config.shared_key, network_config.iv);
+
     init_mutex();
 
-    switch (net_config.network_option) {
+    switch (network_config.network_option) {
     case 0:
-        init_socket_runopts(net_config.broadcast_ip, net_config.broadcast_port, 0);
+        init_socket_runopts(network_config.broadcast_ip, network_config.broadcast_port, 0);
         break;
     case 1:
-        init_socket_runopts(net_config.broadcast_ip, net_config.broadcast_port, 1);
+        init_socket_runopts(network_config.broadcast_ip, network_config.broadcast_port, 1);
         break;
     default:
         break;
