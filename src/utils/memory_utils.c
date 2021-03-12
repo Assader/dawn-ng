@@ -6,7 +6,10 @@
 
 #include "memory_utils.h"
 
-#define DAWN_MEM_FILENAME_LEN 20
+enum {
+    DAWN_MEM_FILENAME_LEN = 20
+};
+
 struct mem_list {
     struct mem_list *next_mem;
     int line;
@@ -17,10 +20,10 @@ struct mem_list {
     uint64_t ref;
 };
 
-static struct mem_list *mem_base = NULL;
-static uint64_t alloc_ref = 0;
+static struct mem_list *mem_base;
+static uint64_t alloc_ref;
 
-void *dawn_memory_alloc(enum dawn_memop type, char *file, int line, size_t nmemb, size_t size, void *ptr)
+void *dawn_memory_alloc(enum dawn_memop type, const char *file, int line, size_t nmemb, size_t size, void *ptr)
 {
     void *ret = NULL;
 
@@ -35,7 +38,7 @@ void *dawn_memory_alloc(enum dawn_memop type, char *file, int line, size_t nmemb
         break;
     case DAWN_CALLOC:
         ret = calloc(nmemb, size);
-        size *= nmemb; // May not be correct allowing for padding but gives a sense of scale
+        size *= nmemb; /* May not be correct allowing for padding but gives a sense of scale */
         break;
     default:
         break;
@@ -47,13 +50,13 @@ void *dawn_memory_alloc(enum dawn_memop type, char *file, int line, size_t nmemb
     return ret;
 }
 
-void *dawn_memory_register(enum dawn_memop type, char *file, int line, size_t size, void *ptr)
+void *dawn_memory_register(enum dawn_memop type, const char *file, int line, size_t size, void *ptr)
 {
     void *ret = NULL;
     struct mem_list *this_log = NULL;
     char type_c = '?';
 
-    // Ignore over enthusiastic effort to  register a failed allocation
+    /* Ignore over enthusiastic effort to register a failed allocation */
     if (ptr == NULL)
         return ret;
 
@@ -75,7 +78,7 @@ void *dawn_memory_register(enum dawn_memop type, char *file, int line, size_t si
         break;
     }
 
-    // Insert to linked list with ascending memory reference
+    /* Insert to linked list with ascending memory reference */
     struct mem_list **ipos = &mem_base;
     while (*ipos != NULL && (*ipos)->ptr < ptr)
         ipos = &((*ipos)->next_mem);
@@ -85,7 +88,6 @@ void *dawn_memory_register(enum dawn_memop type, char *file, int line, size_t si
     }
     else {
         this_log = malloc(sizeof(struct mem_list));
-
         if (this_log == NULL) {
             printf("mem-audit: Oh the irony! malloc() failed in dawn_memory_register()!\n");
         }
@@ -93,7 +95,7 @@ void *dawn_memory_register(enum dawn_memop type, char *file, int line, size_t si
             this_log->next_mem = *ipos;
             *ipos = this_log;
 
-            // Just use filename - no path
+            /* Just use filename - no path */
             file = strrchr(file, '/');
 
             if (file != NULL)
@@ -112,7 +114,7 @@ void *dawn_memory_register(enum dawn_memop type, char *file, int line, size_t si
     return ret;
 }
 
-void dawn_memory_unregister(enum dawn_memop type, char *file, int line, void *ptr)
+void dawn_memory_unregister(enum dawn_memop type, const char *file, int line, void *ptr)
 {
     struct mem_list **mem = &mem_base;
     char type_c = '?';
@@ -148,16 +150,13 @@ void dawn_memory_unregister(enum dawn_memop type, char *file, int line, void *pt
     return;
 }
 
-void dawn_memory_free(enum dawn_memop type, char *file, int line, void *ptr)
+void dawn_memory_free(enum dawn_memop type, const char *file, int line, void *ptr)
 {
     dawn_memory_unregister(type, file, line, ptr);
-
     free(ptr);
-
-    return;
 }
 
-void dawn_memory_audit()
+void dawn_memory_audit(void)
 {
     size_t total = 0;
 
