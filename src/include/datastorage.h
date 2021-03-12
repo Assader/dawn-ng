@@ -7,7 +7,6 @@
 #include <time.h>
 
 #include "mac_utils.h"
-#include "utils.h"
 
 // Core data storage array sizes
 #define ARRAY_AP_LEN 100

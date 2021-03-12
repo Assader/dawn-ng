@@ -34,9 +34,6 @@ SET(SOURCES
         crypto/crypto.c
         include/crypto.h
 
-        include/utils.h
-        utils/utils.c
-
         utils/mac_utils.c
         include/mac_utils.h
 
@@ -57,9 +54,6 @@ SET(SOURCES_TEST_STORAGE
         include/test_storage.h
 
         include/ubus.h
-
-        utils/utils.c
-        include/utils.h
 
         utils/mac_utils.c
         include/mac_utils.h

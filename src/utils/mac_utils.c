@@ -4,7 +4,6 @@
 #include <string.h>
 
 #include "mac_utils.h"
-#include "utils.h"
 
 // source: https://elixir.bootlin.com/linux/v4.9/source/lib/hexdump.c#L28
 // based on: hostapd src/utils/common.c
