@@ -4,7 +4,9 @@
 #include <libubox/ustream.h>
 #include <netinet/in.h>
 
-#define ARRAY_NETWORK_LEN 50
+enum {
+    ARRAY_NETWORK_LEN = 50
+};
 
 struct network_con_s {
     struct list_head list;
@@ -39,6 +41,6 @@ void send_tcp(char *msg);
 /**
  * Debug message.
  */
-void print_tcp_array();
+void print_tcp_array(void);
 
-#endif //DAWN_TCPSOCKET_H
+#endif /* DAWN_TCPSOCKET_H */
