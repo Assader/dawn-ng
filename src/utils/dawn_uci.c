@@ -259,21 +259,28 @@ int uci_clear(void)
 
 int uci_set_network(char *uci_cmd)
 {
-    struct uci_ptr ptr;
-    int ret = UCI_OK;
     struct uci_context *ctx = uci_ctx;
+    struct uci_ptr ptr;
+    int ret;
 
     ctx->flags |= UCI_FLAG_STRICT;
 
-    if (uci_lookup_ptr(ctx, &ptr, uci_cmd, 1) != UCI_OK) {
-        return 1;
-    }
+    ret = uci_lookup_ptr(ctx, &ptr, uci_cmd, 1);
+    if (ret != UCI_OK)
+        goto error;
 
     ret = uci_set(ctx, &ptr);
+    if (ret != UCI_OK)
+        goto error;
 
-    if (uci_commit(ctx, &ptr.p, 0) != UCI_OK) {
-        fprintf(stderr, "Failed to commit UCI cmd: %s\n", uci_cmd);
-    }
+    ret = uci_commit(ctx, &ptr.p, 0);
+    if (ret != UCI_OK)
+        goto error;
+
+    return UCI_OK;
+
+error:
+    fprintf(stderr, "Failed to perform UCI command: %s\n", uci_cmd);
 
     return ret;
 }
