@@ -325,17 +325,21 @@ exit:
     return ret;
 }
 
-static uint8_t dump_rrm_data(void *data, int len, int type) //modify from examples/blobmsg-example.c in libubox
+/* modify from examples/blobmsg-example.c in libubox */
+static uint8_t dump_rrm_data(void *data, int len, int type)
 {
-    uint32_t ret = 0;
+    uint8_t ret = 0;
+
     switch (type) {
     case BLOBMSG_TYPE_INT32:
-        ret = *(uint32_t *)data;
+        ret = *((uint8_t *) data);
         break;
     default:
         fprintf(stderr, "wrong type of rrm array\n");
+        break;
     }
-    return (uint8_t)ret;
+
+    return ret;
 }
 
 static uint8_t
