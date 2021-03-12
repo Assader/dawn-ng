@@ -11,9 +11,11 @@
 #include "tcpsocket.h"
 #include "ubus.h"
 
-#define REQ_TYPE_PROBE 0
-#define REQ_TYPE_AUTH 1
-#define REQ_TYPE_ASSOC 2
+enum {
+    REQ_TYPE_PROBE = 0,
+    REQ_TYPE_AUTH  = 1,
+    REQ_TYPE_ASSOC = 2,
+};
 
 static struct ubus_context *ctx = NULL;
 
