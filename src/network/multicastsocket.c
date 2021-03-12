@@ -4,75 +4,65 @@
 
 #include "multicastsocket.h"
 
-// based on: http://openbook.rheinwerk-verlag.de/linux_unix_programmierung/Kap11-018.htm
+/* Based on: http://openbook.rheinwerk-verlag.de/linux_unix_programmierung/Kap11-018.htm */
 
 static struct ip_mreq command;
 
-int setup_multicast_socket(const char *_multicast_ip, unsigned short _multicast_port, struct sockaddr_in *addr)
+int setup_multicast_socket(const char *multicast_ip, unsigned short multicast_port, struct sockaddr_in *addr)
 {
-    int loop = 1;
     int sock;
 
-    memset(addr, 0, sizeof(*addr));
-    addr->sin_family = AF_INET;
-    addr->sin_addr.s_addr = inet_addr(_multicast_ip);
-    addr->sin_port = htons(_multicast_port);
-
     if ((sock = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
-        perror("socket()");
-        exit(EXIT_FAILURE);
+        perror("Failed to create socket");
+        return -1;
     }
 
-    // allow multiple processes to use the same port
-    loop = 1;
-    if (setsockopt(sock,
-                   SOL_SOCKET,
-                   SO_REUSEADDR,
-                   &loop, sizeof(loop)) < 0) {
-        perror("setsockopt:SO_REUSEADDR");
-        exit(EXIT_FAILURE);
-    }
-    if (bind(sock,
-             (struct sockaddr *)addr,
-             sizeof(*addr)) < 0) {
-        perror("bind");
-        exit(EXIT_FAILURE);
+    /* Allow multiple processes to use the same port */
+    int reuse_addr = 1;
+    if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR,
+                   &reuse_addr, sizeof (reuse_addr)) < 0) {
+        perror("Failed to set SO_REUSEADDR option to socket");
+        return -1;
     }
 
-    // allow broadcast
-    loop = 1;
-    if (setsockopt(sock,
-                   IPPROTO_IP,
-                   IP_MULTICAST_LOOP,
-                   &loop, sizeof(loop)) < 0) {
-        perror("setsockopt:IP_MULTICAST_LOOP");
-        exit(EXIT_FAILURE);
+    /* When using this option, multicast will be looped back to out host */
+    int multicast_loop = 1;
+    if (setsockopt(sock, IPPROTO_IP, IP_MULTICAST_LOOP,
+                   &multicast_loop, sizeof (multicast_loop)) < 0) {
+        perror("Failed to set IP_MULTICAST_LOOP option to socket");
+        return -1;
     }
 
-    // join broadcast group
-    command.imr_multiaddr.s_addr = inet_addr(_multicast_ip);
+    memset(addr, 0, sizeof (*addr));
+    addr->sin_family = AF_INET;
+    addr->sin_addr.s_addr = inet_addr(multicast_ip);
+    addr->sin_port = htons(multicast_port);
+
+    if (bind(sock, (struct sockaddr *) addr, sizeof (*addr)) < 0) {
+        perror("Socket binding failed");
+        return -1;
+    }
+
+    /* Join multicast group */
+    command.imr_multiaddr.s_addr = inet_addr(multicast_ip);
     command.imr_interface.s_addr = htonl(INADDR_ANY);
-    if (command.imr_multiaddr.s_addr == -1) {
-        perror("Wrong multicast address!\n");
-        exit(EXIT_FAILURE);
-    }
-    if (setsockopt(sock,
-                   IPPROTO_IP,
-                   IP_ADD_MEMBERSHIP,
+    if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP,
                    &command, sizeof(command)) < 0) {
-        perror("setsockopt:IP_ADD_MEMBERSHIP");
+        perror("Failed to join multicast group");
+        return -1;
     }
+
     return sock;
 }
 
 int remove_multicast_socket(int socket)
 {
-    if (setsockopt(socket,
-                   IPPROTO_IP,
-                   IP_DROP_MEMBERSHIP,
-                   &command, sizeof(command)) < 0) {
-        perror("setsockopt:IP_DROP_MEMBERSHIP");
-        return -1;
+    int err;
+
+    err = setsockopt(socket, IPPROTO_IP, IP_DROP_MEMBERSHIP, &command, sizeof(command));
+    if (err < 0) {
+        perror("Failed to drop multicast group membership");
     }
-    return 0;
+
+    return err;
 }
