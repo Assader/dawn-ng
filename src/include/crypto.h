@@ -7,7 +7,7 @@
  * Initialize gcrypt.
  * Has to be called before using the other functions!
  */
-void gcrypt_init();
+void gcrypt_init(void);
 
 /**
  * Set the Key and the iv.
@@ -24,7 +24,7 @@ void gcrypt_set_key_and_iv(const char *key, const char *iv);
  * @param out_length
  * @return the encrypted string.
  */
-char *gcrypt_encrypt_msg(char *msg, size_t msg_length, int *out_length);
+char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length);
 
 /**
  * FUnction that decrypts a message.
@@ -33,6 +33,6 @@ char *gcrypt_encrypt_msg(char *msg, size_t msg_length, int *out_length);
  * @param msg_length
  * @return the decrypted string.
  */
-char *gcrypt_decrypt_msg(char *msg, size_t msg_length);
+char *gcrypt_decrypt_msg(const char *msg, size_t msg_length);
 
-#endif //DAWN_CRYPTO_H
+#endif /* DAWN_CRYPTO_H */
