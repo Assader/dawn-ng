@@ -208,16 +208,15 @@ int get_rssi(const char *ifname, struct dawn_mac client_addr)
 
 int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
 {
-
-    DIR *dirp;
+    int exp_thr = INT_MIN;
     struct dirent *entry;
-    dirp = opendir(hostapd_dir_glob); // error handling?
+    DIR *dirp;
+
+    dirp = opendir(hostapd_dir_glob);
     if (!dirp) {
         fprintf(stderr, "[RSSI INFO] Failed to open dir:%s\n", hostapd_dir_glob);
-        return INT_MIN;
+        goto exit;
     }
-
-    int exp_thr = INT_MIN;
 
     while ((entry = readdir(dirp)) != NULL) {
         if (entry->d_type == DT_SOCK) {
@@ -226,7 +225,10 @@ int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
                 break;
         }
     }
+
     closedir(dirp);
+
+exit:
     return exp_thr;
 }
 
