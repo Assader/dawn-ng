@@ -88,16 +88,15 @@ int compare_essid_iwinfo(struct dawn_mac bssid_addr, struct dawn_mac bssid_addr_
 
 int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
 {
-
-    DIR *dirp;
     struct dirent *entry;
-    dirp = opendir(hostapd_dir_glob); // error handling?
+    DIR *dirp;
+    int sucess = 0;
+
+    dirp = opendir(hostapd_dir_glob);
     if (!dirp) {
         fprintf(stderr, "[BANDWIDTH INFO] Failed to open %s\n", hostapd_dir_glob);
-        return 0;
+        goto exit;
     }
-
-    int sucess = 0;
 
     while ((entry = readdir(dirp)) != NULL) {
         if (entry->d_type == DT_SOCK) {
@@ -107,7 +106,10 @@ int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_
             }
         }
     }
+
     closedir(dirp);
+
+exit:
     return sucess;
 }
 
