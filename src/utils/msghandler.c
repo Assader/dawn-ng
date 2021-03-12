@@ -244,6 +244,7 @@ int handle_network_msg(char *msg)
     struct blob_attr *tb[__NETWORK_MAX];
     char *method;
     char *data;
+    int ret = -1;
 
     blob_buf_init(&network_buf, 0);
     blobmsg_add_json_from_string(&network_buf, msg);
@@ -251,7 +252,7 @@ int handle_network_msg(char *msg)
     blobmsg_parse(network_policy, __NETWORK_MAX, tb, blob_data(network_buf.head), blob_len(network_buf.head));
 
     if (!tb[NETWORK_METHOD] || !tb[NETWORK_DATA]) {
-        return -1;
+        goto exit;
     }
 
     method = blobmsg_data(tb[NETWORK_METHOD]);
@@ -263,65 +264,65 @@ int handle_network_msg(char *msg)
     blobmsg_add_json_from_string(&data_buf, data);
 
     if (!data_buf.head) {
-        return -1;
+        goto exit;
     }
 
     if (blob_len(data_buf.head) <= 0) {
-        return -1;
+        goto exit;
     }
 
     if (strlen(method) < 2) {
-        return -1;
+        goto exit;
     }
 
-    // add inactive death...
+    /* add inactive death... */
 
-    // TODO: strncmp() look wrong - should all tests be for n = 5 characters? Shorthand checks?
-    if (strncmp(method, "probe", 5) == 0) {
+    if (strcmp(method, "probe") == 0) {
         probe_entry *entry = parse_to_probe_req(data_buf.head);
         if (entry != NULL) {
-            if (entry != insert_to_array(entry, false, true, false, time(0))) // use 802.11k values
-            {
-                // insert found an existing entry, rather than linking in our new one
+            if (entry != insert_to_array(entry, false, true, false, time(0))) { /* use 802.11k values */
+                /* insert found an existing entry, rather than linking in our new one */
                 dawn_free(entry);
             }
         }
     }
-    else if (strncmp(method, "clients", 5) == 0) {
+    else if (strcmp(method, "clients") == 0) {
         parse_to_clients(data_buf.head, 0, 0);
     }
-    else if (strncmp(method, "deauth", 5) == 0) {
+    else if (strcmp(method, "deauth") == 0) {
         printf("METHOD DEAUTH\n");
         handle_deauth_req(data_buf.head);
     }
-    else if (strncmp(method, "setprobe", 5) == 0) {
+    else if (strcmp(method, "setprobe") == 0) {
         printf("HANDLING SET PROBE!\n");
         handle_set_probe(data_buf.head);
     }
-    else if (strncmp(method, "addmac", 5) == 0) {
+    else if (strcmp(method, "addmac") == 0) {
         parse_add_mac_to_file(data_buf.head);
     }
-    else if (strncmp(method, "macfile", 5) == 0) {
+    else if (strcmp(method, "macfile") == 0) {
         parse_add_mac_to_file(data_buf.head);
     }
-    else if (strncmp(method, "uci", 2) == 0) {
+    else if (strcmp(method, "uci") == 0) {
         printf("HANDLING UCI!\n");
         handle_uci_config(data_buf.head);
     }
-    else if (strncmp(method, "beacon-report", 12) == 0) {
-        // TODO: Check beacon report stuff
+    else if (strcmp(method, "beacon-report") == 0) {
+        /* TODO: Check beacon report stuff */
 
-        //printf("HANDLING BEACON REPORT NETWORK!\n");
-        //printf("The Method for beacon-report is: %s\n", method);
-        // ignore beacon reports send via network!, use probe functions for it
-        //probe_entry entry; // for now just stay at probe entry stuff...
-        //parse_to_beacon_rep(data_buf.head, &entry, true);
+        /*printf("HANDLING BEACON REPORT NETWORK!\n");
+        printf("The Method for beacon-report is: %s\n", method);
+         ignore beacon reports send via network!, use probe functions for it
+        probe_entry entry; // for now just stay at probe entry stuff...
+        parse_to_beacon_rep(data_buf.head, &entry, true); */
     }
     else {
         printf("No method fonud for: %s\n", method);
     }
 
-    return 0;
+    ret = 0;
+exit:
+    return ret;
 }
 
 static uint8_t dump_rrm_data(void *data, int len, int type) //modify from examples/blobmsg-example.c in libubox
