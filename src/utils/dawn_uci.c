@@ -31,9 +31,7 @@ void uci_get_hostname(char *hostname)
     }
 
     if ((uci_lookup_ptr(c, &ptr, path, true) != UCI_OK) || (ptr.o == NULL || ptr.o->v.string == NULL)) {
-        uci_free_context(c);
-        dawn_unregmem(c);
-        return;
+        goto exit;
     }
 
     if (ptr.flags & UCI_LOOKUP_COMPLETE) {
@@ -43,20 +41,20 @@ void uci_get_hostname(char *hostname)
         if (dot && dot < ptr.o->v.string + len) {
             len = dot - ptr.o->v.string;
         }
-        snprintf(hostname, HOST_NAME_MAX, "%.*s", (int)len, ptr.o->v.string);
+        snprintf(hostname, HOST_NAME_MAX, "%.*s", (int) len, ptr.o->v.string);
     }
 
+exit:
     uci_free_context(c);
     dawn_unregmem(c);
 }
 
-struct time_config_s uci_get_time_config()
+struct time_config_s uci_get_time_config(void)
 {
-    struct time_config_s ret;
-
+    struct time_config_s ret = {0};
     struct uci_element *e;
-    uci_foreach_element(&uci_pkg->sections, e)
-    {
+
+    uci_foreach_element(&uci_pkg->sections, e) {
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "times") == 0) {
@@ -69,20 +67,20 @@ struct time_config_s uci_get_time_config()
             ret.denied_req_threshold = uci_lookup_option_int(uci_ctx, s, "denied_req_threshold");
             ret.update_chan_util = uci_lookup_option_int(uci_ctx, s, "update_chan_util");
             ret.update_beacon_reports = uci_lookup_option_int(uci_ctx, s, "update_beacon_reports");
-            return ret;
+
+            break;
         }
     }
 
     return ret;
 }
 
-struct probe_metric_s uci_get_dawn_metric()
+struct probe_metric_s uci_get_dawn_metric(void)
 {
-    struct probe_metric_s ret;
-
+    struct probe_metric_s ret = {0};
     struct uci_element *e;
-    uci_foreach_element(&uci_pkg->sections, e)
-    {
+
+    uci_foreach_element(&uci_pkg->sections, e) {
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "metric") == 0) {
@@ -118,21 +116,20 @@ struct probe_metric_s uci_get_dawn_metric()
             ret.duration = uci_lookup_option_int(uci_ctx, s, "duration");
             ret.mode = uci_lookup_option_int(uci_ctx, s, "mode");
             ret.scan_channel = uci_lookup_option_int(uci_ctx, s, "scan_channel");
-            return ret;
+
+            break;
         }
     }
 
     return ret;
 }
 
-struct network_config_s uci_get_dawn_network()
+struct network_config_s uci_get_dawn_network(void)
 {
-    struct network_config_s ret;
-    memset(&ret, 0, sizeof(ret));
-
+    struct network_config_s ret = {0};
     struct uci_element *e;
-    uci_foreach_element(&uci_pkg->sections, e)
-    {
+
+    uci_foreach_element(&uci_pkg->sections, e) {
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "network") == 0) {
@@ -142,8 +139,6 @@ struct network_config_s uci_get_dawn_network()
             const char *str_server_ip = uci_lookup_option_string(uci_ctx, s, "server_ip");
             if (str_server_ip)
                 strncpy(ret.server_ip, str_server_ip, MAX_IP_LENGTH);
-            else
-                ret.server_ip[0] = '\0';
 
             ret.broadcast_port = uci_lookup_option_int(uci_ctx, s, "broadcast_port");
 
@@ -158,18 +153,19 @@ struct network_config_s uci_get_dawn_network()
             ret.use_symm_enc = uci_lookup_option_int(uci_ctx, s, "use_symm_enc");
             ret.collision_domain = uci_lookup_option_int(uci_ctx, s, "collision_domain");
             ret.bandwidth = uci_lookup_option_int(uci_ctx, s, "bandwidth");
-            return ret;
+
+            break;
         }
     }
 
     return ret;
 }
 
-bool uci_get_dawn_hostapd_dir()
+bool uci_get_dawn_hostapd_dir(void)
 {
     struct uci_element *e;
-    uci_foreach_element(&uci_pkg->sections, e)
-    {
+
+    uci_foreach_element(&uci_pkg->sections, e) {
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "hostapd") == 0) {
@@ -178,14 +174,15 @@ bool uci_get_dawn_hostapd_dir()
             return true;
         }
     }
+
     return false;
 }
 
-bool uci_get_dawn_sort_order()
+bool uci_get_dawn_sort_order(void)
 {
     struct uci_element *e;
-    uci_foreach_element(&uci_pkg->sections, e)
-    {
+
+    uci_foreach_element(&uci_pkg->sections, e) {
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "ordering") == 0) {
@@ -194,10 +191,11 @@ bool uci_get_dawn_sort_order()
             return true;
         }
     }
+
     return false;
 }
 
-int uci_reset()
+int uci_reset(void)
 {
     struct uci_context *ctx = uci_ctx;
 
@@ -215,7 +213,7 @@ int uci_reset()
     return 0;
 }
 
-int uci_init()
+int uci_init(void)
 {
     struct uci_context *ctx = uci_ctx;
 
@@ -228,7 +226,7 @@ int uci_init()
     }
     else {
         ctx->flags &= ~UCI_FLAG_STRICT;
-        // shouldn't happen?
+        /* shouldn't happen? */
         uci_pkg = uci_lookup_package(ctx, "dawn");
         if (uci_pkg) {
             uci_unload(ctx, uci_pkg);
@@ -237,15 +235,14 @@ int uci_init()
         }
     }
 
-    if (uci_load(ctx, "dawn", &uci_pkg))
+    if (uci_load(ctx, "dawn", &uci_pkg) != UCI_OK)
         return -1;
-    else
-        dawn_regmem(uci_pkg);
+    dawn_regmem(uci_pkg);
 
     return 1;
 }
 
-int uci_clear()
+int uci_clear(void)
 {
     if (uci_pkg != NULL) {
         uci_unload(uci_ctx, uci_pkg);
@@ -256,6 +253,7 @@ int uci_clear()
         uci_free_context(uci_ctx);
         dawn_unregmem(uci_ctx);
     }
+
     return 1;
 }
 
