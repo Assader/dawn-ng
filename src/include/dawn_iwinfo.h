@@ -1,5 +1,5 @@
-#ifndef DAWN_RSSI_H
-#define DAWN_RSSI_H
+#ifndef DAWN_IWINFO_H
+#define DAWN_IWINFO_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -67,4 +67,4 @@ int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uin
 int support_ht(const char *ifname);
 int support_vht(const char *ifname);
 
-#endif /* DAWN_RSSI_H */
+#endif /* DAWN_IWINFO_H */
