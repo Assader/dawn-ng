@@ -271,10 +271,6 @@ int uci_set_network(char *uci_cmd)
 
     ret = uci_set(ctx, &ptr);
 
-    if (uci_lookup_ptr(ctx, &ptr, "dawn", 1) != UCI_OK) {
-        return 1;
-    }
-
     if (uci_commit(ctx, &ptr.p, 0) != UCI_OK) {
         fprintf(stderr, "Failed to commit UCI cmd: %s\n", uci_cmd);
     }
