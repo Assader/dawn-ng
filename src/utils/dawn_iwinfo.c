@@ -113,38 +113,40 @@ int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_
 
 int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
 {
-
-    int i, len;
-    char buf[IWINFO_BUFSIZE];
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
+    char buf[IWINFO_BUFSIZE];
+    int ret = 0, len;
+
     if (strcmp(ifname, "global") == 0)
-        return 0;
+        goto exit;
+
     iw = iwinfo_backend(ifname);
 
     if (iw->assoclist(ifname, buf, &len)) {
         fprintf(stdout, "No information available\n");
-        iwinfo_finish();
-        return 0;
-    }
-    else if (len <= 0) {
-        fprintf(stdout, "No station connected\n");
-        iwinfo_finish();
-        return 0;
+        goto exit;
     }
 
-    for (i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
-        e = (struct iwinfo_assoclist_entry *)&buf[i];
+    if (len <= 0) {
+        fprintf(stdout, "No station connected\n");
+        goto exit;
+    }
+
+    for (int i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
+        e = (struct iwinfo_assoclist_entry *) &buf[i];
 
         if (mac_is_equal(client_addr.u8, e->mac)) {
             *rx_rate = e->rx_rate.rate / 1000;
             *tx_rate = e->tx_rate.rate / 1000;
-            iwinfo_finish();
-            return 1;
+            ret = 1;
+            break;
         }
     }
+
+exit:
     iwinfo_finish();
-    return 0;
+    return ret;
 }
 
 int get_rssi_iwinfo(struct dawn_mac client_addr)
