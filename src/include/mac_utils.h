@@ -42,6 +42,6 @@ int hwaddr_aton(const char *txt, uint8_t *addr);
  * @param path
  * @param addr
  */
-void write_mac_to_file(char *path, struct dawn_mac addr);
+void write_mac_to_file(const char *path, struct dawn_mac addr);
 
 #endif /* DAWN_MAC_UTILS_H */
