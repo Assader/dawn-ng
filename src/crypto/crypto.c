@@ -110,15 +110,5 @@ char *gcrypt_decrypt_msg(const char *msg, size_t msg_length)
         return NULL;
     }
 
-    char *out = dawn_malloc(strlen(out_buffer) + 1);
-    if (!out) {
-        dawn_free(out_buffer);
-        fprintf(stderr, "gcry_cipher_decrypt error: not enought memory\n");
-        return NULL;
-    }
-
-    strcpy(out, out_buffer);
-    dawn_free(out_buffer);
-
-    return out;
+    return out_buffer;
 }
