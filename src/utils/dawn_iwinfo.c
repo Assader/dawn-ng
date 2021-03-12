@@ -301,49 +301,48 @@ int get_ssid(const char *ifname, char *ssid, size_t ssidmax)
 
 int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy)
 {
-
-    int len;
+    int len, freq, ret = 0;
     const struct iwinfo_ops *iw;
     char buf[IWINFO_BUFSIZE];
     struct iwinfo_survey_entry *e;
-    int ret = 0;
+
     if (strcmp(ifname, "global") == 0)
         return 0;
+
     iw = iwinfo_backend(ifname);
 
-    int freq;
     if (iw->frequency(ifname, &freq)) {
-        iwinfo_finish();
-        return 0;
+        goto exit;
     }
 
     if (iw->survey(ifname, buf, &len)) {
-        fprintf(stderr, "Survey not possible!\n\n");
-        iwinfo_finish();
-        return 0;
-    }
-    else if (len <= 0) {
-        fprintf(stderr, "No survey results\n\n");
-        iwinfo_finish();
-        return 0;
+        fprintf(stderr, "Survey not possible!\n");
+        goto exit;
     }
 
-    for (int i = 0, x = 1; i < len; i += sizeof(struct iwinfo_survey_entry), x++) {
-        e = (struct iwinfo_survey_entry *)&buf[i];
+    if (len <= 0) {
+        fprintf(stderr, "No survey results\n");
+        goto exit;
+    }
+
+    for (int i = 0; i < len; i += sizeof(struct iwinfo_survey_entry)) {
+        e = (struct iwinfo_survey_entry *) &buf[i];
 
         if (e->mhz == freq) {
             uint64_t dividend = e->busy_time - *last_channel_time_busy;
             uint64_t divisor = e->active_time - *last_channel_time;
+
             *last_channel_time = e->active_time;
             *last_channel_time_busy = e->busy_time;
 
             if (divisor)
-                ret = (int)(dividend * 255 / divisor);
+                ret = (int) (dividend * 255 / divisor);
 
             break;
         }
     }
 
+exit:
     iwinfo_finish();
     return ret;
 }
