@@ -1,5 +1,5 @@
-#ifndef DAWN_UTIL_MEMORY
-#define DAWN_UTIL_MEMORY
+#ifndef DAWN_MEMORY_UTILS_H
+#define DAWN_MEMORY_UTILS_H
 
 #include <memory.h>
 
@@ -38,4 +38,4 @@ void dawn_memory_free(enum dawn_memop type, const char *file, int line, void *pt
 void dawn_memory_unregister(enum dawn_memop type, const char *file, int line, void *ptr);
 void dawn_memory_audit(void);
 
-#endif /* DAWN_UTIL_MEMORY */
+#endif /* DAWN_MEMORY_UTILS_H */
