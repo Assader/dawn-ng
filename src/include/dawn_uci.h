@@ -12,9 +12,8 @@ int uci_init(void);
 
 /**
  * Clear uci. Call this function after using uci!
- * @return if call was successful.
  */
-int uci_clear(void);
+void uci_clear(void);
 
 /**
  * Function that returns the metric for the load balancing sheme using uci.

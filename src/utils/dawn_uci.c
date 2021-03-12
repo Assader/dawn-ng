@@ -242,7 +242,7 @@ int uci_init(void)
     return 1;
 }
 
-int uci_clear(void)
+void uci_clear(void)
 {
     if (uci_pkg != NULL) {
         uci_unload(uci_ctx, uci_pkg);
@@ -253,8 +253,6 @@ int uci_clear(void)
         uci_free_context(uci_ctx);
         dawn_unregmem(uci_ctx);
     }
-
-    return 1;
 }
 
 int uci_set_network(char *uci_cmd)
