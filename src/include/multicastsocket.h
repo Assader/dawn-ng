@@ -18,6 +18,6 @@ int setup_multicast_socket(const char *multicast_ip, unsigned short multicast_po
  * @param socket
  * @return
  */
-int remove_multicast_socket(int socket);
+int remove_multicast_socket(int sock);
 
 #endif /* DAWN_MULTICASTSOCKET_H */

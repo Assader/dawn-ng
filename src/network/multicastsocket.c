@@ -55,11 +55,11 @@ int setup_multicast_socket(const char *multicast_ip, unsigned short multicast_po
     return sock;
 }
 
-int remove_multicast_socket(int socket)
+int remove_multicast_socket(int sock)
 {
     int err;
 
-    err = setsockopt(socket, IPPROTO_IP, IP_DROP_MEMBERSHIP, &command, sizeof(command));
+    err = setsockopt(sock, IPPROTO_IP, IP_DROP_MEMBERSHIP, &command, sizeof (command));
     if (err < 0) {
         perror("Failed to drop multicast group membership");
     }
