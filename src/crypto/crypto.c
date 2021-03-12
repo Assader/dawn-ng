@@ -9,7 +9,7 @@
 #define GCRY_CIPHER GCRY_CIPHER_AES128   // Pick the cipher here
 #define GCRY_C_MODE GCRY_CIPHER_MODE_ECB // Pick the cipher mode here
 
-gcry_cipher_hd_t gcry_cipher_hd;
+static gcry_cipher_hd_t gcry_cipher_hd;
 
 void gcrypt_init()
 {
