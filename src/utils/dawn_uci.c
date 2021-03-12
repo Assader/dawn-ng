@@ -7,8 +7,8 @@
 #include "dawn_uci.h"
 #include "memory_utils.h"
 
-static struct uci_context *uci_ctx = NULL;
-static struct uci_package *uci_pkg = NULL;
+static struct uci_context *uci_ctx;
+static struct uci_package *uci_pkg;
 
 // why is this not included in uci lib...?!
 // found here: https://github.com/br101/pingcheck/blob/master/uci.c
