@@ -13,50 +13,19 @@
 #include "tcpsocket.h"
 #include "ubus.h"
 
-void daemon_shutdown();
-
-void signal_handler(int sig);
+static void daemon_shutdown(void);
+static void signal_handler(int sig);
 
 struct sigaction signal_action;
 
-void daemon_shutdown()
-{
-    // kill threads
-    close_socket();
-    uci_clear();
-    uloop_cancelled = true;
-
-    destroy_mutex();
-}
-
-void signal_handler(int sig)
-{
-    switch (sig) {
-    case SIGHUP:
-        //daemon_shutdown();
-        dawn_memory_audit();
-        break;
-    case SIGINT:
-        daemon_shutdown();
-        break;
-    case SIGTERM:
-        daemon_shutdown();
-        exit(EXIT_SUCCESS);
-    default:
-        daemon_shutdown();
-        break;
-    }
-}
-
 int main(int argc, char **argv)
 {
-
     const char *ubus_socket = NULL;
 
     argc -= optind;
     argv += optind;
 
-    // connect signals
+    /* connect signals */
     signal_action.sa_handler = signal_handler;
     sigemptyset(&signal_action.sa_mask);
     signal_action.sa_flags = 0;
@@ -97,4 +66,32 @@ int main(int argc, char **argv)
     dawn_init_ubus(ubus_socket, hostapd_dir_glob);
 
     return 0;
+}
+
+void daemon_shutdown(void)
+{
+    /* kill threads */
+    close_socket();
+    uci_clear();
+    uloop_cancelled = true;
+    destroy_mutex();
+}
+
+void signal_handler(int sig)
+{
+    switch (sig) {
+    case SIGHUP:
+        /* daemon_shutdown(); */
+        dawn_memory_audit();
+        break;
+    case SIGINT:
+        daemon_shutdown();
+        break;
+    case SIGTERM:
+        daemon_shutdown();
+        exit(EXIT_SUCCESS);
+    default:
+        daemon_shutdown();
+        break;
+    }
 }
