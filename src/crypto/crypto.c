@@ -9,7 +9,6 @@
 #define GCRY_CIPHER GCRY_CIPHER_AES128   // Pick the cipher here
 #define GCRY_C_MODE GCRY_CIPHER_MODE_ECB // Pick the cipher mode here
 
-gcry_error_t gcry_error_handle;
 gcry_cipher_hd_t gcry_cipher_hd;
 
 void gcrypt_init()
@@ -32,6 +31,7 @@ void gcrypt_set_key_and_iv(const char *key, const char *iv)
 {
     size_t keylen = gcry_cipher_get_algo_keylen(GCRY_CIPHER);
     size_t blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
+    gcry_error_t gcry_error_handle;
 
     gcry_error_handle = gcry_cipher_open(
         &gcry_cipher_hd, // gcry_cipher_hd_t *
@@ -65,6 +65,8 @@ void gcrypt_set_key_and_iv(const char *key, const char *iv)
 // free out buffer after using!
 char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
 {
+    gcry_error_t gcry_error_handle;
+
     if (0U != (msg_length & 0xfU))
         msg_length += 0x10U - (msg_length & 0xfU);
 
@@ -87,6 +89,8 @@ char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
 // free out buffer after using!
 char *gcrypt_decrypt_msg(const char *msg, size_t msg_length)
 {
+    gcry_error_t gcry_error_handle;
+
     if (0U != (msg_length & 0xfU))
         msg_length += 0x10U - (msg_length & 0xfU);
 
