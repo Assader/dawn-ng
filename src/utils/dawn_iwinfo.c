@@ -285,17 +285,20 @@ int get_bssid(const char *ifname, uint8_t bssid_addr[])
 
 int get_ssid(const char *ifname, char *ssid, size_t ssidmax)
 {
-    const struct iwinfo_ops *iw;
     char buf[IWINFO_ESSID_MAX_SIZE + 1] = {0};
+    const struct iwinfo_ops *iw;
+
     if (strcmp(ifname, "global") == 0)
         return 0;
-    iw = iwinfo_backend(ifname);
-    if (iw->ssid(ifname, buf))
-        memset(buf, 0, sizeof(buf));
 
-    memcpy(ssid, buf, ssidmax);
-    strcpy(ssid, buf);
+    iw = iwinfo_backend(ifname);
+
+    iw->ssid(ifname, buf);
+
+    strncpy(ssid, buf, ssidmax);
+
     iwinfo_finish();
+
     return 0;
 }
 
