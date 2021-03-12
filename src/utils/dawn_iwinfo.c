@@ -265,19 +265,20 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
     return INT_MIN;
 }
 
-int get_bssid(const char *ifname, uint8_t bssid_addr[])
+int get_bssid(const char *ifname, uint8_t *bssid_addr)
 {
     const struct iwinfo_ops *iw;
+    char buf[18] = "00:00:00:00:00:00";
+
     if (strcmp(ifname, "global") == 0)
         return 0;
+
     iw = iwinfo_backend(ifname);
 
-    static char buf[18] = {0};
-
-    if (iw->bssid(ifname, buf))
-        snprintf(buf, sizeof(buf), "00:00:00:00:00:00");
+    iw->bssid(ifname, buf);
 
     hwaddr_aton(buf, bssid_addr);
+
     iwinfo_finish();
 
     return 0;
@@ -285,8 +286,8 @@ int get_bssid(const char *ifname, uint8_t bssid_addr[])
 
 int get_ssid(const char *ifname, char *ssid, size_t ssidmax)
 {
-    char buf[IWINFO_ESSID_MAX_SIZE + 1] = {0};
     const struct iwinfo_ops *iw;
+    char buf[IWINFO_ESSID_MAX_SIZE + 1] = {0};
 
     if (strcmp(ifname, "global") == 0)
         return 0;

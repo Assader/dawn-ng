@@ -6,8 +6,10 @@
 
 #include "mac_utils.h"
 
-// ---------------- Global variables ----------------
-#define HOSTAPD_DIR_LEN 200
+enum {
+    HOSTAPD_DIR_LEN = 200
+};
+
 extern char hostapd_dir_glob[];
 
 /**
@@ -59,14 +61,10 @@ int compare_essid_iwinfo(struct dawn_mac bssid_addr, struct dawn_mac bssid_addr_
  */
 int get_expected_throughput(const char *ifname, struct dawn_mac client_addr);
 
-int get_bssid(const char *ifname, uint8_t bssid_addr[]);
-
+int get_bssid(const char *ifname, uint8_t *bssid_addr);
 int get_ssid(const char *ifname, char *ssid, size_t ssidmax);
-
 int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy);
-
 int support_ht(const char *ifname);
-
 int support_vht(const char *ifname);
 
-#endif //DAWN_RSSI_H
+#endif /* DAWN_RSSI_H */
