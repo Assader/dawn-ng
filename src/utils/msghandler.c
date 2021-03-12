@@ -342,26 +342,27 @@ static uint8_t dump_rrm_data(void *data, int len, int type)
     return ret;
 }
 
-static uint8_t
-dump_rrm_table(struct blob_attr *head, int len) //modify from examples/blobmsg-example.c in libubox
+/* modify from examples/blobmsg-example.c in libubox */
+static uint8_t dump_rrm_table(struct blob_attr *head, int len)
 {
     struct blob_attr *attr;
     uint8_t ret = 0;
 
-    __blob_for_each_attr(attr, head, len)
-    {
+    __blob_for_each_attr(attr, head, len) {
         ret = dump_rrm_data(blobmsg_data(attr), blobmsg_data_len(attr), blob_id(attr));
-        return ret; // get the first rrm byte
+        /* get the first rrm byte */
+        break;
     }
+
     return ret;
 }
 
 // TOOD: Refactor this!
-static void
-dump_client(struct blob_attr **tb, struct dawn_mac client_addr, const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
-            uint8_t vht_supported)
+static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
+                        const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
+                        uint8_t vht_supported)
 {
-    client *client_entry = dawn_malloc(sizeof(struct client_s));
+    client *client_entry = dawn_malloc(sizeof (struct client_s));
     if (client_entry == NULL) {
         // MUSTDO: Error handling?
         return;
@@ -408,72 +409,75 @@ dump_client(struct blob_attr **tb, struct dawn_mac client_addr, const char *bssi
     }
     /* RRM Caps */
     if (tb[CLIENT_RRM]) {
-        client_entry->rrm_enabled_capa = dump_rrm_table(blobmsg_data(tb[CLIENT_RRM]),
-                                                        blobmsg_data_len(tb[CLIENT_RRM])); // get the first byte from rrm array
-                                                                                           //ap_entry.ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_RRM]);
+        /* get the first byte from rrm array
+        ap_entry.ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_RRM]); */
+        client_entry->rrm_enabled_capa =
+                dump_rrm_table(blobmsg_data(tb[CLIENT_RRM]),
+                               blobmsg_data_len(tb[CLIENT_RRM]));
     }
     else {
         client_entry->rrm_enabled_capa = 0;
-        //ap_entry.ap_weight = 0;
+        /* ap_entry.ap_weight = 0; */
     }
 
-    // copy signature
+    /* copy signature */
     if (tb[CLIENT_SIGNATURE]) {
-        strncpy(client_entry->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN * sizeof(char));
+        strncpy(client_entry->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN * sizeof (char));
     }
     else {
         memset(client_entry->signature, 0, SIGNATURE_LEN);
     }
 
     pthread_mutex_lock(&client_array_mutex);
-    // If entry was akraedy in list it won't be added, so free memorY
-    if (client_entry != insert_client_to_array(client_entry, time(0)))
+    /* If entry was already in list, it won't be added, so free memory */
+    if (client_entry != insert_client_to_array(client_entry, time(NULL))) {
         dawn_free(client_entry);
+    }
     pthread_mutex_unlock(&client_array_mutex);
 }
 
-static int
-dump_client_table(struct blob_attr *head, int len, const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
-                  uint8_t vht_supported)
+static int dump_client_table(struct blob_attr *head, int len, const char *bssid_addr,
+                             uint32_t freq, uint8_t ht_supported, uint8_t vht_supported)
 {
     struct blob_attr *attr;
     struct blobmsg_hdr *hdr;
     int station_count = 0;
 
-    __blob_for_each_attr(attr, head, len)
-    {
+    __blob_for_each_attr(attr, head, len) {
+        struct blob_attr *tb[__CLIENT_MAX];
+
         hdr = blob_data(attr);
 
-        struct blob_attr *tb[__CLIENT_MAX];
         blobmsg_parse(client_policy, __CLIENT_MAX, tb, blobmsg_data(attr), blobmsg_len(attr));
-        //char* str = blobmsg_format_json_indent(attr, true, -1);
 
         int tmp_int_mac[ETH_ALEN];
         struct dawn_mac tmp_mac;
-        sscanf((char *)hdr->name, MACSTR, STR2MAC(tmp_int_mac));
+        sscanf((char *) hdr->name, MACSTR, STR2MAC(tmp_int_mac));
         for (int i = 0; i < ETH_ALEN; ++i)
-            tmp_mac.u8[i] = (uint8_t)tmp_int_mac[i];
+            tmp_mac.u8[i] = (uint8_t) tmp_int_mac[i];
 
         dump_client(tb, tmp_mac, bssid_addr, freq, ht_supported, vht_supported);
         station_count++;
     }
+
     return station_count;
 }
 
 int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id)
 {
     struct blob_attr *tb[__CLIENT_TABLE_MAX];
+    int ret = -1;
 
     if (!msg) {
-        return -1;
+        goto exit;
     }
 
     if (!blob_data(msg)) {
-        return -1;
+        goto exit;
     }
 
     if (blob_len(msg) <= 0) {
-        return -1;
+        goto exit;
     }
 
     blobmsg_parse(client_table_policy, __CLIENT_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
@@ -483,7 +487,8 @@ int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id)
         num_stations = dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
                                          blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
                                          blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
-        ap *ap_entry = dawn_malloc(sizeof(struct ap_s));
+        ap *ap_entry = dawn_malloc(sizeof (struct ap_s));
+
         hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid_addr.u8);
         ap_entry->freq = blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]);
 
@@ -504,13 +509,14 @@ int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id)
         if (tb[CLIENT_TABLE_CHAN_UTIL]) {
             ap_entry->channel_utilization = blobmsg_get_u32(tb[CLIENT_TABLE_CHAN_UTIL]);
         }
-        else // if this is not existing set to 0?  //TODO: Consider setting to a value that will not mislead eval_probe_metric(), eg dawn_metric.chan_util_val?
-        {
+        else {
+            /* if this is not existing set to 0?
+            TODO: Consider setting to a value that will not mislead eval_probe_metric(), eg dawn_metric.chan_util_val? */
             ap_entry->channel_utilization = 0;
         }
 
         if (tb[CLIENT_TABLE_SSID]) {
-            strcpy((char *)ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
+            strcpy((char *) ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
         }
 
         if (tb[CLIENT_TABLE_COL_DOMAIN]) {
@@ -557,14 +563,17 @@ int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id)
             ap_entry->hostname[0] = '\0';
         }
 
-        insert_to_ap_array(ap_entry, time(0));
+        insert_to_ap_array(ap_entry, time(NULL));
 
         if (do_kick && dawn_metric.kicking) {
             update_iw_info(ap_entry->bssid_addr);
             kick_clients(ap_entry, id);
         }
     }
-    return 0;
+
+    ret = 0;
+exit:
+    return ret;
 }
 
 enum {
@@ -673,15 +682,13 @@ static const struct blobmsg_policy uci_times_policy[__UCI_TIMES_MAX] = {
 
 static int handle_uci_config(struct blob_attr *msg)
 {
-
-    struct blob_attr *tb[__UCI_TABLE_MAX];
-    blobmsg_parse(uci_table_policy, __UCI_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
-
-    struct blob_attr *tb_metric[__UCI_METIC_MAX];
-    blobmsg_parse(uci_metric_policy, __UCI_METIC_MAX, tb_metric, blobmsg_data(tb[UCI_TABLE_METRIC]), blobmsg_len(tb[UCI_TABLE_METRIC]));
-
-    // TODO: Magic number?
+    struct blob_attr *tb[__UCI_TABLE_MAX], *tb_metric[__UCI_METIC_MAX], *tb_times[__UCI_TIMES_MAX];
     char cmd_buffer[1024];
+
+    blobmsg_parse(uci_table_policy, __UCI_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
+    blobmsg_parse(uci_metric_policy, __UCI_METIC_MAX, tb_metric, blobmsg_data(tb[UCI_TABLE_METRIC]), blobmsg_len(tb[UCI_TABLE_METRIC]));
+    blobmsg_parse(uci_times_policy, __UCI_TIMES_MAX, tb_times, blobmsg_data(tb[UCI_TABLE_TIMES]), blobmsg_len(tb[UCI_TABLE_TIMES]));
+
     sprintf(cmd_buffer, "dawn.@metric[0].ht_support=%d", blobmsg_get_u32(tb_metric[UCI_HT_SUPPORT]));
     uci_set_network(cmd_buffer);
 
@@ -774,9 +781,6 @@ static int handle_uci_config(struct blob_attr *msg)
 
     sprintf(cmd_buffer, "dawn.@metric[0].scan_channel=%d", blobmsg_get_u32(tb_metric[UCI_SCAN_CHANNEL]));
     uci_set_network(cmd_buffer);
-
-    struct blob_attr *tb_times[__UCI_TIMES_MAX];
-    blobmsg_parse(uci_times_policy, __UCI_TIMES_MAX, tb_times, blobmsg_data(tb[UCI_TABLE_TIMES]), blobmsg_len(tb[UCI_TABLE_TIMES]));
 
     sprintf(cmd_buffer, "dawn.@times[0].update_client=%d", blobmsg_get_u32(tb_times[UCI_UPDATE_CLIENT]));
     uci_set_network(cmd_buffer);
