@@ -12,33 +12,33 @@ int hwaddr_aton(const char *txt, uint8_t *addr)
     int i;
 
     for (i = 0; i < ETH_ALEN; i++) {
-        int a = 0;
-        char ch = *txt++;
+        int byte = 0;
+        char pchar = *txt++;
 
-        if ((ch >= '0') && (ch <= '9'))
-            a = ch - '0';
-        else if ((ch >= 'a') && (ch <= 'f'))
-            a = ch - 'a' + 10;
-        else if ((ch >= 'A') && (ch <= 'F'))
-            a = ch - 'A' + 10;
+        if ((pchar >= '0') && (pchar <= '9'))
+            byte = pchar - '0';
+        else if ((pchar >= 'a') && (pchar <= 'f'))
+            byte = pchar - 'a' + 10;
+        else if ((pchar >= 'A') && (pchar <= 'F'))
+            byte = pchar - 'A' + 10;
         else
             return -1;
 
-        ch = *txt++;
-        a *= 16;
+        pchar = *txt++;
+        byte *= 16;
 
-        if ((ch >= '0') && (ch <= '9'))
-            a += ch - '0';
-        else if ((ch >= 'a') && (ch <= 'f'))
-            a += ch - 'a' + 10;
-        else if ((ch >= 'A') && (ch <= 'F'))
-            a += ch - 'A' + 10;
+        if ((pchar >= '0') && (pchar <= '9'))
+            byte += pchar - '0';
+        else if ((pchar >= 'a') && (pchar <= 'f'))
+            byte += pchar - 'a' + 10;
+        else if ((pchar >= 'A') && (pchar <= 'F'))
+            byte += pchar - 'A' + 10;
         else
             return -1;
 
-        *addr++ = a;
+        *addr++ = byte;
 
-        // TODO: Should NUL terminator be checked for? Is aa:bb:cc:dd:ee:ff00 valid input?
+        /* TODO: Should NUL terminator be checked for? Is aa:bb:cc:dd:ee:ff00 valid input? */
         if (i != (ETH_ALEN - 1) && *txt++ != ':')
             return -1;
     }
