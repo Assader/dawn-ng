@@ -12,10 +12,6 @@ char hostapd_dir_glob[HOSTAPD_DIR_LEN];
 static int get_rssi(const char *ifname, struct dawn_mac client_addr);
 static int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
 
-#define IWINFO_BUFSIZE 24 * 1024
-
-#define IWINFO_ESSID_MAX_SIZE 32
-
 int compare_essid_iwinfo(struct dawn_mac bssid_addr, struct dawn_mac bssid_addr_to_compare)
 {
     const struct iwinfo_ops *iw;
