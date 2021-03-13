@@ -18,7 +18,6 @@ LIST_HEAD(tcp_sock_list);
 static struct network_con_s *tcp_list_contains_address(struct sockaddr_in entry);
 
 static struct uloop_fd server;
-static struct client *next_client; /* TODO: Why here? Only used in sever_cb() */
 
 enum socket_read_status {
     READ_STATUS_READY,
@@ -57,13 +56,15 @@ static void client_notify_state(struct ustream *s)
 {
     struct client *cl = container_of(s, struct client, s.stream);
 
-    if (!s->eof)
+    if (!s->eof) {
         return;
+    }
 
     fprintf(stderr, "EOF! Pending: %d, total: %d\n", s->w.data_bytes, cl->ctr);
 
-    if (!s->w.data_bytes)
-        return client_close(s);
+    if (s->w.data_bytes == 0) {
+        client_close(s);
+    }
 }
 
 static void client_to_server_close(struct ustream *s)
@@ -81,13 +82,15 @@ static void client_to_server_state(struct ustream *s)
 {
     struct client *cl = container_of(s, struct client, s.stream);
 
-    if (!s->eof)
+    if (!s->eof) {
         return;
+    }
 
     fprintf(stderr, "EOF! Pending: %d, total: %d\n", s->w.data_bytes, cl->ctr);
 
-    if (!s->w.data_bytes)
-        return client_to_server_close(s);
+    if (s->w.data_bytes == 0) {
+        client_to_server_close(s);
+    }
 }
 
 static void client_read_cb(struct ustream *s, int bytes)
@@ -99,14 +102,16 @@ static void client_read_cb(struct ustream *s, int bytes)
             printf("tcp_socket: commencing message...\n");
 
             cl->str = dawn_malloc(HEADER_SIZE);
-            if (!cl->str) {
-                fprintf(stderr, "not enough memory (" STR_QUOTE(__LINE__) ")\n");
+            if (cl->str == NULL) {
+                fprintf(stderr, "not enough memory (%d)\n", __LINE__);
                 break;
             }
 
             uint32_t avail_len = ustream_pending_data(s, false);
-            if (avail_len < HEADER_SIZE) { /* ensure recv sizeof(uint32_t) */
-                printf("incomplete msg, len: %d, expected minimal len: %u\n", avail_len, (unsigned int) HEADER_SIZE);
+            /* Ensure recv sizeof(uint32_t) */
+            if (avail_len < HEADER_SIZE) {
+                fprintf(stderr, "incomplete msg, len: %d, expected minimal len: %u\n",
+                        avail_len, (unsigned int) HEADER_SIZE);
                 dawn_free(cl->str);
                 cl->str = NULL;
                 break;
@@ -121,13 +126,13 @@ static void client_read_cb(struct ustream *s, int bytes)
             }
 
             cl->curr_len += HEADER_SIZE;
-            cl->final_len = ntohl(*(uint32_t *) cl->str);
+            cl->final_len = ntohl(*((uint32_t *) cl->str));
 
             /* On failure, dawn_realloc returns a null pointer. The original pointer str
             remains valid and may need to be deallocated. */
             char *str_tmp = dawn_realloc(cl->str, cl->final_len);
-            if (!str_tmp) {
-                fprintf(stderr, "not enough memory (%" PRIu32 " @ " STR_QUOTE(__LINE__) ")\n", cl->final_len);
+            if (str_tmp == NULL) {
+                fprintf(stderr, "not enough memory (%" PRIu32 " @ %d)\n", cl->final_len, __LINE__);
                 dawn_free(cl->str);
                 cl->str = NULL;
                 break;
@@ -166,10 +171,10 @@ static void client_read_cb(struct ustream *s, int bytes)
             printf("tcp_socket: processing message...\n");
 
             if (network_config.use_symm_enc) {
-                /* len of str is final_len */
+                /* Len of str is final_len */
                 char *dec = gcrypt_decrypt_msg(cl->str + HEADER_SIZE, cl->final_len - HEADER_SIZE);
-                if (!dec) {
-                    fprintf(stderr, "not enough memory (" STR_QUOTE(__LINE__) ")\n");
+                if (dec == NULL) {
+                    fprintf(stderr, "not enough memory (%d)\n", __LINE__);
                     dawn_free(cl->str);
                     cl->str = NULL;
                     break;
@@ -196,27 +201,21 @@ static void client_read_cb(struct ustream *s, int bytes)
 
 static void server_cb(struct uloop_fd *fd, unsigned int events)
 {
-    struct client *cl; /* MUSTDO: check free() of this */
     unsigned int sl = sizeof (struct sockaddr_in);
+    static struct client cl;
     int sfd;
 
-    if (!next_client)
-        next_client = dawn_calloc(1, sizeof (*next_client));
-
-    cl = next_client;
-
-    sfd = accept(server.fd, (struct sockaddr *) &cl->sin, &sl);
-    if (sfd < 0) {
+    sfd = accept(server.fd, (struct sockaddr *) &cl.sin, &sl);
+    if (sfd == -1) {
         fprintf(stderr, "Accept failed\n");
         return;
     }
 
-    cl->s.stream.string_data = 1;
-    cl->s.stream.notify_read = client_read_cb;
-    cl->s.stream.notify_state = client_notify_state;
-    cl->s.stream.notify_write = client_notify_write;
-    ustream_fd_init(&cl->s, sfd);
-    next_client = NULL; /* TODO: Why is this here?  To avoid resetting if above return happens? */
+    cl.s.stream.string_data = 1;
+    cl.s.stream.notify_read = client_read_cb;
+    cl.s.stream.notify_state = client_notify_state;
+    cl.s.stream.notify_write = client_notify_write;
+    ustream_fd_init(&cl.s, sfd);
     fprintf(stderr, "New connection\n");
 }
 
@@ -272,7 +271,7 @@ static void connect_cb(struct uloop_fd *f, unsigned int events)
     entry->connected = 1;
 }
 
-int add_tcp_conncection(char *ipv4, int port)
+int add_tcp_conncection(const char *ipv4, int port)
 {
     struct sockaddr_in serv_addr;
     char port_str[12];
@@ -297,14 +296,20 @@ int add_tcp_conncection(char *ipv4, int port)
         }
     }
 
-    struct network_con_s *tcp_entry = dawn_calloc(1, sizeof(struct network_con_s));
-    tcp_entry->fd.fd = usock(USOCK_TCP | USOCK_NONBLOCK, ipv4, port_str);
-    tcp_entry->sock_addr = serv_addr;
+    struct network_con_s *tcp_entry = dawn_calloc(1, sizeof (struct network_con_s));
+    if (tcp_entry == NULL) {
+        fprintf(stderr, "Failed to allocate memory!");
+        dawn_free(tcp_entry);
+        return -1;
+    }
 
+    tcp_entry->fd.fd = usock(USOCK_TCP | USOCK_NONBLOCK, ipv4, port_str);
     if (tcp_entry->fd.fd < 0) {
         dawn_free(tcp_entry);
         return -1;
     }
+
+    tcp_entry->sock_addr = serv_addr;
     tcp_entry->fd.cb = connect_cb;
     uloop_fd_add(&tcp_entry->fd, ULOOP_WRITE | ULOOP_EDGE_TRIGGER);
 
@@ -314,7 +319,7 @@ int add_tcp_conncection(char *ipv4, int port)
     return 0;
 }
 
-void send_tcp(char *msg)
+void send_tcp(const char *msg)
 {
     struct network_con_s *con, *tmp;
 
@@ -325,29 +330,29 @@ void send_tcp(char *msg)
         int length_enc;
 
         char *enc = gcrypt_encrypt_msg(msg, msglen, &length_enc);
-        if (!enc) {
-            fprintf(stderr, "Ustream error: not enought memory (" STR_QUOTE(__LINE__) ")\n");
+        if (enc == NULL) {
+            fprintf(stderr, "Failed to allocate memory (%d)\n", __LINE__);
             return;
         }
 
-        uint32_t final_len = length_enc + sizeof(final_len);
+        uint32_t final_len = length_enc + sizeof (final_len);
         char *final_str = dawn_malloc(final_len);
-        if (!final_str) {
+        if (final_str == NULL) {
             dawn_free(enc);
-            fprintf(stderr, "Ustream error: not enought memory (" STR_QUOTE(__LINE__) ")\n");
+            fprintf(stderr, "Failed to allocate memory (%d)\n", __LINE__);
             return;
         }
 
         uint32_t *msg_header = (uint32_t *) final_str;
         *msg_header = htonl(final_len);
-        memcpy(final_str + sizeof(final_len), enc, length_enc);
+        memcpy(final_str + sizeof (final_len), enc, length_enc);
 
         list_for_each_entry_safe(con, tmp, &tcp_sock_list, list) {
             if (con->connected) {
                 int len_ustream = ustream_write(&con->stream.stream, final_str, final_len, 0);
                 printf("Ustream send: %d\n", len_ustream);
                 if (len_ustream <= 0) {
-                    fprintf(stderr, "Ustream error(" STR_QUOTE(__LINE__) ")!\n");
+                    fprintf(stderr, "Ustream error(%d)!\n", __LINE__);
                     /* ERROR HANDLING! */
                     if (con->stream.stream.write_error) {
                         ustream_free(&con->stream.stream);
@@ -358,22 +363,21 @@ void send_tcp(char *msg)
                 }
             }
         }
-
         dawn_free(final_str);
         dawn_free(enc);
     }
     else {
         size_t msglen = strlen(msg) + 1;
-        uint32_t final_len = msglen + sizeof(final_len);
+        uint32_t final_len = msglen + sizeof (final_len);
         char *final_str = dawn_malloc(final_len);
-        if (!final_str) {
-            fprintf(stderr, "Ustream error: not enought memory (" STR_QUOTE(__LINE__) ")\n");
+        if (final_str == NULL) {
+            fprintf(stderr, "Ustream error: not enought memory (%d)\n", __LINE__);
             return;
         }
 
-        uint32_t *msg_header = (uint32_t *)final_str;
+        uint32_t *msg_header = (uint32_t *) final_str;
         *msg_header = htonl(final_len);
-        memcpy(final_str + sizeof(final_len), msg, msglen);
+        memcpy(final_str + sizeof (final_len), msg, msglen);
 
         list_for_each_entry_safe(con, tmp, &tcp_sock_list, list) {
             if (con->connected) {
@@ -381,7 +385,7 @@ void send_tcp(char *msg)
                 printf("Ustream send: %d\n", len_ustream);
                 if (len_ustream <= 0) {
                     /* ERROR HANDLING! */
-                    fprintf(stderr, "Ustream error(" STR_QUOTE(__LINE__) ")!\n");
+                    fprintf(stderr, "Ustream error(%d)!\n", __LINE__);
                     if (con->stream.stream.write_error) {
                         ustream_free(&con->stream.stream);
                         close(con->fd.fd);

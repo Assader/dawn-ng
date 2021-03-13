@@ -23,7 +23,7 @@ struct network_con_s {
  * @param port
  * @return
  */
-int add_tcp_conncection(char *ipv4, int port);
+int add_tcp_conncection(const char *ipv4, int port);
 
 /**
  * Opens a tcp server and adds it to the uloop.
@@ -36,7 +36,7 @@ int run_server(int port);
  * Send message via tcp to all other hosts.
  * @param msg
  */
-void send_tcp(char *msg);
+void send_tcp(const char *msg);
 
 /**
  * Debug message.
