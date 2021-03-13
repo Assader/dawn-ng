@@ -24,15 +24,16 @@ int compare_essid_iwinfo(struct dawn_mac bssid0, struct dawn_mac bssid1)
     sprintf(bssid1_str, MACSTR, MAC2STR(bssid1.u8));
 
     dirp = opendir(hostapd_dir_glob);
-    if (!dirp) {
+    if (dirp == NULL) {
         fprintf(stderr, "[COMPARE ESSID] Failed to open %s\n", hostapd_dir_glob);
         return 0;
     }
 
     while ((entry = readdir(dirp)) != NULL && (!essid0_found || !essid1_found)) {
         if (entry->d_type == DT_SOCK) {
-            if (strcmp(entry->d_name, "global") == 0)
+            if (strcmp(entry->d_name, "global") == 0) {
                 continue;
+            }
 
             iw = iwinfo_backend(entry->d_name);
 
@@ -61,7 +62,6 @@ int compare_essid_iwinfo(struct dawn_mac bssid0, struct dawn_mac bssid1)
         ret = 0;
     }
 
-exit:
     return ret;
 }
 
@@ -72,7 +72,7 @@ int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_
     int sucess = 0;
 
     dirp = opendir(hostapd_dir_glob);
-    if (!dirp) {
+    if (dirp == NULL) {
         fprintf(stderr, "[BANDWIDTH INFO] Failed to open %s\n", hostapd_dir_glob);
         goto exit;
     }
@@ -99,8 +99,9 @@ int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rat
     char buf[IWINFO_BUFSIZE];
     int ret = 0, len;
 
-    if (strcmp(ifname, "global") == 0)
+    if (strcmp(ifname, "global") == 0) {
         goto exit;
+    }
 
     iw = iwinfo_backend(ifname);
 
@@ -114,7 +115,7 @@ int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rat
         goto exit;
     }
 
-    for (int i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
+    for (int i = 0; i < len; i += sizeof (struct iwinfo_assoclist_entry)) {
         e = (struct iwinfo_assoclist_entry *) &buf[i];
 
         if (mac_is_equal(client_addr.u8, e->mac)) {
@@ -137,7 +138,7 @@ int get_rssi_iwinfo(struct dawn_mac client_addr)
     DIR *dirp;
 
     dirp = opendir(hostapd_dir_glob);
-    if (!dirp) {
+    if (dirp == NULL) {
         fprintf(stderr, "[RSSI INFO] No hostapd sockets!\n");
         goto exit;
     }
@@ -145,8 +146,9 @@ int get_rssi_iwinfo(struct dawn_mac client_addr)
     while ((entry = readdir(dirp)) != NULL) {
         if (entry->d_type == DT_SOCK) {
             rssi = get_rssi(entry->d_name, client_addr);
-            if (rssi != INT_MIN)
+            if (rssi != INT_MIN) {
                 break;
+            }
         }
     }
 
@@ -163,8 +165,9 @@ int get_rssi(const char *ifname, struct dawn_mac client_addr)
     char buf[IWINFO_BUFSIZE];
     int len, rssi = INT_MIN;
 
-    if (strcmp(ifname, "global") == 0)
+    if (strcmp(ifname, "global") == 0) {
         goto exit;
+    }
 
     iw = iwinfo_backend(ifname);
 
@@ -178,7 +181,7 @@ int get_rssi(const char *ifname, struct dawn_mac client_addr)
         goto exit;
     }
 
-    for (int i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
+    for (int i = 0; i < len; i += sizeof (struct iwinfo_assoclist_entry)) {
         e = (struct iwinfo_assoclist_entry *) &buf[i];
 
         if (mac_is_equal(client_addr.u8, e->mac)) {
@@ -199,7 +202,7 @@ int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
     DIR *dirp;
 
     dirp = opendir(hostapd_dir_glob);
-    if (!dirp) {
+    if (dirp == NULL) {
         fprintf(stderr, "[RSSI INFO] Failed to open dir:%s\n", hostapd_dir_glob);
         goto exit;
     }
@@ -207,8 +210,9 @@ int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
     while ((entry = readdir(dirp)) != NULL) {
         if (entry->d_type == DT_SOCK) {
             exp_thr = get_expected_throughput(entry->d_name, client_addr);
-            if (exp_thr != INT_MIN)
+            if (exp_thr != INT_MIN) {
                 break;
+            }
         }
     }
 
@@ -225,8 +229,9 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
     char buf[IWINFO_BUFSIZE];
     int len, throughput = INT_MIN;
 
-    if (strcmp(ifname, "global") == 0)
+    if (strcmp(ifname, "global") == 0) {
         goto exit;
+    }
 
     iw = iwinfo_backend(ifname);
 
@@ -240,7 +245,7 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
         goto exit;
     }
 
-    for (int i = 0; i < len; i += sizeof(struct iwinfo_assoclist_entry)) {
+    for (int i = 0; i < len; i += sizeof (struct iwinfo_assoclist_entry)) {
         e = (struct iwinfo_assoclist_entry *) &buf[i];
 
         if (mac_is_equal(client_addr.u8, e->mac)) {
@@ -260,8 +265,9 @@ int get_bssid(const char *ifname, uint8_t *bssid_addr)
     const struct iwinfo_ops *iw;
     char buf[18] = "00:00:00:00:00:00";
 
-    if (strcmp(ifname, "global") == 0)
+    if (strcmp(ifname, "global") == 0) {
         return 0;
+    }
 
     iw = iwinfo_backend(ifname);
 
@@ -279,8 +285,9 @@ int get_ssid(const char *ifname, char *ssid, size_t ssidmax)
     const struct iwinfo_ops *iw;
     char buf[IWINFO_ESSID_MAX_SIZE + 1] = {0};
 
-    if (strcmp(ifname, "global") == 0)
+    if (strcmp(ifname, "global") == 0) {
         return 0;
+    }
 
     iw = iwinfo_backend(ifname);
 
@@ -300,8 +307,9 @@ int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uin
     char buf[IWINFO_BUFSIZE];
     struct iwinfo_survey_entry *e;
 
-    if (strcmp(ifname, "global") == 0)
+    if (strcmp(ifname, "global") == 0) {
         return 0;
+    }
 
     iw = iwinfo_backend(ifname);
 
@@ -319,7 +327,7 @@ int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uin
         goto exit;
     }
 
-    for (int i = 0; i < len; i += sizeof(struct iwinfo_survey_entry)) {
+    for (int i = 0; i < len; i += sizeof (struct iwinfo_survey_entry)) {
         e = (struct iwinfo_survey_entry *) &buf[i];
 
         if (e->mhz == freq) {
@@ -329,8 +337,9 @@ int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uin
             *last_channel_time = e->active_time;
             *last_channel_time_busy = e->busy_time;
 
-            if (divisor)
+            if (divisor) {
                 ret = (int) (dividend * 255 / divisor);
+            }
 
             break;
         }
@@ -346,8 +355,9 @@ int support_ht(const char *ifname)
     const struct iwinfo_ops *iw;
     int htmodes = 0;
 
-    if (strcmp(ifname, "global") == 0)
+    if (strcmp(ifname, "global") == 0) {
         return 0;
+    }
 
     iw = iwinfo_backend(ifname);
 
@@ -365,8 +375,9 @@ int support_vht(const char *ifname)
     const struct iwinfo_ops *iw;
     int htmodes = 0;
 
-    if (strcmp(ifname, "global") == 0)
+    if (strcmp(ifname, "global") == 0) {
         return 0;
+    }
 
     iw = iwinfo_backend(ifname);
 
