@@ -10,13 +10,13 @@
 static struct uci_context *uci_ctx;
 static struct uci_package *uci_pkg;
 
-// why is this not included in uci lib...?!
-// found here: https://github.com/br101/pingcheck/blob/master/uci.c
+/* Found here: https://github.com/br101/pingcheck/blob/master/uci.c */
 static int uci_lookup_option_int(struct uci_context *uci, struct uci_section *s,
                                  const char *name)
 {
     const char *str = uci_lookup_option_string(uci, s, name);
-    return str == NULL ? -1 : atoi(str);
+
+    return (str == NULL)? -1 : atoi(str);
 }
 
 void uci_get_hostname(char *hostname)
@@ -137,8 +137,9 @@ struct network_config_s uci_get_dawn_network(void)
             strncpy(ret.broadcast_ip, str_broadcast, MAX_IP_LENGTH);
 
             const char *str_server_ip = uci_lookup_option_string(uci_ctx, s, "server_ip");
-            if (str_server_ip)
+            if (str_server_ip) {
                 strncpy(ret.server_ip, str_server_ip, MAX_IP_LENGTH);
+            }
 
             ret.broadcast_port = uci_lookup_option_int(uci_ctx, s, "broadcast_port");
 
@@ -199,7 +200,7 @@ int uci_reset(void)
 {
     struct uci_context *ctx = uci_ctx;
 
-    if (!ctx) {
+    if (ctx == NULL) {
         ctx = uci_alloc_context();
         dawn_regmem(ctx);
         uci_ctx = ctx;
@@ -217,7 +218,7 @@ int uci_init(void)
 {
     struct uci_context *ctx = uci_ctx;
 
-    if (!ctx) {
+    if (ctx == NULL) {
         ctx = uci_alloc_context();
         dawn_regmem(ctx);
         uci_ctx = ctx;
@@ -228,15 +229,17 @@ int uci_init(void)
         ctx->flags &= ~UCI_FLAG_STRICT;
         /* shouldn't happen? */
         uci_pkg = uci_lookup_package(ctx, "dawn");
-        if (uci_pkg) {
+        if (uci_pkg != NULL) {
             uci_unload(ctx, uci_pkg);
             dawn_unregmem(uci_pkg);
             uci_pkg = NULL;
         }
     }
 
-    if (uci_load(ctx, "dawn", &uci_pkg) != UCI_OK)
+    if (uci_load(ctx, "dawn", &uci_pkg) != UCI_OK) {
         return -1;
+    }
+
     dawn_regmem(uci_pkg);
 
     return 1;
@@ -265,16 +268,19 @@ int uci_set_network(char *uci_cmd)
     ctx->flags |= UCI_FLAG_STRICT;
 
     ret = uci_lookup_ptr(ctx, &ptr, uci_cmd, 1);
-    if (ret != UCI_OK)
+    if (ret != UCI_OK) {
         goto error;
+    }
 
     ret = uci_set(ctx, &ptr);
-    if (ret != UCI_OK)
+    if (ret != UCI_OK) {
         goto error;
+    }
 
     ret = uci_commit(ctx, &ptr.p, 0);
-    if (ret != UCI_OK)
+    if (ret != UCI_OK) {
         goto error;
+    }
 
     return UCI_OK;
 
