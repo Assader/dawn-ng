@@ -62,7 +62,7 @@ void daemon_shutdown(void)
     /* kill threads */
     close_socket();
     uci_clear();
-    uloop_cancelled = true;
+    uloop_end();
     destroy_mutex();
 }
 
