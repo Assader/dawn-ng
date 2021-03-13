@@ -3,7 +3,7 @@ PROJECT(dawn)
 
 INCLUDE_DIRECTORIES(include)
 
-ADD_DEFINITIONS(-Wall -Werror --std=gnu99 -Wmissing-declarations -Wno-unknown-warning-option -Wno-format-truncation)
+ADD_COMPILE_OPTIONS(-Wall -Werror --std=gnu99 -Wmissing-declarations -Wno-unknown-warning-option -Wno-format-truncation)
 
 SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 
