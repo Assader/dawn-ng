@@ -33,8 +33,9 @@ void *dawn_memory_alloc(enum dawn_memop type, const char *file, int line, size_t
         break;
     case DAWN_REALLOC:
         ret = realloc(ptr, size);
-        if (ret != NULL)
+        if (ret != NULL) {
             dawn_memory_unregister(DAWN_REALLOC, file, line, ptr);
+        }
         break;
     case DAWN_CALLOC:
         ret = calloc(nmemb, size);
@@ -44,8 +45,9 @@ void *dawn_memory_alloc(enum dawn_memop type, const char *file, int line, size_t
         break;
     }
 
-    if (ret != NULL)
+    if (ret != NULL) {
         dawn_memory_register(type, file, line, size, ret);
+    }
 
     return ret;
 }
@@ -57,8 +59,9 @@ void *dawn_memory_register(enum dawn_memop type, const char *file, int line, siz
     char type_c = '?';
 
     /* Ignore over enthusiastic effort to register a failed allocation */
-    if (ptr == NULL)
+    if (ptr == NULL) {
         return ret;
+    }
 
     switch (type) {
     case DAWN_MALLOC:
@@ -80,14 +83,15 @@ void *dawn_memory_register(enum dawn_memop type, const char *file, int line, siz
 
     /* Insert to linked list with ascending memory reference */
     struct mem_list **ipos = &mem_base;
-    while (*ipos != NULL && (*ipos)->ptr < ptr)
+    while (*ipos != NULL && (*ipos)->ptr < ptr) {
         ipos = &((*ipos)->next_mem);
+    }
 
     if (*ipos != NULL && (*ipos)->ptr == ptr) {
         printf("mem-audit: attempting to register memory already registered (%c@%s:%d)...\n", type_c, file, line);
     }
     else {
-        this_log = malloc(sizeof(struct mem_list));
+        this_log = malloc(sizeof (struct mem_list));
         if (this_log == NULL) {
             printf("mem-audit: Oh the irony! malloc() failed in dawn_memory_register()!\n");
         }
@@ -98,10 +102,12 @@ void *dawn_memory_register(enum dawn_memop type, const char *file, int line, siz
             /* Just use filename - no path */
             file = strrchr(file, '/');
 
-            if (file != NULL)
+            if (file != NULL) {
                 strncpy(this_log->file, file + 1, DAWN_MEM_FILENAME_LEN);
-            else
+            }
+            else {
                 strncpy(this_log->file, "?? UNKNOWN ??", DAWN_MEM_FILENAME_LEN);
+            }
 
             this_log->type = type_c;
             this_log->line = line;
