@@ -1,10 +1,9 @@
-/* based on:
-https://github.com/vedantk/gcrypt-example/blob/master/gcry.cc */
-
 #include <gcrypt.h>
 
 #include "crypto.h"
 #include "memory_utils.h"
+
+/* Based on: https://github.com/vedantk/gcrypt-example/blob/master/gcry.cc */
 
 #define GCRY_CIPHER GCRY_CIPHER_AES128   /* Pick the cipher here */
 #define GCRY_C_MODE GCRY_CIPHER_MODE_ECB /* Pick the cipher mode here */
@@ -15,7 +14,7 @@ void gcrypt_init(void)
 {
     gcry_error_t err;
 
-    if (!gcry_check_version(GCRYPT_VERSION)) {
+    if (gcry_check_version(GCRYPT_VERSION) == NULL) {
         fprintf(stderr, "gcrypt: library version mismatch");
     }
 
@@ -24,60 +23,61 @@ void gcrypt_init(void)
     err |= gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
     err |= gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
 
-    if (err) {
+    if (err != GPG_ERR_NO_ERROR) {
         fprintf(stderr, "gcrypt: failed initialization");
     }
 }
 
 void gcrypt_set_key_and_iv(const char *key, const char *iv)
 {
-    size_t keylen = gcry_cipher_get_algo_keylen(GCRY_CIPHER);
-    size_t blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
-    gcry_error_t gcry_error_handle;
+    size_t keylen = gcry_cipher_get_algo_keylen(GCRY_CIPHER),
+           blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
+    gcry_error_t err;
 
-    gcry_error_handle = gcry_cipher_open(&gcry_cipher_hd, GCRY_CIPHER, GCRY_C_MODE, 0);
-    if (gcry_error_handle) {
-        fprintf(stderr, "gcry_cipher_open failed:  %s/%s\n",
-                gcry_strsource(gcry_error_handle),
-                gcry_strerror(gcry_error_handle));
+    err = gcry_cipher_open(&gcry_cipher_hd, GCRY_CIPHER, GCRY_C_MODE, 0);
+    if (err != GPG_ERR_NO_ERROR) {
+        fprintf(stderr, "gcry_cipher_open failed: %s/%s\n",
+                gcry_strsource(err),
+                gcry_strerror(err));
         return;
     }
 
-    gcry_error_handle = gcry_cipher_setkey(gcry_cipher_hd, key, keylen);
-    if (gcry_error_handle) {
-        fprintf(stderr, "gcry_cipher_setkey failed:  %s/%s\n",
-                gcry_strsource(gcry_error_handle),
-                gcry_strerror(gcry_error_handle));
+    err = gcry_cipher_setkey(gcry_cipher_hd, key, keylen);
+    if (err != GPG_ERR_NO_ERROR) {
+        fprintf(stderr, "gcry_cipher_setkey failed: %s/%s\n",
+                gcry_strsource(err),
+                gcry_strerror(err));
         return;
     }
 
-    gcry_error_handle = gcry_cipher_setiv(gcry_cipher_hd, iv, blklen);
-    if (gcry_error_handle) {
-        fprintf(stderr, "gcry_cipher_setiv failed:  %s/%s\n",
-                gcry_strsource(gcry_error_handle),
-                gcry_strerror(gcry_error_handle));
+    err = gcry_cipher_setiv(gcry_cipher_hd, iv, blklen);
+    if (err != GPG_ERR_NO_ERROR) {
+        fprintf(stderr, "gcry_cipher_setiv failed: %s/%s\n",
+                gcry_strsource(err),
+                gcry_strerror(err));
     }
 }
 
-/* free out buffer after using! */
+/* Free out buffer after using! */
 char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
 {
-    gcry_error_t gcry_error_handle;
+    gcry_error_t err;
 
-    if (0U != (msg_length & 0xfU))
+    if ((msg_length & 0xfU) != 0U) {
         msg_length += 0x10U - (msg_length & 0xfU);
+    }
 
     char *out = dawn_malloc(msg_length);
-    if (!out) {
-        fprintf(stderr, "gcry_cipher_encrypt error: not enought memory\n");
+    if (out == NULL) {
+        fprintf(stderr, "Failed to allocate memory!\n");
         return NULL;
     }
 
-    gcry_error_handle = gcry_cipher_encrypt(gcry_cipher_hd, out, msg_length, msg, msg_length);
-    if (gcry_error_handle) {
-        fprintf(stderr, "gcry_cipher_encrypt failed:  %s/%s\n",
-                gcry_strsource(gcry_error_handle),
-                gcry_strerror(gcry_error_handle));
+    err = gcry_cipher_encrypt(gcry_cipher_hd, out, msg_length, msg, msg_length);
+    if (err != GPG_ERR_NO_ERROR) {
+        fprintf(stderr, "gcry_cipher_encrypt failed: %s/%s\n",
+                gcry_strsource(err),
+                gcry_strerror(err));
         dawn_free(out);
         return NULL;
     }
@@ -87,28 +87,29 @@ char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
     return out;
 }
 
-/* free out buffer after using! */
+/* Free out buffer after using! */
 char *gcrypt_decrypt_msg(const char *msg, size_t msg_length)
 {
-    gcry_error_t gcry_error_handle;
+    gcry_error_t err;
 
-    if (0U != (msg_length & 0xfU))
+    if ((msg_length & 0xfU) != 0U) {
         msg_length += 0x10U - (msg_length & 0xfU);
+    }
 
-    char *out_buffer = dawn_malloc(msg_length);
-    if (!out_buffer) {
-        fprintf(stderr, "gcry_cipher_decrypt error: not enought memory\n");
+    char *out = dawn_malloc(msg_length);
+    if (out == NULL) {
+        fprintf(stderr, "Failed to allocate memory!\n");
         return NULL;
     }
 
-    gcry_error_handle = gcry_cipher_decrypt(gcry_cipher_hd, out_buffer, msg_length, msg, msg_length);
-    if (gcry_error_handle) {
-        fprintf(stderr, "gcry_cipher_decrypt failed:  %s/%s\n",
-                gcry_strsource(gcry_error_handle),
-                gcry_strerror(gcry_error_handle));
-        dawn_free(out_buffer);
+    err = gcry_cipher_decrypt(gcry_cipher_hd, out, msg_length, msg, msg_length);
+    if (err != GPG_ERR_NO_ERROR) {
+        fprintf(stderr, "gcry_cipher_decrypt failed: %s/%s\n",
+                gcry_strsource(err),
+                gcry_strerror(err));
+        dawn_free(out);
         return NULL;
     }
 
-    return out_buffer;
+    return out;
 }
