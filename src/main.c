@@ -20,8 +20,6 @@ struct sigaction signal_action;
 
 int main(int argc, char **argv)
 {
-    const char *ubus_socket = NULL;
-
     /* connect signals */
     signal_action.sa_handler = signal_handler;
     sigemptyset(&signal_action.sa_mask);
@@ -53,7 +51,8 @@ int main(int argc, char **argv)
     }
 
     insert_macs_from_file();
-    dawn_init_ubus(ubus_socket, hostapd_dir_glob);
+
+    dawn_init_ubus(NULL, hostapd_dir_glob);
 
     return 0;
 }
