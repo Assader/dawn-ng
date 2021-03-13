@@ -9,63 +9,26 @@ SET(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "")
 
 SET(SOURCES
         main.c
-
         storage/datastorage.c
-        include/datastorage.h
-
         network/networksocket.c
-        include/networksocket.h
-
         network/broadcastsocket.c
-        include/broadcastsocket.h
-
         network/multicastsocket.c
-        include/multicastsocket.h
-
         utils/ubus.c
-        include/ubus.h
-
         utils/msghandler.c
-        include/msghandler.h
-
         utils/dawn_uci.c
-        include/dawn_uci.h
-
         crypto/crypto.c
-        include/crypto.h
-
         utils/mac_utils.c
-        include/mac_utils.h
-
         utils/memory_utils.c
-        include/memory_utils.h
-
-        include/tcpsocket.h
         network/tcpsocket.c
-
-        include/dawn_iwinfo.h
         utils/dawn_iwinfo.c
-
-        utils/ieee80211_utils.c
-        include/ieee80211_utils.h)
+        utils/ieee80211_utils.c)
 
 SET(SOURCES_TEST_STORAGE
         test/test_storage.c
-        include/test_storage.h
-
-        include/ubus.h
-
         utils/mac_utils.c
-        include/mac_utils.h
-
         utils/memory_utils.c
-        include/memory_utils.h
-
         storage/datastorage.c
-        include/datastorage.h
-
-        utils/ieee80211_utils.c
-        include/ieee80211_utils.h)
+        utils/ieee80211_utils.c)
 
 SET(SOURCES_TEST_HEADER
         test/test_header.c)
