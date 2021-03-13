@@ -133,11 +133,13 @@ int parse_to_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_
 
     blobmsg_parse(hostapd_notify_policy, __HOSTAPD_NOTIFY_MAX, tb, blob_data(msg), blob_len(msg));
 
-    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID_ADDR]), notify_req->bssid_addr.u8))
+    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID_ADDR]), notify_req->bssid_addr.u8)) {
         return UBUS_STATUS_INVALID_ARGUMENT;
+    }
 
-    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->client_addr.u8))
+    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->client_addr.u8)) {
         return UBUS_STATUS_INVALID_ARGUMENT;
+    }
 
     return 0;
 }
@@ -218,8 +220,9 @@ int handle_deauth_req(struct blob_attr *msg)
     pthread_mutex_lock(&client_array_mutex);
 
     client *client_entry = client_array_get_client(notify_req.client_addr);
-    if (client_entry != NULL)
+    if (client_entry != NULL) {
         client_array_delete(client_entry, false);
+    }
 
     pthread_mutex_unlock(&client_array_mutex);
 
@@ -325,7 +328,7 @@ exit:
     return ret;
 }
 
-/* modify from examples/blobmsg-example.c in libubox */
+/* Modify from examples/blobmsg-example.c in libubox */
 static uint8_t dump_rrm_data(void *data, int len, int type)
 {
     uint8_t ret = 0;
@@ -342,15 +345,15 @@ static uint8_t dump_rrm_data(void *data, int len, int type)
     return ret;
 }
 
-/* modify from examples/blobmsg-example.c in libubox */
+/* Modify from examples/blobmsg-example.c in libubox */
 static uint8_t dump_rrm_table(struct blob_attr *head, int len)
 {
     struct blob_attr *attr;
     uint8_t ret = 0;
 
     __blob_for_each_attr(attr, head, len) {
+        /* Get the first rrm byte */
         ret = dump_rrm_data(blobmsg_data(attr), blobmsg_data_len(attr), blob_id(attr));
-        /* get the first rrm byte */
         break;
     }
 
@@ -409,7 +412,7 @@ static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
     }
     /* RRM Caps */
     if (tb[CLIENT_RRM]) {
-        /* get the first byte from rrm array
+        /* Get the first byte from rrm array
         ap_entry.ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_RRM]); */
         client_entry->rrm_enabled_capa =
                 dump_rrm_table(blobmsg_data(tb[CLIENT_RRM]),
@@ -420,7 +423,7 @@ static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
         /* ap_entry.ap_weight = 0; */
     }
 
-    /* copy signature */
+    /* Copy signature */
     if (tb[CLIENT_SIGNATURE]) {
         strncpy(client_entry->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN * sizeof (char));
     }
@@ -487,7 +490,13 @@ int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id)
         num_stations = dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
                                          blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
                                          blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
+
         ap *ap_entry = dawn_malloc(sizeof (struct ap_s));
+        if (ap_entry == NULL) {
+            fprintf(stderr, "Failed to allocate memory!");
+            dawn_free(ap_entry);
+            goto exit;
+        }
 
         hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid_addr.u8);
         ap_entry->freq = blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]);
