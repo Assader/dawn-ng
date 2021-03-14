@@ -665,125 +665,36 @@ static int handle_uci_config(struct blob_attr *msg)
     blobmsg_parse(uci_metric_policy, __UCI_METIC_MAX, tb_metric, blobmsg_data(tb[UCI_TABLE_METRIC]), blobmsg_len(tb[UCI_TABLE_METRIC]));
     blobmsg_parse(uci_times_policy, __UCI_TIMES_MAX, tb_times, blobmsg_data(tb[UCI_TABLE_TIMES]), blobmsg_len(tb[UCI_TABLE_TIMES]));
 
-    sprintf(cmd_buffer, "dawn.@metric[0].ht_support=%d", blobmsg_get_u32(tb_metric[UCI_HT_SUPPORT]));
-    uci_set_network(cmd_buffer);
+    struct {
+        const char *config_option;
+        struct blob_attr **tb;
+        int tb_idx;
+    } option_array[] = {{"@metric[0].ht_support", tb_metric, UCI_HT_SUPPORT}, {"@metric[0].vht_support", tb_metric, UCI_VHT_SUPPORT},
+    {"@metric[0].no_ht_support", tb_metric, UCI_NO_HT_SUPPORT}, {"@metric[0].no_vht_support", tb_metric, UCI_NO_VHT_SUPPORT},
+    {"@metric[0].rssi", tb_metric, UCI_RSSI}, {"@metric[0].low_rssi", tb_metric, UCI_LOW_RSSI}, {"@metric[0].freq", tb_metric, UCI_FREQ},
+    {"@metric[0].chan_util", tb_metric, UCI_CHAN_UTIL}, {"@metric[0].rssi_val", tb_metric, UCI_RSSI_VAL},
+    {"@metric[0].low_rssi_val", tb_metric, UCI_LOW_RSSI_VAL}, {"@metric[0].scan_channel", tb_metric, UCI_SCAN_CHANNEL},
+    {"@metric[0].chan_util_val", tb_metric, UCI_CHAN_UTIL_VAL}, {"@metric[0].max_chan_util", tb_metric, UCI_MAX_CHAN_UTIL},
+    {"@metric[0].max_chan_util_val", tb_metric, UCI_MAX_CHAN_UTIL_VAL}, {"@metric[0].min_probe_count", tb_metric, UCI_MIN_PROBE_COUNT},
+    {"@metric[0].bandwidth_threshold", tb_metric, UCI_BANDWIDTH_THRESHOLD}, {"@metric[0].use_station_count", tb_metric, UCI_USE_STATION_COUNT},
+    {"@metric[0].max_station_diff", tb_metric, UCI_MAX_STATION_DIFF}, {"@metric[0].eval_probe_req", tb_metric, UCI_EVAL_PROBE_REQ},
+    {"@metric[0].eval_auth_req", tb_metric, UCI_EVAL_AUTH_REQ}, {"@metric[0].evalcd_assoc_req", tb_metric, UCI_EVAL_ASSOC_REQ},
+    {"@metric[0].kicking", tb_metric, UCI_KICKING}, {"@metric[0].deny_auth_reason", tb_metric, UCI_DENY_AUTH_REASON},
+    {"@metric[0].deny_assoc_reason", tb_metric, UCI_DENY_ASSOC_REASON}, {"@metric[0].use_driver_recog", tb_metric, UCI_USE_DRIVER_RECOG},
+    {"@metric[0].min_number_to_kick", tb_metric, UCI_MIN_NUMBER_TO_KICK}, {"@metric[0].chan_util_avg_period", tb_metric, UCI_CHAN_UTIL_AVG_PERIOD},
+    {"@metric[0].set_hostapd_nr", tb_metric, UCI_SET_HOSTAPD_NR}, {"@metric[0].op_class", tb_metric, UCI_OP_CLASS},
+    {"@metric[0].duration", tb_metric, UCI_DURATION}, {"@metric[0].mode", tb_metric, UCI_MODE},
+    {"@times[0].update_client", tb_times, UCI_UPDATE_CLIENT}, {"@times[0].denied_req_threshold", tb_times, UCI_DENIED_REQ_THRESHOLD},
+    {"@times[0].remove_client", tb_times, UCI_REMOVE_CLIENT}, {"@times[0].remove_probe", tb_times, UCI_REMOVE_PROBE},
+    {"@times[0].remove_ap", tb_times, UCI_REMOVE_AP}, {"@times[0].update_hostapd", tb_times, UCI_UPDATE_HOSTAPD},
+    {"@times[0].update_tcp_con", tb_times, UCI_UPDATE_TCP_CON}, {"@times[0].update_chan_util", tb_times, UCI_UPDATE_CHAN_UTIL},
+    {"@times[0].update_beacon_reports", tb_times, UCI_UPDATE_BEACON_REPORTS}};
 
-    sprintf(cmd_buffer, "dawn.@metric[0].vht_support=%d", blobmsg_get_u32(tb_metric[UCI_VHT_SUPPORT]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].no_ht_support=%d", blobmsg_get_u32(tb_metric[UCI_NO_HT_SUPPORT]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].no_vht_support=%d", blobmsg_get_u32(tb_metric[UCI_NO_VHT_SUPPORT]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].rssi=%d", blobmsg_get_u32(tb_metric[UCI_RSSI]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].low_rssi=%d", blobmsg_get_u32(tb_metric[UCI_LOW_RSSI]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].freq=%d", blobmsg_get_u32(tb_metric[UCI_FREQ]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].chan_util=%d", blobmsg_get_u32(tb_metric[UCI_CHAN_UTIL]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].rssi_val=%d", blobmsg_get_u32(tb_metric[UCI_RSSI_VAL]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].low_rssi_val=%d", blobmsg_get_u32(tb_metric[UCI_LOW_RSSI_VAL]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].chan_util_val=%d", blobmsg_get_u32(tb_metric[UCI_CHAN_UTIL_VAL]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].max_chan_util=%d", blobmsg_get_u32(tb_metric[UCI_MAX_CHAN_UTIL]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].max_chan_util_val=%d", blobmsg_get_u32(tb_metric[UCI_MAX_CHAN_UTIL_VAL]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].min_probe_count=%d", blobmsg_get_u32(tb_metric[UCI_MIN_PROBE_COUNT]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].bandwidth_threshold=%d", blobmsg_get_u32(tb_metric[UCI_BANDWIDTH_THRESHOLD]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].use_station_count=%d", blobmsg_get_u32(tb_metric[UCI_USE_STATION_COUNT]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].max_station_diff=%d", blobmsg_get_u32(tb_metric[UCI_MAX_STATION_DIFF]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].eval_probe_req=%d", blobmsg_get_u32(tb_metric[UCI_EVAL_PROBE_REQ]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].eval_auth_req=%d", blobmsg_get_u32(tb_metric[UCI_EVAL_AUTH_REQ]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].evalcd_assoc_req=%d", blobmsg_get_u32(tb_metric[UCI_EVAL_ASSOC_REQ]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].kicking=%d", blobmsg_get_u32(tb_metric[UCI_KICKING]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].deny_auth_reason=%d", blobmsg_get_u32(tb_metric[UCI_DENY_AUTH_REASON]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].deny_assoc_reason=%d", blobmsg_get_u32(tb_metric[UCI_DENY_ASSOC_REASON]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].use_driver_recog=%d", blobmsg_get_u32(tb_metric[UCI_USE_DRIVER_RECOG]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].min_number_to_kick=%d", blobmsg_get_u32(tb_metric[UCI_MIN_NUMBER_TO_KICK]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].chan_util_avg_period=%d", blobmsg_get_u32(tb_metric[UCI_CHAN_UTIL_AVG_PERIOD]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].set_hostapd_nr=%d", blobmsg_get_u32(tb_metric[UCI_SET_HOSTAPD_NR]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].op_class=%d", blobmsg_get_u32(tb_metric[UCI_OP_CLASS]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].duration=%d", blobmsg_get_u32(tb_metric[UCI_DURATION]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].mode=%d", blobmsg_get_u32(tb_metric[UCI_MODE]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@metric[0].scan_channel=%d", blobmsg_get_u32(tb_metric[UCI_SCAN_CHANNEL]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@times[0].update_client=%d", blobmsg_get_u32(tb_times[UCI_UPDATE_CLIENT]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@times[0].denied_req_threshold=%d", blobmsg_get_u32(tb_times[UCI_DENIED_REQ_THRESHOLD]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@times[0].remove_client=%d", blobmsg_get_u32(tb_times[UCI_REMOVE_CLIENT]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@times[0].remove_probe=%d", blobmsg_get_u32(tb_times[UCI_REMOVE_PROBE]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@times[0].remove_ap=%d", blobmsg_get_u32(tb_times[UCI_REMOVE_AP]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@times[0].update_hostapd=%d", blobmsg_get_u32(tb_times[UCI_UPDATE_HOSTAPD]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@times[0].update_tcp_con=%d", blobmsg_get_u32(tb_times[UCI_UPDATE_TCP_CON]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@times[0].update_chan_util=%d", blobmsg_get_u32(tb_times[UCI_UPDATE_CHAN_UTIL]));
-    uci_set_network(cmd_buffer);
-
-    sprintf(cmd_buffer, "dawn.@times[0].update_beacon_reports=%d", blobmsg_get_u32(tb_times[UCI_UPDATE_BEACON_REPORTS]));
-    uci_set_network(cmd_buffer);
+    for (size_t i = 0; i < ARRAY_SIZE(option_array); ++i) {
+        sprintf(cmd_buffer, "dawn.%s=%d", option_array[i].config_option,
+                blobmsg_get_u32(option_array[i].tb[option_array[i].tb_idx]));
+        uci_set_network(cmd_buffer);
+    }
 
     uci_reset();
     dawn_metric = uci_get_dawn_metric();
