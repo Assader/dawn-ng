@@ -72,7 +72,7 @@ int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
     return 0;
 }
 
-int get_bandwidth_iwinfo(struct dawn_mac client_addr, float* rx_rate, float* tx_rate)
+int iwinfo_get_bandwidth(struct dawn_mac client_addr, float* rx_rate, float* tx_rate)
 {
     *rx_rate = 0.0;
     *tx_rate = 0.0;

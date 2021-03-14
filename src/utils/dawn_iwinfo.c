@@ -65,7 +65,7 @@ int compare_essid_iwinfo(struct dawn_mac bssid0, struct dawn_mac bssid1)
     return ret;
 }
 
-bool get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
+bool iwinfo_get_bandwidth(struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
 {
     bool success = false;
     struct dirent *entry;

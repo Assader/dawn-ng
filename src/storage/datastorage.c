@@ -572,7 +572,7 @@ int kick_clients(ap *kicking_ap, uint32_t id)
                 printf("Check if client is active receiving!\n");
 
                 float rx_rate, tx_rate;
-                if (get_bandwidth_iwinfo(j->client_addr, &rx_rate, &tx_rate)) {
+                if (iwinfo_get_bandwidth(j->client_addr, &rx_rate, &tx_rate)) {
                     printf("No active transmission data for client. Don't kick!\n");
                 }
                 else {
