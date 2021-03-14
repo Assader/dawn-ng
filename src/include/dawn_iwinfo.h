@@ -34,9 +34,9 @@ int get_expected_throughput_iwinfo(struct dawn_mac client_addr);
  * @param client_addr - mac adress of the client
  * @param rx_rate - float pointer for returning the rx rate
  * @param tx_rate - float pointer for returning the tx rate
- * @return 0 if successful 1 otherwise.
+ * @return true if successful, false otherwise.
  */
-int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
+bool get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
 
 /**
  * Function checks if two bssid adresses have the same essid.

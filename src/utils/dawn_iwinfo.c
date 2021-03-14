@@ -8,7 +8,7 @@
 char *hostapd_dir;
 
 static int get_rssi(const char *ifname, struct dawn_mac client_addr);
-static int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
+static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
 
 int compare_essid_iwinfo(struct dawn_mac bssid0, struct dawn_mac bssid1)
 {
@@ -65,11 +65,11 @@ int compare_essid_iwinfo(struct dawn_mac bssid0, struct dawn_mac bssid1)
     return ret;
 }
 
-int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
+bool get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
 {
+    bool success = false;
     struct dirent *entry;
     DIR *dirp;
-    int sucess = 0;
 
     dirp = opendir(hostapd_dir);
     if (dirp == NULL) {
@@ -80,7 +80,7 @@ int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_
     while ((entry = readdir(dirp)) != NULL) {
         if (entry->d_type == DT_SOCK) {
             if (get_bandwidth(entry->d_name, client_addr, rx_rate, tx_rate)) {
-                sucess = 1;
+                success = true;
                 break;
             }
         }
@@ -89,15 +89,16 @@ int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_
     closedir(dirp);
 
 exit:
-    return sucess;
+    return success;
 }
 
-int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
+bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
 {
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
     char buf[IWINFO_BUFSIZE];
-    int ret = 0, len;
+    bool success = false;
+    int len;
 
     if (strcmp(ifname, "global") == 0) {
         goto exit;
@@ -106,12 +107,12 @@ int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rat
     iw = iwinfo_backend(ifname);
 
     if (iw->assoclist(ifname, buf, &len)) {
-        fprintf(stdout, "No information available\n");
+        printf("No information available\n");
         goto exit;
     }
 
     if (len <= 0) {
-        fprintf(stdout, "No station connected\n");
+        printf("No station connected\n");
         goto exit;
     }
 
@@ -121,14 +122,14 @@ int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rat
         if (mac_is_equal(client_addr.u8, e->mac)) {
             *rx_rate = e->rx_rate.rate / 1000;
             *tx_rate = e->tx_rate.rate / 1000;
-            ret = 1;
+            success = true;
             break;
         }
     }
 
 exit:
     iwinfo_finish();
-    return ret;
+    return success;
 }
 
 int get_rssi_iwinfo(struct dawn_mac client_addr)
