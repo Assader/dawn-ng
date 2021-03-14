@@ -190,12 +190,6 @@ void uci_reset(void)
 {
     struct uci_context *ctx = uci_ctx;
 
-    if (ctx == NULL) {
-        ctx = uci_alloc_context();
-        dawn_regmem(ctx);
-        uci_ctx = ctx;
-    }
-
     uci_pkg = uci_lookup_package(ctx, "dawn");
     uci_unload(uci_ctx, uci_pkg);
     dawn_unregmem(uci_pkg);
@@ -207,31 +201,18 @@ int uci_init(void)
 {
     struct uci_context *ctx = uci_ctx;
 
-    if (ctx == NULL) {
-        ctx = uci_alloc_context();
-        dawn_regmem(ctx);
-        uci_ctx = ctx;
+    ctx = uci_alloc_context();
+    dawn_regmem(ctx);
+    uci_ctx = ctx;
 
-        ctx->flags &= ~UCI_FLAG_STRICT;
-    }
-    else {
-        ctx->flags &= ~UCI_FLAG_STRICT;
-        /* Shouldn't happen? */
-        uci_pkg = uci_lookup_package(ctx, "dawn");
-        if (uci_pkg != NULL) {
-            uci_unload(ctx, uci_pkg);
-            dawn_unregmem(uci_pkg);
-            uci_pkg = NULL;
-        }
-    }
+    ctx->flags &= ~UCI_FLAG_STRICT;
 
     if (uci_load(ctx, "dawn", &uci_pkg) != UCI_OK) {
         return -1;
     }
-
     dawn_regmem(uci_pkg);
 
-    return 1;
+    return 0;
 }
 
 void uci_clear(void)
