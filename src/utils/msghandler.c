@@ -44,7 +44,7 @@ enum {
     __PROBE_MAX,
 };
 
-static const struct blobmsg_policy prob_policy[__PROBE_MAX] = {
+static const struct blobmsg_policy probe_policy[__PROBE_MAX] = {
     [PROBE_BSSID_ADDR] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
     [PROBE_CLIENT_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
     [PROBE_TARGET_ADDR] = {.name = "target", .type = BLOBMSG_TYPE_STRING},
@@ -148,70 +148,69 @@ bool handle_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_r
     return true;
 }
 
-probe_entry *parse_to_probe_req(struct blob_attr *msg)
+probe_entry *handle_hostapd_probe_req(struct blob_attr *msg)
 {
     struct blob_attr *tb[__PROBE_MAX];
+    probe_entry *probe_req;
 
-    probe_entry *prob_req = dawn_malloc(sizeof (probe_entry));
-    if (prob_req == NULL) {
-        fprintf(stderr, "dawn_malloc of probe_entry failed!\n");
+    probe_req = dawn_calloc(1, sizeof (probe_entry));
+    if (probe_req == NULL) {
+        fprintf(stderr, "Failed to allocate memory!\n");
         goto exit;
     }
 
-    blobmsg_parse(prob_policy, __PROBE_MAX, tb, blob_data(msg), blob_len(msg));
+    blobmsg_parse(probe_policy, __PROBE_MAX, tb, blob_data(msg), blob_len(msg));
 
-    if (hwaddr_aton(blobmsg_data(tb[PROBE_BSSID_ADDR]), prob_req->bssid_addr.u8)) {
+    if (!tb[PROBE_BSSID_ADDR] || !tb[PROBE_CLIENT_ADDR] || !tb[PROBE_TARGET_ADDR]) {
         goto error;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[PROBE_CLIENT_ADDR]), prob_req->client_addr.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[PROBE_BSSID_ADDR]), probe_req->bssid_addr.u8)) {
         goto error;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[PROBE_TARGET_ADDR]), prob_req->target_addr.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[PROBE_CLIENT_ADDR]), probe_req->client_addr.u8)) {
+        goto error;
+    }
+
+    if (hwaddr_aton(blobmsg_data(tb[PROBE_TARGET_ADDR]), probe_req->target_addr.u8)) {
         goto error;
     }
 
     if (tb[PROBE_SIGNAL]) {
-        prob_req->signal = blobmsg_get_u32(tb[PROBE_SIGNAL]);
+        probe_req->signal = blobmsg_get_u32(tb[PROBE_SIGNAL]);
     }
 
     if (tb[PROBE_FREQ]) {
-        prob_req->freq = blobmsg_get_u32(tb[PROBE_FREQ]);
+        probe_req->freq = blobmsg_get_u32(tb[PROBE_FREQ]);
     }
 
     if (tb[PROBE_RCPI]) {
-        prob_req->rcpi = blobmsg_get_u32(tb[PROBE_RCPI]);
+        probe_req->rcpi = blobmsg_get_u32(tb[PROBE_RCPI]);
     }
     else {
-        prob_req->rcpi = -1;
+        probe_req->rcpi = -1;
     }
 
     if (tb[PROBE_RSNI]) {
-        prob_req->rsni = blobmsg_get_u32(tb[PROBE_RSNI]);
+        probe_req->rsni = blobmsg_get_u32(tb[PROBE_RSNI]);
     }
     else {
-        prob_req->rsni = -1;
+        probe_req->rsni = -1;
     }
 
     if (tb[PROBE_HT_CAPABILITIES]) {
-        prob_req->ht_capabilities = true;
-    }
-    else {
-        prob_req->ht_capabilities = false;
+        probe_req->ht_capabilities = true;
     }
 
     if (tb[PROBE_VHT_CAPABILITIES]) {
-        prob_req->vht_capabilities = true;
-    }
-    else {
-        prob_req->vht_capabilities = false;
+        probe_req->vht_capabilities = true;
     }
 
 exit:
-    return prob_req;
+    return probe_req;
 error:
-    dawn_free(prob_req);
+    dawn_free(probe_req);
     return NULL;
 }
 
@@ -285,7 +284,7 @@ int handle_network_msg(char *msg)
     /* add inactive death... */
 
     if (strcmp(method, "probe") == 0) {
-        probe_entry *entry = parse_to_probe_req(data_buf.head);
+        probe_entry *entry = handle_hostapd_probe_req(data_buf.head);
         if (entry != NULL) {
             if (entry != insert_to_array(entry, false, true, false, time(0))) { /* use 802.11k values */
                 /* insert found an existing entry, rather than linking in our new one */

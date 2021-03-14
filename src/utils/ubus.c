@@ -478,7 +478,7 @@ static int handle_assoc_req(struct blob_attr *msg)
 static int handle_probe_req(struct blob_attr *msg)
 {
     /* MUSTDO: Untangle dawn_malloc() and linking of probe_entry */
-    probe_entry *probe_req = parse_to_probe_req(msg),
+    probe_entry *probe_req = handle_hostapd_probe_req(msg),
             *probe_req_updated = NULL;
 
     if (probe_req != NULL) {
