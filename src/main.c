@@ -32,7 +32,6 @@ int main(int argc, char **argv)
     network_config = uci_get_dawn_network();
     timeout_config = uci_get_time_config();
     uci_get_dawn_hostapd_dir();
-    uci_get_dawn_sort_order();
 
     gcrypt_init();
     gcrypt_set_key_and_iv(network_config.shared_key, network_config.iv);

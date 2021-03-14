@@ -65,9 +65,6 @@ pthread_mutex_t client_array_mutex;
 struct mac_entry_s *mac_set;
 int mac_set_last;
 
-/* TODO: No longer used in code: retained to not break message xfer, etc */
-char sort_string[SORT_LENGTH];
-
 /* Used as a filler where a value is required but not used functionally */
 static const struct dawn_mac dawn_mac_null = {.u8 = {0, 0, 0, 0, 0, 0}};
 

@@ -1134,10 +1134,11 @@ static int reload_config(struct ubus_context *ctx, struct ubus_object *obj,
     dawn_metric = uci_get_dawn_metric();
     timeout_config = uci_get_time_config();
     uci_get_dawn_hostapd_dir();
-    uci_get_dawn_sort_order();
 
-    if (timeout_config.update_beacon_reports)     /* Allow setting timeout to 0 */
+    /* Allow setting timeout to 0 */
+    if (timeout_config.update_beacon_reports) {
         uloop_timeout_add(&beacon_reports_timer);
+    }
 
     uci_send_via_network();
     ret = ubus_send_reply(ctx, req, b.head);

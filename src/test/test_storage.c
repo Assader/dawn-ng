@@ -385,15 +385,6 @@ static int consume_actions(int argc, char* argv[], int harness_verbosity)
 
             dawn_memory_audit();
         }
-        else if (strcmp(*argv, "probe_sort") == 0)
-        {
-            args_required = 2;
-            if (curr_arg + args_required <= argc)
-            {
-                // sort_string is a datastorage.c global used for sorting probe entries
-                strcpy(sort_string, argv[1]);
-            }
-        }
         else if (strcmp(*argv, "faketime") == 0)
         {
             args_required = 2;
@@ -1130,7 +1121,6 @@ int main(int argc, char* argv[])
     }
     else
     {
-        strcpy(sort_string, "bcfs");
         init_mutex();
 
         // Step past command name on args, ie argv[0]

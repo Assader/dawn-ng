@@ -274,12 +274,6 @@ int ap_get_collision_count(int col_domain);
 #endif
 void send_beacon_reports(struct dawn_mac bssid, int id);
 
-/* Deprecate use of this - it makes things slow */
-enum {
-    SORT_LENGTH = 5
-};
-extern char sort_string[];
-
 int better_ap_available(ap *kicking_ap, struct dawn_mac client_addr, char *neighbor_report);
 
 /* All users of datastorage should call init_ / destroy_mutex at initialisation and termination respectively */
