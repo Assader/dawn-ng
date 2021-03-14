@@ -652,8 +652,8 @@ void update_iw_info(struct dawn_mac bssid_mac)
     for (client *j = *client_find_first_bc_entry(bssid_mac, dawn_mac_null, false);
          j != NULL && mac_is_equal_bb(j->bssid_addr, bssid_mac); j = j->next_entry_bc) {
         /* update rssi */
-        int rssi = get_rssi_iwinfo(j->client_addr);
-        int exp_thr = get_expected_throughput_iwinfo(j->client_addr);
+        int rssi = iwinfo_get_rssi(j->client_addr);
+        int exp_thr = iwinfo_get_expected_throughput(j->client_addr);
         double exp_thr_tmp = iee80211_calculate_expected_throughput_mbit(exp_thr);
         printf("Expected throughput %f Mbit/sec\n", exp_thr_tmp);
 

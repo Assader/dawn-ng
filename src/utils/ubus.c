@@ -795,7 +795,7 @@ void update_channel_utilization(struct uloop_timeout *t)
     list_for_each_entry(sub, &hostapd_sock_list, list){
         if (sub->subscribed) {
             sub->chan_util_samples_sum +=
-                    get_channel_utilization(sub->iface_name, &sub->last_channel_time,
+                    iwinfo_get_channel_utilization(sub->iface_name, &sub->last_channel_time,
                                             &sub->last_channel_time_busy);
             sub->chan_util_num_sample_periods++;
 
@@ -1255,11 +1255,11 @@ bool subscribe(struct hostapd_sock_entry *hostapd_entry)
 
     hostapd_entry->subscribed = true;
 
-    get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid_addr.u8);
-    get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, (SSID_MAX_LEN) * sizeof (char));
+    iwinfo_get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid_addr.u8);
+    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, (SSID_MAX_LEN) * sizeof (char));
 
-    hostapd_entry->ht_support = (uint8_t) support_ht(hostapd_entry->iface_name);
-    hostapd_entry->vht_support = (uint8_t) support_vht(hostapd_entry->iface_name);
+    hostapd_entry->ht_support = (uint8_t) iwinfo_ht_supported(hostapd_entry->iface_name);
+    hostapd_entry->vht_support = (uint8_t) iwinfo_vht_supported(hostapd_entry->iface_name);
 
     respond_to_notify(hostapd_entry->id);
     enable_rrm(hostapd_entry->id);

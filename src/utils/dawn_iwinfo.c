@@ -132,7 +132,7 @@ exit:
     return success;
 }
 
-int get_rssi_iwinfo(struct dawn_mac client_addr)
+int iwinfo_get_rssi(struct dawn_mac client_addr)
 {
     struct dirent *entry;
     int rssi = INT_MIN;
@@ -196,7 +196,7 @@ exit:
     return rssi;
 }
 
-int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
+int iwinfo_get_expected_throughput(struct dawn_mac client_addr)
 {
     int exp_thr = INT_MIN;
     struct dirent *entry;
@@ -261,7 +261,7 @@ exit:
     return throughput;
 }
 
-int get_bssid(const char *ifname, uint8_t *bssid_addr)
+int iwinfo_get_bssid(const char *ifname, uint8_t *bssid_addr)
 {
     const struct iwinfo_ops *iw;
     char buf[18] = "00:00:00:00:00:00";
@@ -281,7 +281,7 @@ int get_bssid(const char *ifname, uint8_t *bssid_addr)
     return 0;
 }
 
-int get_ssid(const char *ifname, char *ssid, size_t ssidmax)
+int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax)
 {
     const struct iwinfo_ops *iw;
     char buf[IWINFO_ESSID_MAX_SIZE + 1] = {0};
@@ -301,7 +301,7 @@ int get_ssid(const char *ifname, char *ssid, size_t ssidmax)
     return 0;
 }
 
-int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy)
+int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy)
 {
     int len, freq, ret = 0;
     const struct iwinfo_ops *iw;
@@ -351,7 +351,7 @@ exit:
     return ret;
 }
 
-int support_ht(const char *ifname)
+int iwinfo_ht_supported(const char *ifname)
 {
     const struct iwinfo_ops *iw;
     int htmodes = 0;
@@ -371,7 +371,7 @@ int support_ht(const char *ifname)
     return htmodes & (IWINFO_HTMODE_HT20 | IWINFO_HTMODE_HT40);
 }
 
-int support_vht(const char *ifname)
+int iwinfo_vht_supported(const char *ifname)
 {
     const struct iwinfo_ops *iw;
     int htmodes = 0;

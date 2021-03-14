@@ -60,13 +60,13 @@ int ubus_send_probe_via_network(struct probe_entry_s *probe_entry)
     return 0;
 }
 
-int get_rssi_iwinfo(struct dawn_mac client_addr)
+int iwinfo_get_rssi(struct dawn_mac client_addr)
 {
     printf("get_rssi_iwinfo() was called...\n");
     return 0;
 }
 
-int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
+int iwinfo_get_expected_throughput(struct dawn_mac client_addr)
 {
     printf("get_expected_throughput_iwinfo() was called...\n");
     return 0;

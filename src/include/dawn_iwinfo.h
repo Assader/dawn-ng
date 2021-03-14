@@ -15,7 +15,7 @@ extern char *hostapd_dir;
  * @param client_addr - mac adress of the client
  * @return The RSSI of the client if successful. INT_MIN if client was not found.
  */
-int get_rssi_iwinfo(struct dawn_mac client_addr);
+int iwinfo_get_rssi(struct dawn_mac client_addr);
 
 /**
  * Get expected throughut using the mac adress of the client.
@@ -26,7 +26,7 @@ int get_rssi_iwinfo(struct dawn_mac client_addr);
  * + INT_MIN if client was not found.
  * + 0 if the client is not supporting this feature.
  */
-int get_expected_throughput_iwinfo(struct dawn_mac client_addr);
+int iwinfo_get_expected_throughput(struct dawn_mac client_addr);
 
 /**
  * Get rx and tx bandwidth using the mac of the client.
@@ -58,10 +58,10 @@ int compare_essid_iwinfo(struct dawn_mac bssid_addr, struct dawn_mac bssid_addr_
  */
 int get_expected_throughput(const char *ifname, struct dawn_mac client_addr);
 
-int get_bssid(const char *ifname, uint8_t *bssid_addr);
-int get_ssid(const char *ifname, char *ssid, size_t ssidmax);
-int get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy);
-int support_ht(const char *ifname);
-int support_vht(const char *ifname);
+int iwinfo_get_bssid(const char *ifname, uint8_t *bssid_addr);
+int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax);
+int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy);
+int iwinfo_ht_supported(const char *ifname);
+int iwinfo_vht_supported(const char *ifname);
 
 #endif /* DAWN_IWINFO_H */
