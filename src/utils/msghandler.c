@@ -820,7 +820,7 @@ static int handle_uci_config(struct blob_attr *msg)
 
     uci_reset();
     dawn_metric = uci_get_dawn_metric();
-    timeout_config = uci_get_time_config();
+    timeout_config = uci_get_dawn_times();
 
     return 0;
 }

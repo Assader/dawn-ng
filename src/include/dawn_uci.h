@@ -25,7 +25,7 @@ struct probe_metric_s uci_get_dawn_metric(void);
  * Function that returns a struct with all the time config values.
  * @return the time config values.
  */
-struct time_config_s uci_get_time_config(void);
+struct time_config_s uci_get_dawn_times(void);
 
 /**
  * Function that returns all the network informations.
@@ -46,6 +46,6 @@ int uci_set_network(char *uci_cmd);
  */
 void uci_get_hostname(char *hostname);
 
-int uci_reset(void);
+void uci_reset(void);
 
 #endif /* DAWN_UCI_H */

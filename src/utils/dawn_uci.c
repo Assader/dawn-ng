@@ -22,13 +22,14 @@ static int uci_lookup_option_int(struct uci_context *uci, struct uci_section *s,
 void uci_get_hostname(char *hostname)
 {
     char path[] = "system.@system[0].hostname";
+    struct uci_context *c;
     struct uci_ptr ptr;
-    struct uci_context *c = uci_alloc_context();
-    dawn_regmem(c);
 
-    if (!c) {
+    c = uci_alloc_context();
+    if (c == NULL) {
         return;
     }
+    dawn_regmem(c);
 
     if ((uci_lookup_ptr(c, &ptr, path, true) != UCI_OK) || (ptr.o == NULL || ptr.o->v.string == NULL)) {
         goto exit;
@@ -49,7 +50,7 @@ exit:
     dawn_unregmem(c);
 }
 
-struct time_config_s uci_get_time_config(void)
+struct time_config_s uci_get_dawn_times(void)
 {
     struct time_config_s ret = {0};
     struct uci_element *e;
@@ -172,9 +173,11 @@ bool uci_get_dawn_hostapd_dir(void)
         if (strcmp(s->type, "hostapd") == 0) {
             if (hostapd_dir != NULL) {
                 free(hostapd_dir);
+                dawn_unregmem(hostapd_dir);
             }
 
             hostapd_dir = strdup(uci_lookup_option_string(uci_ctx, s, "hostapd_dir"));
+            dawn_regmem(hostapd_dir);
 
             return true;
         }
@@ -183,7 +186,7 @@ bool uci_get_dawn_hostapd_dir(void)
     return false;
 }
 
-int uci_reset(void)
+void uci_reset(void)
 {
     struct uci_context *ctx = uci_ctx;
 
@@ -192,13 +195,12 @@ int uci_reset(void)
         dawn_regmem(ctx);
         uci_ctx = ctx;
     }
+
     uci_pkg = uci_lookup_package(ctx, "dawn");
     uci_unload(uci_ctx, uci_pkg);
     dawn_unregmem(uci_pkg);
     uci_load(uci_ctx, "dawn", &uci_pkg);
     dawn_regmem(uci_pkg);
-
-    return 0;
 }
 
 int uci_init(void)
@@ -214,7 +216,7 @@ int uci_init(void)
     }
     else {
         ctx->flags &= ~UCI_FLAG_STRICT;
-        /* shouldn't happen? */
+        /* Shouldn't happen? */
         uci_pkg = uci_lookup_package(ctx, "dawn");
         if (uci_pkg != NULL) {
             uci_unload(ctx, uci_pkg);
@@ -270,9 +272,7 @@ int uci_set_network(char *uci_cmd)
     }
 
     return UCI_OK;
-
 error:
     fprintf(stderr, "Failed to perform UCI command: %s\n", uci_cmd);
-
     return ret;
 }

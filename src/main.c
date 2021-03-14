@@ -31,7 +31,7 @@ int main(int argc, char **argv)
 
     uci_init();
     network_config = uci_get_dawn_network();
-    timeout_config = uci_get_time_config();
+    timeout_config = uci_get_dawn_times();
     uci_get_dawn_hostapd_dir();
 
     gcrypt_init();

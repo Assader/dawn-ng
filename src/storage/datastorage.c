@@ -648,10 +648,10 @@ void update_iw_info(struct dawn_mac bssid_mac)
     printf("EVAL %s\n", mac_buf_ap);
 
     /* Seach for BSSID */
-    /* Go threw clients */
+    /* Go throw clients */
     for (client *j = *client_find_first_bc_entry(bssid_mac, dawn_mac_null, false);
          j != NULL && mac_is_equal_bb(j->bssid_addr, bssid_mac); j = j->next_entry_bc) {
-        /* update rssi */
+        /* Update rssi */
         int rssi = iwinfo_get_rssi(j->client_addr);
         int exp_thr = iwinfo_get_expected_throughput(j->client_addr);
         double exp_thr_tmp = iee80211_calculate_expected_throughput_mbit(exp_thr);
