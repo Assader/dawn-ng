@@ -15,32 +15,41 @@ int hwaddr_aton(const char *txt, uint8_t *addr)
         int byte = 0;
         char pchar = *txt++;
 
-        if ((pchar >= '0') && (pchar <= '9'))
+        if ((pchar >= '0') && (pchar <= '9')) {
             byte = pchar - '0';
-        else if ((pchar >= 'a') && (pchar <= 'f'))
+        }
+        else if ((pchar >= 'a') && (pchar <= 'f')) {
             byte = pchar - 'a' + 10;
-        else if ((pchar >= 'A') && (pchar <= 'F'))
+        }
+        else if ((pchar >= 'A') && (pchar <= 'F')) {
             byte = pchar - 'A' + 10;
-        else
+        }
+        else {
             return -1;
+        }
 
         pchar = *txt++;
         byte *= 16;
 
-        if ((pchar >= '0') && (pchar <= '9'))
+        if ((pchar >= '0') && (pchar <= '9')) {
             byte += pchar - '0';
-        else if ((pchar >= 'a') && (pchar <= 'f'))
+        }
+        else if ((pchar >= 'a') && (pchar <= 'f')) {
             byte += pchar - 'a' + 10;
-        else if ((pchar >= 'A') && (pchar <= 'F'))
+        }
+        else if ((pchar >= 'A') && (pchar <= 'F')) {
             byte += pchar - 'A' + 10;
-        else
+        }
+        else {
             return -1;
+        }
 
         *addr++ = byte;
 
         /* TODO: Should NUL terminator be checked for? Is aa:bb:cc:dd:ee:ff00 valid input? */
-        if (i != (ETH_ALEN - 1) && *txt++ != ':')
+        if (i != (ETH_ALEN - 1) && *txt++ != ':') {
             return -1;
+        }
     }
 
     return 0;
