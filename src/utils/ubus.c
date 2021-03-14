@@ -700,7 +700,7 @@ static void ubus_get_clients_cb(struct ubus_request *req, int type, struct blob_
 
     send_blob_attr_via_network(b_domain.head, "clients");
     /* TODO: Have we just bit-packed data to send to something locally to unpack it again?  Performance / scalability? */
-    parse_to_clients(b_domain.head, 1, req->peer);
+    handle_hostapd_clients_msg(b_domain.head, 1, req->peer);
 
     print_client_array();
     print_ap_array();

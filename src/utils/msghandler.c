@@ -292,7 +292,7 @@ int handle_network_msg(char *msg)
         }
     }
     else if (strcmp(method, "clients") == 0) {
-        parse_to_clients(data_buf.head, 0, 0);
+        handle_hostapd_clients_msg(data_buf.head, 0, 0);
     }
     else if (strcmp(method, "deauth") == 0) {
         printf("METHOD DEAUTH\n");
@@ -353,14 +353,16 @@ static uint8_t dump_rrm_table(struct blob_attr *head, int len)
     return dump_rrm_data(blobmsg_data(head), blobmsg_data_len(head), blob_id(head));
 }
 
-// TOOD: Refactor this!
+/* TOOD: Refactor this! */
 static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
                         const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
                         uint8_t vht_supported)
 {
-    client *client_entry = dawn_malloc(sizeof (struct client_s));
+    client *client_entry;
+
+    client_entry = dawn_calloc(1, sizeof (struct client_s));
     if (client_entry == NULL) {
-        // MUSTDO: Error handling?
+        fprintf(stderr, "Failed to allocate memory!\n");
         return;
     }
 
@@ -411,17 +413,10 @@ static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
                 dump_rrm_table(blobmsg_data(tb[CLIENT_RRM]),
                                blobmsg_data_len(tb[CLIENT_RRM]));
     }
-    else {
-        client_entry->rrm_enabled_capa = 0;
-        /* ap_entry.ap_weight = 0; */
-    }
 
     /* Copy signature */
     if (tb[CLIENT_SIGNATURE]) {
         strncpy(client_entry->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN * sizeof (char));
-    }
-    else {
-        memset(client_entry->signature, 0, SIGNATURE_LEN);
     }
 
     pthread_mutex_lock(&client_array_mutex);
@@ -435,13 +430,11 @@ static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
 static int dump_client_table(struct blob_attr *head, int len, const char *bssid_addr,
                              uint32_t freq, uint8_t ht_supported, uint8_t vht_supported)
 {
-    struct blob_attr *attr;
+    struct blob_attr *tb[__CLIENT_MAX], *attr;
     struct blobmsg_hdr *hdr;
     int station_count = 0;
 
     __blob_for_each_attr(attr, head, len) {
-        struct blob_attr *tb[__CLIENT_MAX];
-
         hdr = blob_data(attr);
 
         blobmsg_parse(client_policy, __CLIENT_MAX, tb, blobmsg_data(attr), blobmsg_len(attr));
@@ -449,8 +442,9 @@ static int dump_client_table(struct blob_attr *head, int len, const char *bssid_
         int tmp_int_mac[ETH_ALEN];
         struct dawn_mac tmp_mac;
         sscanf((char *) hdr->name, MACSTR, STR2MAC(tmp_int_mac));
-        for (int i = 0; i < ETH_ALEN; ++i)
+        for (int i = 0; i < ETH_ALEN; ++i) {
             tmp_mac.u8[i] = (uint8_t) tmp_int_mac[i];
+        }
 
         dump_client(tb, tmp_mac, bssid_addr, freq, ht_supported, vht_supported);
         station_count++;
@@ -459,16 +453,16 @@ static int dump_client_table(struct blob_attr *head, int len, const char *bssid_
     return station_count;
 }
 
-int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id)
+int handle_hostapd_clients_msg(struct blob_attr *msg, int do_kick, uint32_t id)
 {
     struct blob_attr *tb[__CLIENT_TABLE_MAX];
     int ret = -1;
 
-    if (!msg) {
+    if (msg == NULL) {
         goto exit;
     }
 
-    if (!blob_data(msg)) {
+    if (blob_data(msg) == NULL) {
         goto exit;
     }
 
@@ -479,15 +473,14 @@ int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id)
     blobmsg_parse(client_table_policy, __CLIENT_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
 
     if (tb[CLIENT_TABLE] && tb[CLIENT_TABLE_BSSID] && tb[CLIENT_TABLE_FREQ]) {
-        int num_stations = 0;
-        num_stations = dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
-                                         blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
-                                         blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
+        int num_stations =
+                dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
+                                  blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
+                                  blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
 
-        ap *ap_entry = dawn_malloc(sizeof (struct ap_s));
+        ap *ap_entry = dawn_calloc(1, sizeof (struct ap_s));
         if (ap_entry == NULL) {
             fprintf(stderr, "Failed to allocate memory!");
-            dawn_free(ap_entry);
             goto exit;
         }
 
@@ -497,15 +490,8 @@ int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id)
         if (tb[CLIENT_TABLE_HT]) {
             ap_entry->ht_support = blobmsg_get_u8(tb[CLIENT_TABLE_HT]);
         }
-        else {
-            ap_entry->ht_support = false;
-        }
-
         if (tb[CLIENT_TABLE_VHT]) {
             ap_entry->vht_support = blobmsg_get_u8(tb[CLIENT_TABLE_VHT]);
-        }
-        else {
-            ap_entry->vht_support = false;
         }
 
         if (tb[CLIENT_TABLE_CHAN_UTIL]) {
@@ -540,29 +526,17 @@ int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id)
         if (tb[CLIENT_TABLE_WEIGHT]) {
             ap_entry->ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_WEIGHT]);
         }
-        else {
-            ap_entry->ap_weight = 0;
-        }
 
         if (tb[CLIENT_TABLE_NEIGHBOR]) {
             strncpy(ap_entry->neighbor_report, blobmsg_get_string(tb[CLIENT_TABLE_NEIGHBOR]), NEIGHBOR_REPORT_LEN);
-        }
-        else {
-            ap_entry->neighbor_report[0] = '\0';
         }
 
         if (tb[CLIENT_TABLE_IFACE]) {
             strncpy(ap_entry->iface, blobmsg_get_string(tb[CLIENT_TABLE_IFACE]), MAX_INTERFACE_NAME);
         }
-        else {
-            ap_entry->iface[0] = '\0';
-        }
 
         if (tb[CLIENT_TABLE_HOSTNAME]) {
             strncpy(ap_entry->hostname, blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]), HOST_NAME_MAX);
-        }
-        else {
-            ap_entry->hostname[0] = '\0';
         }
 
         insert_to_ap_array(ap_entry, time(NULL));
