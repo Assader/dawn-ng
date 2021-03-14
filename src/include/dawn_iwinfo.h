@@ -6,11 +6,7 @@
 
 #include "mac_utils.h"
 
-enum {
-    HOSTAPD_DIR_LEN = 200
-};
-
-extern char hostapd_dir_glob[];
+extern char *hostapd_dir;
 
 /**
  * Get RSSI using the mac adress of the client.

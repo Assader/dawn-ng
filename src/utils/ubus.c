@@ -644,7 +644,7 @@ int dawn_init_ubus(const char *ubus_socket, const char *hostapd_dir)
         }
     }
 
-    subscribe_to_new_interfaces(hostapd_dir_glob);
+    subscribe_to_new_interfaces(hostapd_dir);
 
     uloop_run();
 
@@ -877,7 +877,7 @@ void start_tcp_con_update(void)
 
 void update_hostapd_sockets(struct uloop_timeout *t)
 {
-    subscribe_to_new_interfaces(hostapd_dir_glob);
+    subscribe_to_new_interfaces(hostapd_dir);
     uloop_timeout_set(&hostapd_timer, timeout_config.update_hostapd * 1000);
 }
 

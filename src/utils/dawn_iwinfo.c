@@ -5,7 +5,7 @@
 #include "dawn_iwinfo.h"
 #include "mac_utils.h"
 
-char hostapd_dir_glob[HOSTAPD_DIR_LEN];
+char *hostapd_dir;
 
 static int get_rssi(const char *ifname, struct dawn_mac client_addr);
 static int get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
@@ -23,9 +23,9 @@ int compare_essid_iwinfo(struct dawn_mac bssid0, struct dawn_mac bssid1)
     sprintf(bssid0_str, MACSTR, MAC2STR(bssid0.u8));
     sprintf(bssid1_str, MACSTR, MAC2STR(bssid1.u8));
 
-    dirp = opendir(hostapd_dir_glob);
+    dirp = opendir(hostapd_dir);
     if (dirp == NULL) {
-        fprintf(stderr, "[COMPARE ESSID] Failed to open %s\n", hostapd_dir_glob);
+        fprintf(stderr, "[COMPARE ESSID] Failed to open %s\n", hostapd_dir);
         return 0;
     }
 
@@ -71,9 +71,9 @@ int get_bandwidth_iwinfo(struct dawn_mac client_addr, float *rx_rate, float *tx_
     DIR *dirp;
     int sucess = 0;
 
-    dirp = opendir(hostapd_dir_glob);
+    dirp = opendir(hostapd_dir);
     if (dirp == NULL) {
-        fprintf(stderr, "[BANDWIDTH INFO] Failed to open %s\n", hostapd_dir_glob);
+        fprintf(stderr, "[BANDWIDTH INFO] Failed to open %s\n", hostapd_dir);
         goto exit;
     }
 
@@ -137,7 +137,7 @@ int get_rssi_iwinfo(struct dawn_mac client_addr)
     int rssi = INT_MIN;
     DIR *dirp;
 
-    dirp = opendir(hostapd_dir_glob);
+    dirp = opendir(hostapd_dir);
     if (dirp == NULL) {
         fprintf(stderr, "[RSSI INFO] No hostapd sockets!\n");
         goto exit;
@@ -201,9 +201,9 @@ int get_expected_throughput_iwinfo(struct dawn_mac client_addr)
     struct dirent *entry;
     DIR *dirp;
 
-    dirp = opendir(hostapd_dir_glob);
+    dirp = opendir(hostapd_dir);
     if (dirp == NULL) {
-        fprintf(stderr, "[RSSI INFO] Failed to open dir:%s\n", hostapd_dir_glob);
+        fprintf(stderr, "[RSSI INFO] Failed to open dir:%s\n", hostapd_dir);
         goto exit;
     }
 
