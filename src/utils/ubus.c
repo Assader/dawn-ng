@@ -603,8 +603,6 @@ int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
 {
     uloop_init();
 
-    signal(SIGPIPE, SIG_IGN);
-
     ctx = ubus_connect(ubus_socket);
     if (ctx == NULL) {
         fprintf(stderr, "Failed to connect to ubus\n");

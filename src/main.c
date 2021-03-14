@@ -20,13 +20,14 @@ struct sigaction signal_action;
 
 int main(int argc, char **argv)
 {
-    /* connect signals */
+    /* Connect signals */
     signal_action.sa_handler = signal_handler;
     sigemptyset(&signal_action.sa_mask);
     signal_action.sa_flags = 0;
     sigaction(SIGHUP, &signal_action, NULL);
     sigaction(SIGTERM, &signal_action, NULL);
     sigaction(SIGINT, &signal_action, NULL);
+    signal(SIGPIPE, SIG_IGN);
 
     uci_init();
     network_config = uci_get_dawn_network();
@@ -69,7 +70,7 @@ void signal_handler(int sig)
 {
     switch (sig) {
     case SIGHUP:
-        /* daemon_shutdown(); */
+        /* dawn_shutdown(); */
         dawn_memory_audit();
         break;
     case SIGINT:
