@@ -248,8 +248,7 @@ static int handle_set_probe(struct blob_attr *msg)
 int handle_network_msg(char *msg)
 {
     struct blob_attr *tb[__NETWORK_MAX];
-    char *method;
-    char *data;
+    char *method, *data;
     int ret = -1;
 
     blob_buf_init(&network_buf, 0);
@@ -269,7 +268,7 @@ int handle_network_msg(char *msg)
     blob_buf_init(&data_buf, 0);
     blobmsg_add_json_from_string(&data_buf, data);
 
-    if (!data_buf.head) {
+    if (data_buf.head == NULL) {
         goto exit;
     }
 
@@ -286,7 +285,7 @@ int handle_network_msg(char *msg)
     if (strcmp(method, "probe") == 0) {
         probe_entry *entry = handle_hostapd_probe_req(data_buf.head);
         if (entry != NULL) {
-            if (entry != insert_to_array(entry, false, true, false, time(0))) { /* use 802.11k values */
+            if (entry != insert_to_array(entry, false, true, false, time(NULL))) { /* use 802.11k values */
                 /* insert found an existing entry, rather than linking in our new one */
                 dawn_free(entry);
             }
@@ -351,16 +350,7 @@ static uint8_t dump_rrm_data(void *data, int len, int type)
 /* Modify from examples/blobmsg-example.c in libubox */
 static uint8_t dump_rrm_table(struct blob_attr *head, int len)
 {
-    struct blob_attr *attr;
-    uint8_t ret = 0;
-
-    __blob_for_each_attr(attr, head, len) {
-        /* Get the first rrm byte */
-        ret = dump_rrm_data(blobmsg_data(attr), blobmsg_data_len(attr), blob_id(attr));
-        break;
-    }
-
-    return ret;
+    return dump_rrm_data(blobmsg_data(head), blobmsg_data_len(head), blob_id(head));
 }
 
 // TOOD: Refactor this!
