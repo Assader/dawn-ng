@@ -32,7 +32,7 @@ int parse_to_clients(struct blob_attr *msg, int do_kick, uint32_t id);
  * @param notify_req
  * @return
  */
-int parse_to_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_req);
+bool handle_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_req);
 
 /**
  * Handle network messages.

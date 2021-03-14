@@ -127,21 +127,25 @@ static const struct blobmsg_policy client_policy[__CLIENT_MAX] = {
 static int handle_set_probe(struct blob_attr *msg);
 static int handle_uci_config(struct blob_attr *msg);
 
-int parse_to_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_req)
+bool handle_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_req)
 {
     struct blob_attr *tb[__HOSTAPD_NOTIFY_MAX];
 
     blobmsg_parse(hostapd_notify_policy, __HOSTAPD_NOTIFY_MAX, tb, blob_data(msg), blob_len(msg));
 
+    if (!tb[HOSTAPD_NOTIFY_BSSID_ADDR] || !tb[HOSTAPD_NOTIFY_CLIENT_ADDR]) {
+        return false;
+    }
+
     if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID_ADDR]), notify_req->bssid_addr.u8)) {
-        return UBUS_STATUS_INVALID_ARGUMENT;
+        return false;
     }
 
     if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->client_addr.u8)) {
-        return UBUS_STATUS_INVALID_ARGUMENT;
+        return false;
     }
 
-    return 0;
+    return true;
 }
 
 probe_entry *parse_to_probe_req(struct blob_attr *msg)
@@ -215,7 +219,7 @@ int handle_deauth_req(struct blob_attr *msg)
 {
     hostapd_notify_entry notify_req;
 
-    parse_to_hostapd_notify(msg, &notify_req);
+    handle_hostapd_notify(msg, &notify_req);
 
     pthread_mutex_lock(&client_array_mutex);
 
@@ -235,7 +239,7 @@ static int handle_set_probe(struct blob_attr *msg)
 {
     hostapd_notify_entry notify_req;
 
-    parse_to_hostapd_notify(msg, &notify_req);
+    handle_hostapd_notify(msg, &notify_req);
 
     probe_array_set_all_probe_count(notify_req.client_addr, dawn_metric.min_probe_count);
 
