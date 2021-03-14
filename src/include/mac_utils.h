@@ -4,15 +4,13 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <linux/if_ether.h>
+
 #define MAC2STR(a) (a)[0], (a)[1], (a)[2], (a)[3], (a)[4], (a)[5]
 #define STR2MAC(a) &(a)[0], &(a)[1], &(a)[2], &(a)[3], &(a)[4], &(a)[5]
 
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
 #define MACSTRLOWER "%02x:%02x:%02x:%02x:%02x:%02x"
-
-#ifndef ETH_ALEN
-#define ETH_ALEN 6
-#endif
 
 /* Simplify some handling of MAC addresses */
 struct __attribute__((__packed__)) dawn_mac {
