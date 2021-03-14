@@ -51,7 +51,7 @@ int main(int argc, char **argv)
 
     insert_macs_from_file();
 
-    dawn_init_ubus(NULL, hostapd_dir);
+    dawn_run_uloop(NULL, hostapd_dir);
 
     return 0;
 }

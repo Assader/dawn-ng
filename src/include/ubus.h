@@ -28,7 +28,7 @@ enum {
  * @param hostapd_dir
  * @return
  */
-int dawn_init_ubus(const char *ubus_socket, const char *hostapd_dir);
+int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir);
 
 /**
  * Start the umdns timer for updating the zeroconfiguration properties.

@@ -599,7 +599,7 @@ static int hostapd_notify(struct ubus_context *ctx, struct ubus_object *obj,
     return 0;
 }
 
-int dawn_init_ubus(const char *ubus_socket, const char *hostapd_dir)
+int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
 {
     uloop_init();
 
@@ -610,28 +610,23 @@ int dawn_init_ubus(const char *ubus_socket, const char *hostapd_dir)
         fprintf(stderr, "Failed to connect to ubus\n");
         return -1;
     }
-    else {
-        printf("Connected to ubus\n");
-        dawn_regmem(ctx);
-    }
+
+    printf("Connected to ubus\n");
+    dawn_regmem(ctx);
 
     ubus_add_uloop(ctx);
 
     /* Set dawn metric */
     dawn_metric = uci_get_dawn_metric();
 
-    uloop_timeout_add(&hostapd_timer);
-
     /* Set up callbacks to remove aged data */
     uloop_add_data_cbs();
-
     /* Get clients */
     uloop_timeout_add(&client_timer);
-
     uloop_timeout_add(&channel_utilization_timer);
-
-    /* Request beacon reports */
-    if (timeout_config.update_beacon_reports) {    /* Allow setting timeout to 0 */
+    uloop_timeout_add(&hostapd_timer);
+    /* Request beacon reports. Allow setting timeout to 0 */
+    if (timeout_config.update_beacon_reports) {
         uloop_timeout_add(&beacon_reports_timer);
     }
 
@@ -640,7 +635,7 @@ int dawn_init_ubus(const char *ubus_socket, const char *hostapd_dir)
     if (network_config.network_option == 2 || network_config.network_option == 3) {
         start_tcp_con_update();
         if (run_server(network_config.tcp_port)) {
-            uloop_timeout_set(&usock_timer, 1 * 1000);
+            uloop_timeout_set(&usock_timer, 1000);
         }
     }
 
@@ -1640,7 +1635,6 @@ void uloop_add_data_cbs(void)
     uloop_timeout_add(&probe_timeout);
     uloop_timeout_add(&client_timeout);
     uloop_timeout_add(&ap_timeout);
-
     if (dawn_metric.use_driver_recog) {
         uloop_timeout_add(&denied_req_timeout);
     }
