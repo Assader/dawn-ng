@@ -52,7 +52,7 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr);
 int iwinfo_get_bssid(const char *ifname, uint8_t *bssid_addr);
 int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax);
 int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy);
-int iwinfo_ht_supported(const char *ifname);
-int iwinfo_vht_supported(const char *ifname);
+bool iwinfo_ht_supported(const char *ifname);
+bool iwinfo_vht_supported(const char *ifname);
 
 #endif /* DAWN_IWINFO_H */

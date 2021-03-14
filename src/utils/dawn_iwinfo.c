@@ -295,7 +295,7 @@ exit:
     return chan_util;
 }
 
-int iwinfo_ht_supported(const char *ifname)
+bool iwinfo_ht_supported(const char *ifname)
 {
     const struct iwinfo_ops *iw;
     int htmodes = 0;
@@ -315,7 +315,7 @@ int iwinfo_ht_supported(const char *ifname)
     return htmodes & (IWINFO_HTMODE_HT20 | IWINFO_HTMODE_HT40);
 }
 
-int iwinfo_vht_supported(const char *ifname)
+bool iwinfo_vht_supported(const char *ifname)
 {
     const struct iwinfo_ops *iw;
     int htmodes = 0;
