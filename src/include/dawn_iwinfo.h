@@ -1,6 +1,7 @@
 #ifndef DAWN_IWINFO_H
 #define DAWN_IWINFO_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
