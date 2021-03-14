@@ -37,7 +37,7 @@ exit:
     return success;
 }
 
-bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
+static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
 {
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
@@ -104,7 +104,7 @@ exit:
     return rssi;
 }
 
-int get_rssi(const char *ifname, struct dawn_mac client_addr)
+static int get_rssi(const char *ifname, struct dawn_mac client_addr)
 {
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
@@ -202,7 +202,6 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
 
 exit:
     iwinfo_finish();
-
     return throughput;
 }
 
@@ -248,13 +247,13 @@ int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax)
 
 int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy)
 {
-    int len, freq, ret = 0;
+    struct iwinfo_survey_entry *e;
     const struct iwinfo_ops *iw;
     char buf[IWINFO_BUFSIZE];
-    struct iwinfo_survey_entry *e;
+    int len, freq, chan_util = 0;
 
     if (strcmp(ifname, "global") == 0) {
-        return 0;
+        goto exit;
     }
 
     iw = iwinfo_backend(ifname);
@@ -264,12 +263,12 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
     }
 
     if (iw->survey(ifname, buf, &len)) {
-        fprintf(stderr, "Survey not possible!\n");
+        printf("Survey not possible!\n");
         goto exit;
     }
 
     if (len <= 0) {
-        fprintf(stderr, "No survey results\n");
+        printf("No survey results\n");
         goto exit;
     }
 
@@ -277,14 +276,14 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
         e = (struct iwinfo_survey_entry *) &buf[i];
 
         if (e->mhz == freq) {
-            uint64_t dividend = e->busy_time - *last_channel_time_busy;
-            uint64_t divisor = e->active_time - *last_channel_time;
+            uint64_t dividend = e->busy_time - *last_channel_time_busy,
+                    divisor = e->active_time - *last_channel_time;
 
             *last_channel_time = e->active_time;
             *last_channel_time_busy = e->busy_time;
 
             if (divisor) {
-                ret = (int) (dividend * 255 / divisor);
+                chan_util = (int) (dividend * 255 / divisor);
             }
 
             break;
@@ -293,7 +292,7 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
 
 exit:
     iwinfo_finish();
-    return ret;
+    return chan_util;
 }
 
 int iwinfo_ht_supported(const char *ifname)
