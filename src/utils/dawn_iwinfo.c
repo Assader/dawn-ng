@@ -10,61 +10,6 @@ char *hostapd_dir;
 static int get_rssi(const char *ifname, struct dawn_mac client_addr);
 static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
 
-int compare_essid_iwinfo(struct dawn_mac bssid0, struct dawn_mac bssid1)
-{
-    int ret = -1, essid0_found = 0, essid1_found = 0;
-    char bssid0_str[20], bssid1_str[20],
-         essid0_str[IWINFO_ESSID_MAX_SIZE + 1] = {0},
-         essid1_str[IWINFO_ESSID_MAX_SIZE + 1] = {0};
-    const struct iwinfo_ops *iw;
-    struct dirent *entry;
-    DIR *dirp;
-
-    sprintf(bssid0_str, MACSTR, MAC2STR(bssid0.u8));
-    sprintf(bssid1_str, MACSTR, MAC2STR(bssid1.u8));
-
-    dirp = opendir(hostapd_dir);
-    if (dirp == NULL) {
-        fprintf(stderr, "[COMPARE ESSID] Failed to open %s\n", hostapd_dir);
-        return 0;
-    }
-
-    while ((entry = readdir(dirp)) != NULL && (!essid0_found || !essid1_found)) {
-        if (entry->d_type == DT_SOCK) {
-            if (strcmp(entry->d_name, "global") == 0) {
-                continue;
-            }
-
-            iw = iwinfo_backend(entry->d_name);
-
-            char entry_bssid[18] = {0};
-            iw->bssid(entry->d_name, entry_bssid);
-
-            if (strcmp(bssid0_str, entry_bssid) == 0) {
-                iw->ssid(entry->d_name, essid0_str);
-                essid0_found = 1;
-            }
-
-            if (strcmp(bssid1_str, entry_bssid) == 0) {
-                iw->ssid(entry->d_name, essid1_str);
-                essid1_found = 1;
-            }
-
-            iwinfo_finish();
-        }
-    }
-
-    closedir(dirp);
-
-    printf("Comparing: %s with %s\n", essid0_str, essid1_str);
-
-    if (essid0_found && essid1_found && strcmp(essid0_str, essid1_str) == 0) {
-        ret = 0;
-    }
-
-    return ret;
-}
-
 bool iwinfo_get_bandwidth(struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
 {
     bool success = false;
