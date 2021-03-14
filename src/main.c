@@ -13,7 +13,7 @@
 #include "tcpsocket.h"
 #include "ubus.h"
 
-static void daemon_shutdown(void);
+static void dawn_shutdown(void);
 static void signal_handler(int sig);
 
 struct sigaction signal_action;
@@ -56,7 +56,7 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void daemon_shutdown(void)
+void dawn_shutdown(void)
 {
     /* kill threads */
     close_socket();
@@ -73,13 +73,13 @@ void signal_handler(int sig)
         dawn_memory_audit();
         break;
     case SIGINT:
-        daemon_shutdown();
+        dawn_shutdown();
         break;
     case SIGTERM:
-        daemon_shutdown();
+        dawn_shutdown();
         exit(EXIT_SUCCESS);
     default:
-        daemon_shutdown();
+        dawn_shutdown();
         break;
     }
 }
