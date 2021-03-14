@@ -32,28 +32,28 @@ static const struct blobmsg_policy hostapd_notify_policy[__HOSTAPD_NOTIFY_MAX] =
 };
 
 enum {
-    PROB_BSSID_ADDR,
-    PROB_CLIENT_ADDR,
-    PROB_TARGET_ADDR,
-    PROB_SIGNAL,
-    PROB_FREQ,
-    PROB_HT_CAPABILITIES,
-    PROB_VHT_CAPABILITIES,
-    PROB_RCPI,
-    PROB_RSNI,
-    __PROB_MAX,
+    PROBE_BSSID_ADDR,
+    PROBE_CLIENT_ADDR,
+    PROBE_TARGET_ADDR,
+    PROBE_SIGNAL,
+    PROBE_FREQ,
+    PROBE_HT_CAPABILITIES,
+    PROBE_VHT_CAPABILITIES,
+    PROBE_RCPI,
+    PROBE_RSNI,
+    __PROBE_MAX,
 };
 
-static const struct blobmsg_policy prob_policy[__PROB_MAX] = {
-    [PROB_BSSID_ADDR] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
-    [PROB_CLIENT_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
-    [PROB_TARGET_ADDR] = {.name = "target", .type = BLOBMSG_TYPE_STRING},
-    [PROB_SIGNAL] = {.name = "signal", .type = BLOBMSG_TYPE_INT32},
-    [PROB_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
-    [PROB_HT_CAPABILITIES] = {.name = "ht_capabilities", .type = BLOBMSG_TYPE_TABLE},   /* TODO: Change to int8? */
-    [PROB_VHT_CAPABILITIES] = {.name = "vht_capabilities", .type = BLOBMSG_TYPE_TABLE}, /* TODO: Change to int8? */
-    [PROB_RCPI] = {.name = "rcpi", .type = BLOBMSG_TYPE_INT32},
-    [PROB_RSNI] = {.name = "rsni", .type = BLOBMSG_TYPE_INT32},
+static const struct blobmsg_policy prob_policy[__PROBE_MAX] = {
+    [PROBE_BSSID_ADDR] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
+    [PROBE_CLIENT_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
+    [PROBE_TARGET_ADDR] = {.name = "target", .type = BLOBMSG_TYPE_STRING},
+    [PROBE_SIGNAL] = {.name = "signal", .type = BLOBMSG_TYPE_INT32},
+    [PROBE_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
+    [PROBE_HT_CAPABILITIES] = {.name = "ht_capabilities", .type = BLOBMSG_TYPE_TABLE},   /* TODO: Change to int8? */
+    [PROBE_VHT_CAPABILITIES] = {.name = "vht_capabilities", .type = BLOBMSG_TYPE_TABLE}, /* TODO: Change to int8? */
+    [PROBE_RCPI] = {.name = "rcpi", .type = BLOBMSG_TYPE_INT32},
+    [PROBE_RSNI] = {.name = "rsni", .type = BLOBMSG_TYPE_INT32},
 };
 
 enum {
@@ -150,7 +150,7 @@ bool handle_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_r
 
 probe_entry *parse_to_probe_req(struct blob_attr *msg)
 {
-    struct blob_attr *tb[__PROB_MAX];
+    struct blob_attr *tb[__PROBE_MAX];
 
     probe_entry *prob_req = dawn_malloc(sizeof (probe_entry));
     if (prob_req == NULL) {
@@ -158,50 +158,50 @@ probe_entry *parse_to_probe_req(struct blob_attr *msg)
         goto exit;
     }
 
-    blobmsg_parse(prob_policy, __PROB_MAX, tb, blob_data(msg), blob_len(msg));
+    blobmsg_parse(prob_policy, __PROBE_MAX, tb, blob_data(msg), blob_len(msg));
 
-    if (hwaddr_aton(blobmsg_data(tb[PROB_BSSID_ADDR]), prob_req->bssid_addr.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[PROBE_BSSID_ADDR]), prob_req->bssid_addr.u8)) {
         goto error;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[PROB_CLIENT_ADDR]), prob_req->client_addr.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[PROBE_CLIENT_ADDR]), prob_req->client_addr.u8)) {
         goto error;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[PROB_TARGET_ADDR]), prob_req->target_addr.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[PROBE_TARGET_ADDR]), prob_req->target_addr.u8)) {
         goto error;
     }
 
-    if (tb[PROB_SIGNAL]) {
-        prob_req->signal = blobmsg_get_u32(tb[PROB_SIGNAL]);
+    if (tb[PROBE_SIGNAL]) {
+        prob_req->signal = blobmsg_get_u32(tb[PROBE_SIGNAL]);
     }
 
-    if (tb[PROB_FREQ]) {
-        prob_req->freq = blobmsg_get_u32(tb[PROB_FREQ]);
+    if (tb[PROBE_FREQ]) {
+        prob_req->freq = blobmsg_get_u32(tb[PROBE_FREQ]);
     }
 
-    if (tb[PROB_RCPI]) {
-        prob_req->rcpi = blobmsg_get_u32(tb[PROB_RCPI]);
+    if (tb[PROBE_RCPI]) {
+        prob_req->rcpi = blobmsg_get_u32(tb[PROBE_RCPI]);
     }
     else {
         prob_req->rcpi = -1;
     }
 
-    if (tb[PROB_RSNI]) {
-        prob_req->rsni = blobmsg_get_u32(tb[PROB_RSNI]);
+    if (tb[PROBE_RSNI]) {
+        prob_req->rsni = blobmsg_get_u32(tb[PROBE_RSNI]);
     }
     else {
         prob_req->rsni = -1;
     }
 
-    if (tb[PROB_HT_CAPABILITIES]) {
+    if (tb[PROBE_HT_CAPABILITIES]) {
         prob_req->ht_capabilities = true;
     }
     else {
         prob_req->ht_capabilities = false;
     }
 
-    if (tb[PROB_VHT_CAPABILITIES]) {
+    if (tb[PROBE_VHT_CAPABILITIES]) {
         prob_req->vht_capabilities = true;
     }
     else {
