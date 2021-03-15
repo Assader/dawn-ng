@@ -27,7 +27,7 @@ void gcrypt_set_key_and_iv(const char *key, const char *iv);
 char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length);
 
 /**
- * FUnction that decrypts a message.
+ * Function that decrypts a message.
  * Free the string after using it!
  * @param msg
  * @param msg_length

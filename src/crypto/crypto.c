@@ -61,16 +61,18 @@ void gcrypt_set_key_and_iv(const char *key, const char *iv)
 /* Free out buffer after using! */
 char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
 {
+    size_t blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
     gcry_error_t err;
+    char *out = NULL;
 
-    if ((msg_length & 0xfU) != 0U) {
-        msg_length += 0x10U - (msg_length & 0xfU);
+    if ((msg_length & (blklen - 1u)) != 0u) {
+        msg_length += blklen - (msg_length & (blklen - 1u));
     }
 
-    char *out = dawn_malloc(msg_length);
+    out = dawn_malloc(msg_length);
     if (out == NULL) {
         fprintf(stderr, "Failed to allocate memory!\n");
-        return NULL;
+        goto exit;
     }
 
     err = gcry_cipher_encrypt(gcry_cipher_hd, out, msg_length, msg, msg_length);
@@ -79,11 +81,13 @@ char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
                 gcry_strsource(err),
                 gcry_strerror(err));
         dawn_free(out);
-        return NULL;
+        out = NULL;
+        goto exit;
     }
 
     *out_length = msg_length;
 
+exit:
     return out;
 }
 
