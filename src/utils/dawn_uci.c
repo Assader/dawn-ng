@@ -144,12 +144,6 @@ struct network_config_s uci_get_dawn_network(void)
 
             ret.broadcast_port = uci_lookup_option_int(uci_ctx, s, "broadcast_port");
 
-            const char *str_shared_key = uci_lookup_option_string(uci_ctx, s, "shared_key");
-            strncpy(ret.shared_key, str_shared_key, MAX_KEY_LENGTH);
-
-            const char *str_iv = uci_lookup_option_string(uci_ctx, s, "iv");
-            strncpy(ret.iv, str_iv, MAX_KEY_LENGTH);
-
             ret.network_option = uci_lookup_option_int(uci_ctx, s, "network_option");
             ret.tcp_port = uci_lookup_option_int(uci_ctx, s, "tcp_port");
             ret.use_symm_enc = uci_lookup_option_int(uci_ctx, s, "use_symm_enc");
@@ -161,6 +155,23 @@ struct network_config_s uci_get_dawn_network(void)
     }
 
     return ret;
+}
+
+void uci_get_dawn_crypto(char *key, char *iv)
+{
+    struct uci_element *e;
+
+    uci_foreach_element(&uci_pkg->sections, e) {
+        struct uci_section *s = uci_to_section(e);
+
+        if (strcmp(s->type, "network") == 0) {
+            const char *str_key = uci_lookup_option_string(uci_ctx, s, "shared_key");
+            strncpy(key, str_key, MAX_KEY_LENGTH);
+
+            const char *str_iv = uci_lookup_option_string(uci_ctx, s, "iv");
+            strncpy(iv, str_iv, MAX_KEY_LENGTH);
+        }
+    }
 }
 
 bool uci_get_dawn_hostapd_dir(void)

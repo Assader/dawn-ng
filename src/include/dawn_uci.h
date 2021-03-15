@@ -39,6 +39,8 @@ struct network_config_s uci_get_dawn_network(void);
  */
 bool uci_get_dawn_hostapd_dir(void);
 
+void uci_get_dawn_crypto(char *key, char *iv);
+
 int uci_set_network(char *uci_cmd);
 
 /**
