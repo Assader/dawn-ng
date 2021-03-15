@@ -10,52 +10,55 @@
 
 static gcry_cipher_hd_t gcry_cipher_hd;
 
-void gcrypt_init(void)
+static void secure_zero(void *s, size_t n);
+
+bool gcrypt_init(char *key, char *iv)
 {
+    size_t keylen = gcry_cipher_get_algo_keylen(GCRY_CIPHER),
+           blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
     gcry_error_t err;
 
     if (gcry_check_version(GCRYPT_VERSION) == NULL) {
-        fprintf(stderr, "gcrypt: library version mismatch");
+        err = gpg_err_make(GPG_ERR_SOURCE_USER_1, GPG_ERR_UNKNOWN_VERSION);
+        goto error;
+    }
+
+    if (strlen(key) < keylen || strlen(iv) < blklen) {
+        err = gpg_err_make(GPG_ERR_SOURCE_USER_1, GPG_ERR_BAD_KEY);
+        goto error;
     }
 
     err = gcry_control(GCRYCTL_SUSPEND_SECMEM_WARN);
     err |= gcry_control(GCRYCTL_INIT_SECMEM, 16384, 0);
     err |= gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
     err |= gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
-
     if (err != GPG_ERR_NO_ERROR) {
-        fprintf(stderr, "gcrypt: failed initialization");
+        goto error;
     }
-}
-
-void gcrypt_set_key_and_iv(const char *key, const char *iv)
-{
-    size_t keylen = gcry_cipher_get_algo_keylen(GCRY_CIPHER),
-           blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
-    gcry_error_t err;
 
     err = gcry_cipher_open(&gcry_cipher_hd, GCRY_CIPHER, GCRY_C_MODE, 0);
     if (err != GPG_ERR_NO_ERROR) {
-        fprintf(stderr, "gcry_cipher_open failed: %s/%s\n",
-                gcry_strsource(err),
-                gcry_strerror(err));
-        return;
+        goto error;
     }
 
     err = gcry_cipher_setkey(gcry_cipher_hd, key, keylen);
     if (err != GPG_ERR_NO_ERROR) {
-        fprintf(stderr, "gcry_cipher_setkey failed: %s/%s\n",
-                gcry_strsource(err),
-                gcry_strerror(err));
-        return;
+        goto error;
     }
 
     err = gcry_cipher_setiv(gcry_cipher_hd, iv, blklen);
     if (err != GPG_ERR_NO_ERROR) {
-        fprintf(stderr, "gcry_cipher_setiv failed: %s/%s\n",
-                gcry_strsource(err),
-                gcry_strerror(err));
+        goto error;
     }
+
+    secure_zero(key, keylen);
+    secure_zero(iv, blklen);
+
+    return true;
+error:
+    fprintf(stderr, "Failed to initialize gcrypt: %s/%s\n", gcry_strsource(err), gcry_strerror(err));
+
+    return false;
 }
 
 /* Free out buffer after using! */
@@ -120,4 +123,14 @@ char *gcrypt_decrypt_msg(const char *msg, size_t msg_length)
 
 exit:
     return out;
+}
+
+/* I'd like to use memset_s, but for compatibility reasons... */
+static void secure_zero(void *s, size_t n)
+{
+    volatile char *p = s;
+
+    while (n--) {
+        *p++ = 0;
+    }
 }

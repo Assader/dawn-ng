@@ -1,20 +1,18 @@
 #ifndef DAWN_CRYPTO_H
 #define DAWN_CRYPTO_H
 
+#include <stdbool.h>
 #include <stddef.h>
 
 /**
  * Initialize gcrypt.
  * Has to be called before using the other functions!
- */
-void gcrypt_init(void);
-
-/**
- * Set the Key and the iv.
+ * Key and iv will be destroyed in case of successfull initializtion.
  * @param key
  * @param iv
+ * @return true if init was successfull, false otherwise.
  */
-void gcrypt_set_key_and_iv(const char *key, const char *iv);
+bool gcrypt_init(char *key, char *iv);
 
 /**
  * Function that encrypts the message.
