@@ -27,7 +27,11 @@ int main(int argc, char **argv)
     uci_get_dawn_hostapd_dir();
 
     if (network_config.use_symm_enc) {
-        if (!gcrypt_init(network_config.shared_key, network_config.iv)) {
+        char key[MAX_KEY_LENGTH] = {0}, iv[MAX_KEY_LENGTH] = {0};
+
+        uci_get_dawn_crypto(key, iv);
+
+        if (!gcrypt_init(key, iv)) {
             exit(EXIT_FAILURE);
         }
     }
