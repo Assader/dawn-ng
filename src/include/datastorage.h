@@ -93,8 +93,6 @@ struct network_config_s {
     char server_ip[MAX_IP_LENGTH];
     int tcp_port;
     int network_option;
-    char shared_key[MAX_KEY_LENGTH];
-    char iv[MAX_KEY_LENGTH];
     int use_symm_enc;
     int collision_domain;
     int bandwidth;
