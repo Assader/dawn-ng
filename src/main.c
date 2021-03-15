@@ -14,18 +14,12 @@
 #include "ubus.h"
 
 static void dawn_shutdown(void);
+static void connect_signals(void);
 static void signal_handler(int sig);
 
 int main(int argc, char **argv)
 {
-    struct sigaction signal_action = {0};
-
-    /* Connect signals */
-    signal_action.sa_handler = signal_handler;
-    sigaction(SIGHUP, &signal_action, NULL);
-    sigaction(SIGTERM, &signal_action, NULL);
-    sigaction(SIGINT, &signal_action, NULL);
-    signal(SIGPIPE, SIG_IGN);
+    connect_signals();
 
     uci_init();
     network_config = uci_get_dawn_network();
@@ -55,16 +49,18 @@ int main(int argc, char **argv)
     return 0;
 }
 
-void dawn_shutdown(void)
+static void connect_signals(void)
 {
-    /* kill threads */
-    close_socket();
-    uci_clear();
-    uloop_end();
-    destroy_mutex();
+    struct sigaction signal_action = {0};
+
+    signal_action.sa_handler = signal_handler;
+    sigaction(SIGHUP, &signal_action, NULL);
+    sigaction(SIGTERM, &signal_action, NULL);
+    sigaction(SIGINT, &signal_action, NULL);
+    signal(SIGPIPE, SIG_IGN);
 }
 
-void signal_handler(int sig)
+static void signal_handler(int sig)
 {
     switch (sig) {
     case SIGHUP:
@@ -81,4 +77,13 @@ void signal_handler(int sig)
         dawn_shutdown();
         break;
     }
+}
+
+static void dawn_shutdown(void)
+{
+    /* kill threads */
+    close_socket();
+    uci_clear();
+    uloop_end();
+    destroy_mutex();
 }
