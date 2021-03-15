@@ -26,8 +26,11 @@ int main(int argc, char **argv)
     timeout_config = uci_get_dawn_times();
     uci_get_dawn_hostapd_dir();
 
-    gcrypt_init();
-    gcrypt_set_key_and_iv(network_config.shared_key, network_config.iv);
+    if (network_config.use_symm_enc) {
+        if (!gcrypt_init(network_config.shared_key, network_config.iv)) {
+            exit(EXIT_FAILURE);
+        }
+    }
 
     init_mutex();
 
