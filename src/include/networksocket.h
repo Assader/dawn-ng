@@ -3,6 +3,12 @@
 
 #include <pthread.h>
 
+enum {
+    DAWN_SOCKET_BROADCAST = 0,
+    DAWN_SOCKET_MULTICAST = 1,
+    DAWN_SOCKET_TCP       = 2,
+};
+
 /**
  * Init a socket using the runopts.
  * @param ip_str - ip to use.
