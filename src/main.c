@@ -31,15 +31,9 @@ int main(int argc, char **argv)
 
     init_mutex();
 
-    switch (network_config.network_option) {
-    case 0:
-        init_socket_runopts(network_config.broadcast_ip, network_config.broadcast_port, 0);
-        break;
-    case 1:
-        init_socket_runopts(network_config.broadcast_ip, network_config.broadcast_port, 1);
-        break;
-    default:
-        break;
+    if (network_config.network_option == DAWN_SOCKET_BROADCAST ||
+        network_config.network_option == DAWN_SOCKET_MULTICAST) {
+        init_socket_runopts(network_config.broadcast_ip, network_config.broadcast_port, network_config.network_option);
     }
 
     insert_macs_from_file();
