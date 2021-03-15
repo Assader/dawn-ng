@@ -535,7 +535,7 @@ int send_blob_attr_via_network(struct blob_attr *msg, char *method)
     str = blobmsg_format_json(b_send_network.head, true);
     dawn_regmem(str);
 
-    if (network_config.network_option == 2 || network_config.network_option == 3) {
+    if (network_config.network_option == DAWN_SOCKET_TCP) {
         send_tcp(str);
     }
     else {
@@ -630,7 +630,7 @@ int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
 
     ubus_add_oject();
 
-    if (network_config.network_option == 2 || network_config.network_option == 3) {
+    if (network_config.network_option == DAWN_SOCKET_TCP) {
         start_tcp_con_update();
         if (run_server(network_config.tcp_port)) {
             uloop_timeout_set(&usock_timer, 1000);
@@ -711,12 +711,11 @@ static void ubus_get_clients_cb(struct ubus_request *req, int type, struct blob_
 static int ubus_get_clients(void)
 {
     struct hostapd_sock_entry *sub;
-    int timeout = 1;
 
     list_for_each_entry(sub, &hostapd_sock_list, list) {
         if (sub->subscribed) {
             blob_buf_init(&b_clients, 0);
-            ubus_invoke(ctx, sub->id, "get_clients", b_clients.head, ubus_get_clients_cb, NULL, timeout * 1000);
+            ubus_invoke(ctx, sub->id, "get_clients", b_clients.head, ubus_get_clients_cb, NULL, 1000);
         }
     }
 
@@ -855,7 +854,7 @@ void update_tcp_connections(struct uloop_timeout *t)
     }
 
     /* mdns enabled? */
-    if (network_config.network_option == 2) {
+    if (network_config.network_option == DAWN_SOCKET_TCP) {
         ubus_call_umdns();
     }
 
