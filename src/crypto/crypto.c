@@ -90,16 +90,19 @@ char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
 /* Free out buffer after using! */
 char *gcrypt_decrypt_msg(const char *msg, size_t msg_length)
 {
+    size_t blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
     gcry_error_t err;
+    char *out = NULL;
 
-    if ((msg_length & 0xfU) != 0U) {
-        msg_length += 0x10U - (msg_length & 0xfU);
+    if ((msg_length & (blklen - 1u)) != 0u) {
+        fprintf(stderr, "Message length does not fit alignment requirements. Won't decrypt!\n");
+        goto exit;
     }
 
-    char *out = dawn_malloc(msg_length);
+    out = dawn_malloc(msg_length);
     if (out == NULL) {
         fprintf(stderr, "Failed to allocate memory!\n");
-        return NULL;
+        goto exit;
     }
 
     err = gcry_cipher_decrypt(gcry_cipher_hd, out, msg_length, msg, msg_length);
@@ -108,8 +111,9 @@ char *gcrypt_decrypt_msg(const char *msg, size_t msg_length)
                 gcry_strsource(err),
                 gcry_strerror(err));
         dawn_free(out);
-        return NULL;
+        out = NULL;
     }
 
+exit:
     return out;
 }
