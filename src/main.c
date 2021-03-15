@@ -16,14 +16,12 @@
 static void dawn_shutdown(void);
 static void signal_handler(int sig);
 
-struct sigaction signal_action;
-
 int main(int argc, char **argv)
 {
+    struct sigaction signal_action = {0};
+
     /* Connect signals */
     signal_action.sa_handler = signal_handler;
-    sigemptyset(&signal_action.sa_mask);
-    signal_action.sa_flags = 0;
     sigaction(SIGHUP, &signal_action, NULL);
     sigaction(SIGTERM, &signal_action, NULL);
     sigaction(SIGINT, &signal_action, NULL);
