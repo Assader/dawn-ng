@@ -308,6 +308,7 @@ static void connect_cb(struct uloop_fd *f, unsigned int events)
 
 int add_tcp_conncection(const char *ipv4, int port)
 {
+    struct network_con_s *tcp_entry;
     struct sockaddr_in serv_addr;
     char port_str[12];
 
@@ -318,20 +319,20 @@ int add_tcp_conncection(const char *ipv4, int port)
     serv_addr.sin_addr.s_addr = inet_addr(ipv4);
     serv_addr.sin_port = htons(port);
 
-    struct network_con_s *tmp = tcp_list_contains_address(serv_addr);
-    if (tmp != NULL) {
-        if (tmp->connected == true) {
+    tcp_entry = tcp_list_contains_address(serv_addr);
+    if (tcp_entry != NULL) {
+        if (tcp_entry->connected == true) {
             return 0;
         }
         else {
             /* Delete already existing entry */
-            close(tmp->fd.fd);
-            list_del(&tmp->list);
-            dawn_free(tmp);
+            close(tcp_entry->fd.fd);
+            list_del(&tcp_entry->list);
+            dawn_free(tcp_entry);
         }
     }
 
-    struct network_con_s *tcp_entry = dawn_calloc(1, sizeof (struct network_con_s));
+    tcp_entry = dawn_calloc(1, sizeof (struct network_con_s));
     if (tcp_entry == NULL) {
         fprintf(stderr, "Failed to allocate memory!");
         return -1;
