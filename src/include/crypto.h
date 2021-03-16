@@ -5,7 +5,7 @@
 #include <stddef.h>
 
 enum {
-    MAX_KEY_LENGTH = 65
+    MAX_KEY_LENGTH = 64
 };
 
 /**

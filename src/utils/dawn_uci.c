@@ -2,6 +2,7 @@
 #include <string.h>
 #include <uci.h>
 
+#include "crypto.h"
 #include "datastorage.h"
 #include "dawn_iwinfo.h"
 #include "dawn_uci.h"

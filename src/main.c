@@ -13,9 +13,9 @@
 #include "tcpsocket.h"
 #include "ubus.h"
 
-static void dawn_shutdown(void);
 static void connect_signals(void);
 static void signal_handler(int sig);
+static void dawn_shutdown(void);
 
 int main(int argc, char **argv)
 {
@@ -27,7 +27,7 @@ int main(int argc, char **argv)
     uci_get_dawn_hostapd_dir();
 
     if (network_config.use_symm_enc) {
-        char key[MAX_KEY_LENGTH] = {0}, iv[MAX_KEY_LENGTH] = {0};
+        char key[MAX_KEY_LENGTH + 1] = {0}, iv[MAX_KEY_LENGTH + 1] = {0};
 
         uci_get_dawn_crypto(key, iv);
 
