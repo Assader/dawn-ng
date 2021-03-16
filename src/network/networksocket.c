@@ -19,24 +19,17 @@ enum {
 /* Network Attributes */
 static int sock;
 static struct sockaddr_in addr;
-static const char *ip;
-static unsigned short port;
 static char recv_string[MAX_RECV_STRING + 1];
-static int socket_type;
 
 static pthread_mutex_t send_mutex;
 
 static void *receive_msg(void *args);
 
-int init_socket_runopts(const char *ip_str, int host_port, int sock_type)
+int init_socket_runopts(const char *ip, int port, int sock_type)
 {
     pthread_t sniffer_thread;
 
-    port = host_port;
-    ip = ip_str;
-    socket_type = sock_type;
-
-    if (socket_type == DAWN_SOCKET_MULTICAST) {
+    if (sock_type == DAWN_SOCKET_MULTICAST) {
         sock = setup_multicast_socket(ip, port, &addr);
     }
     else {
