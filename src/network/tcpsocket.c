@@ -189,6 +189,51 @@ static void client_read_cb(struct ustream *s, int bytes)
     return;
 }
 
+void send_tcp(const char *msg)
+{
+    struct network_con_s *con, *tmp;
+    size_t msglen = strlen(msg) + 1;
+    char *enc;
+
+    print_tcp_array();
+
+    if (network_config.use_symm_enc) {
+        int enc_length;
+
+        enc = gcrypt_encrypt_msg(msg, msglen, &enc_length);
+        if (enc == NULL) {
+            fprintf(stderr, "Failed to allocate memory (%d)\n", __LINE__);
+            return;
+        }
+
+        msglen = enc_length;
+        msg = enc;
+    }
+
+    list_for_each_entry_safe(con, tmp, &tcp_sock_list, list) {
+        if (con->connected) {
+            size_t net_msglen = htonl(msglen);
+            int len_ustream = ustream_write(&con->stream.stream, (char *) &net_msglen, sizeof (net_msglen), 0);
+            len_ustream += ustream_write(&con->stream.stream, msg, msglen, 0);
+            printf("Ustream sent: %d\n", len_ustream);
+            if (len_ustream <= 0) {
+                fprintf(stderr, "Ustream error(%d)!\n", __LINE__);
+                /* Error handling! */
+                if (con->stream.stream.write_error) {
+                    ustream_free(&con->stream.stream);
+                    close(con->fd.fd);
+                    list_del(&con->list);
+                    dawn_free(con);
+                }
+            }
+        }
+    }
+
+    if (network_config.use_symm_enc) {
+        dawn_free(enc);
+    }
+}
+
 static void server_cb(struct uloop_fd *fd, unsigned int events)
 {
     unsigned int sl = sizeof (struct sockaddr_in);
@@ -306,51 +351,6 @@ int add_tcp_conncection(const char *ipv4, int port)
     list_add(&tcp_entry->list, &tcp_sock_list);
 
     return 0;
-}
-
-void send_tcp(const char *msg)
-{
-    struct network_con_s *con, *tmp;
-    size_t msglen = strlen(msg) + 1;
-    char *enc;
-
-    print_tcp_array();
-
-    if (network_config.use_symm_enc) {
-        int enc_length;
-
-        enc = gcrypt_encrypt_msg(msg, msglen, &enc_length);
-        if (enc == NULL) {
-            fprintf(stderr, "Failed to allocate memory (%d)\n", __LINE__);
-            return;
-        }
-
-        msglen = enc_length;
-        msg = enc;
-    }
-
-    list_for_each_entry_safe(con, tmp, &tcp_sock_list, list) {
-        if (con->connected) {
-            size_t net_msglen = htonl(msglen);
-            int len_ustream = ustream_write(&con->stream.stream, (char *) &net_msglen, sizeof (net_msglen), 0);
-            len_ustream += ustream_write(&con->stream.stream, msg, msglen, 0);
-            printf("Ustream sent: %d\n", len_ustream);
-            if (len_ustream <= 0) {
-                fprintf(stderr, "Ustream error(%d)!\n", __LINE__);
-                /* Error handling! */
-                if (con->stream.stream.write_error) {
-                    ustream_free(&con->stream.stream);
-                    close(con->fd.fd);
-                    list_del(&con->list);
-                    dawn_free(con);
-                }
-            }
-        }
-    }
-
-    if (network_config.use_symm_enc) {
-        dawn_free(enc);
-    }
 }
 
 struct network_con_s *tcp_list_contains_address(struct sockaddr_in entry)
