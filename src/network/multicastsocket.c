@@ -59,15 +59,3 @@ error:
 
     return -1;
 }
-
-int drop_multicast_group_membership(int sock)
-{
-    int err;
-
-    err = setsockopt(sock, IPPROTO_IP, IP_DROP_MEMBERSHIP, &command, sizeof (command));
-    if (err != 0) {
-        perror("Failed to drop multicast group membership");
-    }
-
-    return err;
-}

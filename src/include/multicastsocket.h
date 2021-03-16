@@ -13,11 +13,4 @@
  */
 int setup_multicast_socket(const char *multicast_ip, unsigned short multicast_port, struct sockaddr_in *addr);
 
-/**
- * Drops a multicast group membership on socket.
- * @param socket
- * @return
- */
-int drop_multicast_group_membership(int sock);
-
 #endif /* DAWN_MULTICASTSOCKET_H */

@@ -92,9 +92,6 @@ exit:
 void close_socket(void)
 {
     /* TODO: rcv thread could be canceled here. */
-    if (socket_type == DAWN_SOCKET_MULTICAST) {
-        drop_multicast_group_membership(sock);
-    }
     close(sock);
 }
 
