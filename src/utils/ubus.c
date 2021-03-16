@@ -11,6 +11,20 @@
 #include "tcpsocket.h"
 #include "ubus.h"
 
+/* 802.11 Status codes */
+enum {
+    WLAN_STATUS_SUCCESS = 0,
+    WLAN_STATUS_AP_UNABLE_TO_HANDLE_NEW_STA = 17,
+    WLAN_STATUS_DENIED_NOT_HT_SUPPORT = 27,
+    WLAN_STATUS_DENIED_NOT_VHT_SUPPORT = 104,
+};
+
+/* Disassociation Reason */
+enum {
+    UNSPECIFIED_REASON = 0,
+    NO_MORE_STAS = 5,
+};
+
 enum {
     REQ_TYPE_PROBE = 0,
     REQ_TYPE_AUTH  = 1,
