@@ -8,7 +8,9 @@
 #include "msghandler.h"
 #include "tcpsocket.h"
 
-#define HEADER_SIZE sizeof(uint32_t)
+enum {
+    HEADER_SIZE = sizeof (uint32_t)
+};
 
 LIST_HEAD(tcp_sock_list);
 
