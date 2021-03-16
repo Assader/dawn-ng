@@ -16,7 +16,7 @@ enum {
  * @param mcast_socket - if socket should be multicast or broadcast.
  * @return the socket.
  */
-int init_socket_runopts(const char *ip_str, int host_port, int mcast_socket);
+int init_socket_runopts(const char *ip_str, int host_port, int sock_type);
 
 /**
  * Send message via network.

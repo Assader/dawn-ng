@@ -23,23 +23,22 @@ static const char *ip;
 static unsigned short port;
 static char recv_string[MAX_RECV_STRING + 1];
 static int recv_string_len;
-static int multicast_socket;
+static int socket_type;
 
 static pthread_mutex_t send_mutex;
 
 static void *receive_msg(void *args);
 static void *receive_msg_enc(void *args);
 
-int init_socket_runopts(const char *ip_str, int host_port, int mcast_socket)
+int init_socket_runopts(const char *ip_str, int host_port, int sock_type)
 {
     pthread_t sniffer_thread;
 
     port = host_port;
     ip = ip_str;
-    multicast_socket = mcast_socket;
+    socket_type = sock_type;
 
-    if (multicast_socket) {
-        printf("Setting up multicast socket!\n");
+    if (socket_type == DAWN_SOCKET_MULTICAST) {
         sock = setup_multicast_socket(ip, port, &addr);
     }
     else {
@@ -168,7 +167,7 @@ exit:
 
 void close_socket(void)
 {
-    if (multicast_socket) {
+    if (socket_type == DAWN_SOCKET_MULTICAST) {
         drop_multicast_group_membership(sock);
     }
     close(sock);
