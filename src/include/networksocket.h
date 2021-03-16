@@ -26,13 +26,6 @@ int init_socket_runopts(const char *ip_str, int host_port, int sock_type);
 int send_string(const char *msg);
 
 /**
- * Send encrypted message via network.
- * @param msg
- * @return
- */
-int send_string_enc(const char *msg);
-
-/**
  * Close socket.
  */
 void close_socket(void);
