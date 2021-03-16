@@ -4,10 +4,6 @@
 #include <libubox/ustream.h>
 #include <netinet/in.h>
 
-enum {
-    ARRAY_NETWORK_LEN = 50
-};
-
 struct network_con_s {
     struct list_head list;
 
