@@ -113,8 +113,8 @@ static void client_read_cb(struct ustream *s, int bytes)
             uint32_t avail_len = ustream_pending_data(s, false);
             /* Ensure recv sizeof(uint32_t) */
             if (avail_len < sizeof (msg_length)) {
-                fprintf(stderr, "incomplete msg, len: %d, expected minimal len: %u\n",
-                        avail_len, (unsigned int) HEADER_SIZE);
+                fprintf(stderr, "incomplete msg, len: %d, expected minimal len: %zu\n",
+                        avail_len, sizeof (msg_length));
                 break;
             }
 
@@ -124,7 +124,6 @@ static void client_read_cb(struct ustream *s, int bytes)
                 break;
             }
 
-            cl->curr_len += sizeof (msg_length);
             cl->final_len = ntohl(msg_length);
 
             cl->str = dawn_malloc(cl->final_len);
@@ -140,11 +139,13 @@ static void client_read_cb(struct ustream *s, int bytes)
             printf("tcp_socket: reading message...\n");
 
             uint32_t read_len = ustream_pending_data(s, false);
-            if (read_len == 0)
+            if (read_len == 0) {
                 break;
+            }
 
-            if (read_len > (cl->final_len - cl->curr_len))
+            if (read_len > (cl->final_len - cl->curr_len)) {
                 read_len = cl->final_len - cl->curr_len;
+            }
 
             printf("tcp_socket: reading %" PRIu32 " bytes to add to %" PRIu32 " of %" PRIu32 "...\n",
                    read_len, cl->curr_len, cl->final_len);
@@ -165,7 +166,7 @@ static void client_read_cb(struct ustream *s, int bytes)
 
             if (network_config.use_symm_enc) {
                 /* Len of str is final_len */
-                char *dec = gcrypt_decrypt_msg(cl->str + HEADER_SIZE, cl->final_len - HEADER_SIZE);
+                char *dec = gcrypt_decrypt_msg(cl->str, cl->final_len);
                 if (dec == NULL) {
                     fprintf(stderr, "not enough memory (%d)\n", __LINE__);
                     dawn_free(cl->str);
@@ -176,7 +177,7 @@ static void client_read_cb(struct ustream *s, int bytes)
                 dawn_free(dec);
             }
             else {
-                handle_network_msg(cl->str + HEADER_SIZE);
+                handle_network_msg(cl->str);
             }
 
             cl->state = READ_STATUS_READY;
@@ -292,7 +293,6 @@ int add_tcp_conncection(const char *ipv4, int port)
     struct network_con_s *tcp_entry = dawn_calloc(1, sizeof (struct network_con_s));
     if (tcp_entry == NULL) {
         fprintf(stderr, "Failed to allocate memory!");
-        dawn_free(tcp_entry);
         return -1;
     }
 
@@ -315,80 +315,45 @@ int add_tcp_conncection(const char *ipv4, int port)
 void send_tcp(const char *msg)
 {
     struct network_con_s *con, *tmp;
+    size_t msglen = strlen(msg) + 1;
+    char *enc;
 
     print_tcp_array();
 
     if (network_config.use_symm_enc) {
-        size_t msglen = strlen(msg) + 1;
-        int length_enc;
+        int enc_length;
 
-        char *enc = gcrypt_encrypt_msg(msg, msglen, &length_enc);
+        enc = gcrypt_encrypt_msg(msg, msglen, &enc_length);
         if (enc == NULL) {
             fprintf(stderr, "Failed to allocate memory (%d)\n", __LINE__);
             return;
         }
 
-        uint32_t final_len = length_enc + sizeof (final_len);
-        char *final_str = dawn_malloc(final_len);
-        if (final_str == NULL) {
-            dawn_free(enc);
-            fprintf(stderr, "Failed to allocate memory (%d)\n", __LINE__);
-            return;
-        }
-
-        uint32_t *msg_header = (uint32_t *) final_str;
-        *msg_header = htonl(final_len);
-        memcpy(final_str + sizeof (final_len), enc, length_enc);
-
-        list_for_each_entry_safe(con, tmp, &tcp_sock_list, list) {
-            if (con->connected) {
-                int len_ustream = ustream_write(&con->stream.stream, final_str, final_len, 0);
-                printf("Ustream send: %d\n", len_ustream);
-                if (len_ustream <= 0) {
-                    fprintf(stderr, "Ustream error(%d)!\n", __LINE__);
-                    /* ERROR HANDLING! */
-                    if (con->stream.stream.write_error) {
-                        ustream_free(&con->stream.stream);
-                        close(con->fd.fd);
-                        list_del(&con->list);
-                        dawn_free(con);
-                    }
-                }
-            }
-        }
-        dawn_free(final_str);
-        dawn_free(enc);
+        msglen = enc_length;
+        msg = enc;
     }
-    else {
-        size_t msglen = strlen(msg) + 1;
-        uint32_t final_len = msglen + sizeof (final_len);
-        char *final_str = dawn_malloc(final_len);
-        if (final_str == NULL) {
-            fprintf(stderr, "Ustream error: not enought memory (%d)\n", __LINE__);
-            return;
-        }
 
-        uint32_t *msg_header = (uint32_t *) final_str;
-        *msg_header = htonl(final_len);
-        memcpy(final_str + sizeof (final_len), msg, msglen);
-
-        list_for_each_entry_safe(con, tmp, &tcp_sock_list, list) {
-            if (con->connected) {
-                int len_ustream = ustream_write(&con->stream.stream, final_str, final_len, 0);
-                printf("Ustream send: %d\n", len_ustream);
-                if (len_ustream <= 0) {
-                    /* ERROR HANDLING! */
-                    fprintf(stderr, "Ustream error(%d)!\n", __LINE__);
-                    if (con->stream.stream.write_error) {
-                        ustream_free(&con->stream.stream);
-                        close(con->fd.fd);
-                        list_del(&con->list);
-                        dawn_free(con);
-                    }
+    list_for_each_entry_safe(con, tmp, &tcp_sock_list, list) {
+        if (con->connected) {
+            size_t net_msglen = htonl(msglen);
+            int len_ustream = ustream_write(&con->stream.stream, (char *) &net_msglen, sizeof (net_msglen), 0);
+            len_ustream += ustream_write(&con->stream.stream, msg, msglen, 0);
+            printf("Ustream sent: %d\n", len_ustream);
+            if (len_ustream <= 0) {
+                fprintf(stderr, "Ustream error(%d)!\n", __LINE__);
+                /* Error handling! */
+                if (con->stream.stream.write_error) {
+                    ustream_free(&con->stream.stream);
+                    close(con->fd.fd);
+                    list_del(&con->list);
+                    dawn_free(con);
                 }
             }
         }
-        dawn_free(final_str);
+    }
+
+    if (network_config.use_symm_enc) {
+        dawn_free(enc);
     }
 }
 
