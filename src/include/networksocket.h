@@ -1,7 +1,8 @@
 #ifndef DAWN_NETWORKSOCKET_H
 #define DAWN_NETWORKSOCKET_H
 
-#include <pthread.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 enum {
     DAWN_SOCKET_BROADCAST = 0,
@@ -10,24 +11,21 @@ enum {
 };
 
 /**
- * Init a socket using the runopts.
- * @param ip_str - ip to use.
- * @param host_port - port to use.
- * @param mcast_socket - if socket should be multicast or broadcast.
- * @return the socket.
+ * @brief init_network_socket
+ * @param ip
+ * @param port
+ * @param sock_type
+ * @return true if init was successfull, false otherwise.
  */
-int init_socket_runopts(const char *ip, int port, int sock_type);
+bool init_network_socket(const char *ip, uint16_t port, int sock_type);
 
 /**
- * Send message via network.
+ * @brief send_string
  * @param msg
- * @return
+ * @return the number of bytes sent or -1 in case if en error occurred.
  */
 int send_string(const char *msg);
 
-/**
- * Close socket.
- */
 void close_socket(void);
 
 #endif /* DAWN_NETWORKSOCKET_H */

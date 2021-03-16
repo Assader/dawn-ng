@@ -1,4 +1,5 @@
 #include <libubox/blobmsg_json.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,21 +12,18 @@
 #include "multicastsocket.h"
 #include "networksocket.h"
 
-/* Network Defines */
 enum {
     MAX_RECV_STRING = 2048
 };
 
-/* Network Attributes */
 static int sock;
 static struct sockaddr_in addr;
 static char recv_string[MAX_RECV_STRING + 1];
-
 static pthread_mutex_t send_mutex;
 
 static void *receive_msg(void *args);
 
-int init_socket_runopts(const char *ip, int port, int sock_type)
+bool init_network_socket(const char *ip, uint16_t port, int sock_type)
 {
     pthread_t sniffer_thread;
 
@@ -35,21 +33,25 @@ int init_socket_runopts(const char *ip, int port, int sock_type)
     else {
         sock = setup_broadcast_socket(ip, port, &addr);
     }
+    if (sock == -1) {
+        return false;
+    }
 
     if (pthread_create(&sniffer_thread, NULL, receive_msg, NULL)) {
         fprintf(stderr, "Could not create receiving thread!\n");
-        return -1;
+        close(sock);
+        return false;
     }
 
     printf("Connected to %s:%d\n", ip, port);
 
-    return 0;
+    return true;
 }
 
 int send_string(const char *msg)
 {
     size_t msglen = strlen(msg);
-    int err = ENOMEM;
+    int err = -1;
     char *enc;
 
     if (network_config.use_symm_enc) {
