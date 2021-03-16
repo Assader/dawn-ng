@@ -10,16 +10,15 @@ int setup_broadcast_socket(const char *broadcast_ip, unsigned short broadcast_po
 
     if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
         perror("Failed to create socket");
-        return -1;
+        goto error;
     }
 
     /* Allow broadcast */
     int broadcasting = 1;
     if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (void *) &broadcasting,
                    sizeof (broadcasting)) != 0) {
-        perror("Failed to set socket options");
-        close(sock);
-        return -1;
+        perror("Failed to set SO_BROADCAST option to socket");
+        goto error;
     }
 
     /* Construct address */
@@ -28,10 +27,14 @@ int setup_broadcast_socket(const char *broadcast_ip, unsigned short broadcast_po
     addr->sin_addr.s_addr = inet_addr(broadcast_ip);
     addr->sin_port = htons(broadcast_port);
 
-    while (bind(sock, (struct sockaddr *) addr, sizeof (*addr)) != 0) {
+    if (bind(sock, (struct sockaddr *) addr, sizeof (*addr)) != 0) {
         perror("Socket binding failed");
-        sleep(1);
+        goto error;
     }
 
     return sock;
+error:
+    close(sock);
+
+    return -1;
 }
