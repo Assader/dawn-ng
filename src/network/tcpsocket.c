@@ -12,16 +12,19 @@ enum {
     HEADER_SIZE = sizeof (uint32_t)
 };
 
-LIST_HEAD(tcp_sock_list);
-
-static struct network_con_s *tcp_list_contains_address(struct sockaddr_in entry);
-
-static struct uloop_fd server;
-
 enum socket_read_status {
     READ_STATUS_READY,
     READ_STATUS_COMMENCED,
     READ_STATUS_COMPLETE
+};
+
+struct network_con_s {
+    struct list_head list;
+
+    struct uloop_fd fd;
+    struct ustream_fd stream;
+    struct sockaddr_in sock_addr;
+    int connected;
 };
 
 struct client {
@@ -35,6 +38,11 @@ struct client {
     uint32_t final_len;            /* full message length */
     uint32_t curr_len;             /* bytes read so far */
 };
+
+static struct uloop_fd server;
+static LIST_HEAD(tcp_sock_list);
+
+static struct network_con_s *tcp_list_contains_address(struct sockaddr_in entry);
 
 static void client_close(struct ustream *s)
 {

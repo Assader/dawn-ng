@@ -4,15 +4,6 @@
 #include <libubox/ustream.h>
 #include <netinet/in.h>
 
-struct network_con_s {
-    struct list_head list;
-
-    struct uloop_fd fd;
-    struct ustream_fd stream;
-    struct sockaddr_in sock_addr;
-    int connected;
-};
-
 /**
  * Add tcp connection.
  * @param ipv4
