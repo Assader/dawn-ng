@@ -36,7 +36,9 @@ int main(int argc, char **argv)
         }
     }
 
-    init_mutex();
+    if (!init_mutex()) {
+        exit(EXIT_FAILURE);
+    }
 
     if (network_config.network_option == DAWN_SOCKET_BROADCAST ||
         network_config.network_option == DAWN_SOCKET_MULTICAST) {

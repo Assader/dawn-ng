@@ -3,6 +3,7 @@
 
 #include <limits.h>
 #include <pthread.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
 
@@ -274,7 +275,7 @@ void send_beacon_reports(struct dawn_mac bssid, int id);
 int better_ap_available(ap *kicking_ap, struct dawn_mac client_addr, char *neighbor_report);
 
 /* All users of datastorage should call init_ / destroy_mutex at initialisation and termination respectively */
-int init_mutex(void);
+bool init_mutex(void);
 void destroy_mutex(void);
 
 #endif /* DAWN_DATASTORAGE_H */

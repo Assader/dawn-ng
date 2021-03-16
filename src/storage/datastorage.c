@@ -1,4 +1,3 @@
-#include <stdbool.h>
 #include <stdio.h>
 
 #include "dawn_iwinfo.h"
@@ -1503,27 +1502,18 @@ void destroy_mutex(void)
     return;
 }
 
-int init_mutex(void)
+bool init_mutex(void)
 {
-    if (pthread_mutex_init(&probe_array_mutex, NULL) != 0) {
-        fprintf(stderr, "Mutex init failed!\n");
-        return 1;
+    int err;
+
+    err = pthread_mutex_init(&probe_array_mutex, NULL);
+    err |= pthread_mutex_init(&client_array_mutex, NULL);
+    err |= pthread_mutex_init(&ap_array_mutex, NULL);
+    err |= pthread_mutex_init(&denied_array_mutex, NULL);
+
+    if (err != 0) {
+        fprintf(stderr, "Failed to initialize mutex!\n");
     }
 
-    if (pthread_mutex_init(&client_array_mutex, NULL) != 0) {
-        fprintf(stderr, "Mutex init failed!\n");
-        return 1;
-    }
-
-    if (pthread_mutex_init(&ap_array_mutex, NULL) != 0) {
-        fprintf(stderr, "Mutex init failed!\n");
-        return 1;
-    }
-
-    if (pthread_mutex_init(&denied_array_mutex, NULL) != 0) {
-        fprintf(stderr, "Mutex init failed!\n");
-        return 1;
-    }
-
-    return 0;
+    return !!err;
 }
