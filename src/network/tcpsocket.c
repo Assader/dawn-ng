@@ -8,10 +8,6 @@
 #include "msghandler.h"
 #include "tcpsocket.h"
 
-enum {
-    HEADER_SIZE = sizeof (uint32_t)
-};
-
 enum socket_read_status {
     READ_STATUS_READY,
     READ_STATUS_COMMENCED,
