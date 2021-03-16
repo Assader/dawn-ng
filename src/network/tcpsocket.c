@@ -327,7 +327,7 @@ int add_tcp_conncection(const char *ipv4, int port)
             /* Delete already existing entry */
             close(tmp->fd.fd);
             list_del(&tmp->list);
-            /* TODO: Removed free(tmp) here - was it needed? */
+            dawn_free(tmp);
         }
     }
 
