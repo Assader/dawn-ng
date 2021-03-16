@@ -90,7 +90,7 @@ static struct uloop_timeout beacon_reports_timer = {
     .cb = update_beacon_reports
 };
 
-LIST_HEAD(hostapd_sock_list);
+static LIST_HEAD(hostapd_sock_list);
 
 struct hostapd_sock_entry {
     struct list_head list;
