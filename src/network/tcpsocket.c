@@ -106,47 +106,33 @@ static void client_read_cb(struct ustream *s, int bytes)
 
     while (1) {
         if (cl->state == READ_STATUS_READY) {
-            printf("tcp_socket: commencing message...\n");
+            uint32_t msg_length;
 
-            cl->str = dawn_malloc(HEADER_SIZE);
-            if (cl->str == NULL) {
-                fprintf(stderr, "not enough memory (%d)\n", __LINE__);
-                break;
-            }
+            printf("tcp_socket: commencing message...\n");
 
             uint32_t avail_len = ustream_pending_data(s, false);
             /* Ensure recv sizeof(uint32_t) */
-            if (avail_len < HEADER_SIZE) {
+            if (avail_len < sizeof (msg_length)) {
                 fprintf(stderr, "incomplete msg, len: %d, expected minimal len: %u\n",
                         avail_len, (unsigned int) HEADER_SIZE);
-                dawn_free(cl->str);
-                cl->str = NULL;
                 break;
             }
 
             /* Read msg length bytes */
-            if (ustream_read(s, cl->str, HEADER_SIZE) != HEADER_SIZE) {
+            if (ustream_read(s, (char *) &msg_length, sizeof (msg_length)) != sizeof (msg_length)) {
                 fprintf(stdout, "msg length read failed\n");
-                dawn_free(cl->str);
-                cl->str = NULL;
                 break;
             }
 
-            cl->curr_len += HEADER_SIZE;
-            cl->final_len = ntohl(*((uint32_t *) cl->str));
+            cl->curr_len += sizeof (msg_length);
+            cl->final_len = ntohl(msg_length);
 
-            /* On failure, dawn_realloc returns a null pointer. The original pointer str
-            remains valid and may need to be deallocated. */
-            char *str_tmp = dawn_realloc(cl->str, cl->final_len);
-            if (str_tmp == NULL) {
+            cl->str = dawn_malloc(cl->final_len);
+            if (cl->str == NULL) {
                 fprintf(stderr, "not enough memory (%" PRIu32 " @ %d)\n", cl->final_len, __LINE__);
-                dawn_free(cl->str);
-                cl->str = NULL;
                 break;
             }
 
-            cl->str = str_tmp;
-            str_tmp = NULL; /* About to go out of scope, but just in case it gets moved around... */
             cl->state = READ_STATUS_COMMENCED;
         }
 
