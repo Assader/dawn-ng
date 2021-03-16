@@ -40,7 +40,11 @@ int main(int argc, char **argv)
 
     if (network_config.network_option == DAWN_SOCKET_BROADCAST ||
         network_config.network_option == DAWN_SOCKET_MULTICAST) {
-        init_network_socket(network_config.broadcast_ip, network_config.broadcast_port, network_config.network_option);
+        if (!init_network_socket(network_config.broadcast_ip,
+                                 network_config.broadcast_port,
+                                 network_config.network_option)) {
+            exit(EXIT_FAILURE);
+        }
     }
 
     insert_macs_from_file();
