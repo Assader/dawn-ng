@@ -33,7 +33,7 @@ int ubus_call_umdns(void);
  * @param auth_req
  * @return
  */
-int parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req);
+bool parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req);
 
 /**
  * Parse to association request.

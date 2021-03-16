@@ -278,23 +278,20 @@ static int decide_function(probe_entry *prob_req, int req_type)
     return 1;
 }
 
-int parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req)
+bool parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req)
 {
     struct blob_attr *tb[__AUTH_MAX];
+    int err = EINVAL;
 
     blobmsg_parse(auth_policy, __AUTH_MAX, tb, blob_data(msg), blob_len(msg));
 
-    if (hwaddr_aton(blobmsg_data(tb[AUTH_BSSID_ADDR]), auth_req->bssid_addr.u8)) {
-        return UBUS_STATUS_INVALID_ARGUMENT;
+    if (!tb[AUTH_BSSID_ADDR] || !tb[AUTH_CLIENT_ADDR] || !tb[AUTH_TARGET_ADDR]) {
+        goto exit;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[AUTH_CLIENT_ADDR]), auth_req->client_addr.u8)) {
-        return UBUS_STATUS_INVALID_ARGUMENT;
-    }
-
-    if (hwaddr_aton(blobmsg_data(tb[AUTH_TARGET_ADDR]), auth_req->target_addr.u8)) {
-        return UBUS_STATUS_INVALID_ARGUMENT;
-    }
+    err = hwaddr_aton(blobmsg_data(tb[AUTH_BSSID_ADDR]), auth_req->bssid_addr.u8);
+    err |= hwaddr_aton(blobmsg_data(tb[AUTH_CLIENT_ADDR]), auth_req->client_addr.u8);
+    err |= hwaddr_aton(blobmsg_data(tb[AUTH_TARGET_ADDR]), auth_req->target_addr.u8);
 
     if (tb[AUTH_SIGNAL]) {
         auth_req->signal = blobmsg_get_u32(tb[AUTH_SIGNAL]);
@@ -304,7 +301,8 @@ int parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req)
         auth_req->freq = blobmsg_get_u32(tb[AUTH_FREQ]);
     }
 
-    return 0;
+exit:
+    return !!err;
 }
 
 int parse_to_assoc_req(struct blob_attr *msg, assoc_entry *assoc_req)
@@ -396,14 +394,19 @@ int handle_auth_req(struct blob_attr *msg)
     bool discard_entry = true;
 
     print_probe_array();
+
     auth_entry *auth_req = dawn_malloc(sizeof (struct auth_entry_s));
     if (auth_req == NULL) {
         return -1;
     }
 
-    parse_to_auth_req(msg, auth_req);
+    if (!parse_to_auth_req(msg, auth_req)) {
+        fprintf(stderr, "Failed to parse authentication request message!\n");
+        dawn_free(auth_req);
+        return -1;
+    }
 
-    printf("Auth entry: ");
+    printf("Authentication entry: ");
     print_auth_entry(auth_req);
 
     if (!mac_in_maclist(auth_req->client_addr)) {
@@ -451,7 +454,12 @@ static int handle_assoc_req(struct blob_attr *msg)
         return -1;
     }
 
-    parse_to_assoc_req(msg, auth_req);
+    if (!parse_to_assoc_req(msg, auth_req)) {
+        fprintf(stderr, "Failed to parse association request message!\n");
+        dawn_free(auth_req);
+        return -1;
+    }
+
     printf("Association entry: ");
     print_auth_entry(auth_req);
 
