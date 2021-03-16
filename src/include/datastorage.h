@@ -84,7 +84,6 @@ struct time_config_s {
 
 enum {
     MAX_IP_LENGTH = 46,
-    MAX_KEY_LENGTH = 65,
 };
 
 struct network_config_s {

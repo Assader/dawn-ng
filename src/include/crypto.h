@@ -4,6 +4,10 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+enum {
+    MAX_KEY_LENGTH = 65
+};
+
 /**
  * Initialize gcrypt.
  * Has to be called before using the other functions!
