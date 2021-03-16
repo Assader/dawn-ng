@@ -8,9 +8,6 @@
 #include "msghandler.h"
 #include "tcpsocket.h"
 
-#define STR_EVAL(x) #x
-#define STR_QUOTE(x) STR_EVAL(x)
-
 #define HEADER_SIZE sizeof(uint32_t)
 
 LIST_HEAD(tcp_sock_list);
