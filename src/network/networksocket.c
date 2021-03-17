@@ -27,18 +27,14 @@ bool init_network_socket(const char *ip, uint16_t port, int sock_type)
 {
     pthread_t sniffer_thread;
 
-    if (sock_type == DAWN_SOCKET_MULTICAST) {
-        sock = setup_multicast_socket(ip, port, &addr);
-    }
-    else {
-        sock = setup_broadcast_socket(ip, port, &addr);
-    }
+    sock = ((sock_type == DAWN_SOCKET_MULTICAST)?
+                setup_multicast_socket : setup_broadcast_socket)(ip, port, &addr);
     if (sock == -1) {
         return false;
     }
 
     if (pthread_create(&sniffer_thread, NULL, receive_msg, NULL)) {
-        fprintf(stderr, "Could not create receiving thread!\n");
+        fprintf(stderr, "Failed to create receiving thread!\n");
         close(sock);
         return false;
     }
@@ -50,14 +46,14 @@ bool init_network_socket(const char *ip, uint16_t port, int sock_type)
 
 int send_string(const char *msg)
 {
-    size_t msglen = strlen(msg);
+    size_t msglen = strlen(msg) + 1;
     int err = -1;
     char *enc;
 
     if (network_config.use_symm_enc) {
         int enc_length;
 
-        enc = gcrypt_encrypt_msg(msg, msglen + 1, &enc_length);
+        enc = gcrypt_encrypt_msg(msg, msglen, &enc_length);
         if (enc == NULL) {
             fprintf(stderr, "Failed to encrypt message!\n");
             goto exit;
@@ -71,7 +67,7 @@ int send_string(const char *msg)
 
     err = sendto(sock, msg, msglen, 0, (struct sockaddr *) &addr, sizeof (addr));
     if (err == -1) {
-        perror("Failed to sendto");
+        perror("Failed to send network message");
     }
 
     pthread_mutex_unlock(&send_mutex);
