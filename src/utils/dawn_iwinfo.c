@@ -4,6 +4,7 @@
 #include "datastorage.h"
 #include "dawn_iwinfo.h"
 #include "mac_utils.h"
+#include "memory_utils.h"
 
 char *hostapd_dir;
 
@@ -41,8 +42,8 @@ static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float
 {
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
-    char buf[IWINFO_BUFSIZE];
     bool success = false;
+    char *buf = NULL;
     int len;
 
     if (strcmp(ifname, "global") == 0) {
@@ -50,6 +51,12 @@ static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float
     }
 
     iw = iwinfo_backend(ifname);
+
+    buf = dawn_malloc(IWINFO_BUFSIZE);
+    if (buf == NULL) {
+        fprintf(stderr, "Failed to allocate memory!\n");
+        goto exit;
+    }
 
     if (iw->assoclist(ifname, buf, &len)) {
         printf("No information available\n");
@@ -74,6 +81,7 @@ static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float
 
 exit:
     iwinfo_finish();
+    dawn_free(buf);
     return success;
 }
 
@@ -108,14 +116,20 @@ static int get_rssi(const char *ifname, struct dawn_mac client_addr)
 {
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
-    char buf[IWINFO_BUFSIZE];
     int len, rssi = INT_MIN;
+    char *buf = NULL;
 
     if (strcmp(ifname, "global") == 0) {
         goto exit;
     }
 
     iw = iwinfo_backend(ifname);
+
+    buf = dawn_malloc(IWINFO_BUFSIZE);
+    if (buf == NULL) {
+        fprintf(stderr, "Failed to allocate memory!\n");
+        goto exit;
+    }
 
     if (iw->assoclist(ifname, buf, &len)) {
         fprintf(stdout, "No information available\n");
@@ -138,6 +152,7 @@ static int get_rssi(const char *ifname, struct dawn_mac client_addr)
 
 exit:
     iwinfo_finish();
+    dawn_free(buf);
     return rssi;
 }
 
@@ -172,14 +187,20 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
 {
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
-    char buf[IWINFO_BUFSIZE];
     int len, throughput = INT_MIN;
+    char *buf = NULL;
 
     if (strcmp(ifname, "global") == 0) {
         goto exit;
     }
 
     iw = iwinfo_backend(ifname);
+
+    buf = dawn_malloc(IWINFO_BUFSIZE);
+    if (buf == NULL) {
+        fprintf(stderr, "Failed to allocate memory!\n");
+        goto exit;
+    }
 
     if (iw->assoclist(ifname, buf, &len)) {
         fprintf(stdout, "No information available\n");
@@ -202,6 +223,7 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
 
 exit:
     iwinfo_finish();
+    dawn_free(buf);
     return throughput;
 }
 
@@ -249,8 +271,8 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
 {
     struct iwinfo_survey_entry *e;
     const struct iwinfo_ops *iw;
-    char buf[IWINFO_BUFSIZE];
     int len, freq, chan_util = 0;
+    char *buf = NULL;
 
     if (strcmp(ifname, "global") == 0) {
         goto exit;
@@ -259,6 +281,12 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
     iw = iwinfo_backend(ifname);
 
     if (iw->frequency(ifname, &freq)) {
+        goto exit;
+    }
+
+    buf = dawn_malloc(IWINFO_BUFSIZE);
+    if (buf == NULL) {
+        fprintf(stderr, "Failed to allocate memory!\n");
         goto exit;
     }
 
@@ -275,7 +303,7 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
     for (int i = 0; i < len; i += sizeof (struct iwinfo_survey_entry)) {
         e = (struct iwinfo_survey_entry *) &buf[i];
 
-        if (e->mhz == freq) {
+        if (e->mhz == (uint32_t) freq) {
             uint64_t dividend = e->busy_time - *last_channel_time_busy,
                     divisor = e->active_time - *last_channel_time;
 
@@ -292,46 +320,49 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
 
 exit:
     iwinfo_finish();
+    dawn_free(buf);
     return chan_util;
 }
 
 bool iwinfo_ht_supported(const char *ifname)
 {
     const struct iwinfo_ops *iw;
-    int htmodes = 0;
+    int modes = 0;
 
     if (strcmp(ifname, "global") == 0) {
-        return 0;
+        goto exit;
     }
 
     iw = iwinfo_backend(ifname);
 
-    if (iw->htmodelist(ifname, &htmodes)) {
+    if (iw->htmodelist(ifname, &modes)) {
         printf("No HT mode information available\n");
     }
 
     iwinfo_finish();
 
-    return htmodes & (IWINFO_HTMODE_HT20 | IWINFO_HTMODE_HT40);
+exit:
+    return modes & (IWINFO_HTMODE_HT20 | IWINFO_HTMODE_HT40);
 }
 
 bool iwinfo_vht_supported(const char *ifname)
 {
     const struct iwinfo_ops *iw;
-    int htmodes = 0;
+    int modes = 0;
 
     if (strcmp(ifname, "global") == 0) {
-        return 0;
+        goto exit;
     }
 
     iw = iwinfo_backend(ifname);
 
-    if (iw->htmodelist(ifname, &htmodes)) {
-        fprintf(stderr, "No VHT mode information available\n");
+    if (iw->htmodelist(ifname, &modes)) {
+        printf("No VHT mode information available\n");
     }
 
     iwinfo_finish();
 
-    return htmodes & (IWINFO_HTMODE_VHT20 | IWINFO_HTMODE_VHT40 | IWINFO_HTMODE_VHT80 |
-                      IWINFO_HTMODE_VHT80_80 | IWINFO_HTMODE_VHT160);
+exit:
+    return modes & (IWINFO_HTMODE_VHT20 | IWINFO_HTMODE_VHT40 | IWINFO_HTMODE_VHT80 |
+                    IWINFO_HTMODE_VHT80_80 | IWINFO_HTMODE_VHT160);
 }
