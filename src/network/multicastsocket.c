@@ -7,10 +7,9 @@
 
 /* Based on: http://openbook.rheinwerk-verlag.de/linux_unix_programmierung/Kap11-018.htm */
 
-static struct ip_mreq command;
-
 int setup_multicast_socket(const char *multicast_ip, unsigned short multicast_port, struct sockaddr_in *addr)
 {
+    struct ip_mreq mreq = {0};
     int sock;
 
     if ((sock = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
@@ -45,10 +44,10 @@ int setup_multicast_socket(const char *multicast_ip, unsigned short multicast_po
     }
 
     /* Join multicast group */
-    command.imr_multiaddr.s_addr = inet_addr(multicast_ip);
-    command.imr_interface.s_addr = htonl(INADDR_ANY);
+    mreq.imr_multiaddr.s_addr = inet_addr(multicast_ip);
+    mreq.imr_interface.s_addr = htonl(INADDR_ANY);
     if (setsockopt(sock, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                   &command, sizeof(command)) != 0) {
+                   &mreq, sizeof (mreq)) != 0) {
         perror("Failed to join multicast group");
         goto error;
     }
