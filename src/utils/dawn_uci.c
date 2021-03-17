@@ -144,7 +144,6 @@ struct network_config_s uci_get_dawn_network(void)
             }
 
             ret.broadcast_port = uci_lookup_option_int(uci_ctx, s, "broadcast_port");
-
             ret.network_option = uci_lookup_option_int(uci_ctx, s, "network_option");
             ret.tcp_port = uci_lookup_option_int(uci_ctx, s, "tcp_port");
             ret.use_symm_enc = uci_lookup_option_int(uci_ctx, s, "use_symm_enc");
@@ -191,18 +190,15 @@ bool uci_get_dawn_hostapd_dir(void)
             hostapd_dir = strdup(uci_lookup_option_string(uci_ctx, s, "hostapd_dir"));
             dawn_regmem(hostapd_dir);
 
-            return true;
+            break;
         }
     }
 
-    return false;
+    return hostapd_dir != NULL;
 }
 
 void uci_reset(void)
 {
-    struct uci_context *ctx = uci_ctx;
-
-    uci_pkg = uci_lookup_package(ctx, "dawn");
     uci_unload(uci_ctx, uci_pkg);
     dawn_unregmem(uci_pkg);
     uci_load(uci_ctx, "dawn", &uci_pkg);
@@ -211,20 +207,28 @@ void uci_reset(void)
 
 int uci_init(void)
 {
-    struct uci_context *ctx = uci_ctx;
+    int err = -1;
 
-    ctx = uci_alloc_context();
-    dawn_regmem(ctx);
-    uci_ctx = ctx;
+    uci_ctx = uci_alloc_context();
+    if (uci_ctx == NULL) {
+        fprintf(stderr, "Failed to allocate uci context!\n");
+        goto exit;
+    }
+    dawn_regmem(uci_ctx);
 
-    ctx->flags &= ~UCI_FLAG_STRICT;
+    uci_ctx->flags &= ~UCI_FLAG_STRICT;
 
-    if (uci_load(ctx, "dawn", &uci_pkg) != UCI_OK) {
-        return -1;
+    err = uci_load(uci_ctx, "dawn", &uci_pkg);
+    if (err != UCI_OK) {
+        fprintf(stderr, "Failed to look up dawn package!\n");
+        uci_free_context(uci_ctx);
+        dawn_unregmem(uci_ctx);
+        goto exit;
     }
     dawn_regmem(uci_pkg);
 
-    return 0;
+exit:
+    return err;
 }
 
 void uci_clear(void)
@@ -264,8 +268,9 @@ int uci_set_network(char *uci_cmd)
         goto error;
     }
 
-    return UCI_OK;
+    return ret;
 error:
     fprintf(stderr, "Failed to perform UCI command: %s\n", uci_cmd);
+
     return ret;
 }
