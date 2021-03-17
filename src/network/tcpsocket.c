@@ -109,14 +109,14 @@ static void client_read_cb(struct ustream *s, int bytes)
             uint32_t avail_len = ustream_pending_data(s, false);
             /* Ensure recv sizeof(uint32_t) */
             if (avail_len < sizeof (msg_length)) {
-                fprintf(stderr, "incomplete msg, len: %d, expected minimal len: %zu\n",
+                fprintf(stderr, "Incomplete msg, len: %d, expected minimal len: %zu\n",
                         avail_len, sizeof (msg_length));
                 break;
             }
 
             /* Read msg length bytes */
             if (ustream_read(s, (char *) &msg_length, sizeof (msg_length)) != sizeof (msg_length)) {
-                fprintf(stdout, "msg length read failed\n");
+                fprintf(stderr, "Failed to read message length\n");
                 break;
             }
 
@@ -124,7 +124,7 @@ static void client_read_cb(struct ustream *s, int bytes)
 
             cl->str = dawn_malloc(cl->final_len);
             if (cl->str == NULL) {
-                fprintf(stderr, "not enough memory (%" PRIu32 " @ %d)\n", cl->final_len, __LINE__);
+                fprintf(stderr, "Failed to allocate memory (%" PRIu32 " @ %d)\n", cl->final_len, __LINE__);
                 break;
             }
 
@@ -164,10 +164,8 @@ static void client_read_cb(struct ustream *s, int bytes)
                 /* Len of str is final_len */
                 char *dec = gcrypt_decrypt_msg(cl->str, cl->final_len);
                 if (dec == NULL) {
-                    fprintf(stderr, "not enough memory (%d)\n", __LINE__);
-                    dawn_free(cl->str);
-                    cl->str = NULL;
-                    break;
+                    fprintf(stderr, "Failed to decrypt message (%d)\n", __LINE__);
+                    goto cleanup;
                 }
                 handle_network_msg(dec);
                 dawn_free(dec);
@@ -175,7 +173,7 @@ static void client_read_cb(struct ustream *s, int bytes)
             else {
                 handle_network_msg(cl->str);
             }
-
+cleanup:
             cl->state = READ_STATUS_READY;
             cl->curr_len = 0;
             cl->final_len = 0;
