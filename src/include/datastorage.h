@@ -9,19 +9,7 @@
 
 #include "mac_utils.h"
 
-/* Core data storage array sizes */
-enum {
-    ARRAY_AP_LEN = 100,
-    ARRAY_CLIENT_LEN = 300,
-    PROBE_ARRAY_LEN = 1000,
-    DENY_REQ_ARRAY_LEN = 100,
-};
-
 /* Mac */
-
-enum {
-    MAC_LIST_LENGTH = 100
-};
 
 extern struct mac_entry_s *mac_set;
 

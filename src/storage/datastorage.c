@@ -20,6 +20,14 @@ struct time_config_s timeout_config;
 #endif
 
 enum {
+    ARRAY_AP_LEN = 100,
+    ARRAY_CLIENT_LEN = 300,
+    PROBE_ARRAY_LEN = 1000,
+    DENY_REQ_ARRAY_LEN = 100,
+    MAC_LIST_LENGTH = 100,
+};
+
+enum {
     WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE = BIT(4),
     WLAN_RRM_CAPS_BEACON_REPORT_ACTIVE = BIT(5),
     WLAN_RRM_CAPS_BEACON_REPORT_TABLE = BIT(6),
