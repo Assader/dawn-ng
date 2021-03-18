@@ -20,9 +20,8 @@ struct mac_entry_s {
 
 void insert_macs_from_file(void);
 int insert_to_maclist(struct dawn_mac mac);
-int mac_in_maclist(struct dawn_mac mac);
+bool mac_in_maclist(struct dawn_mac mac);
 struct mac_entry_s *insert_to_mac_array(struct mac_entry_s *entry);
-void mac_array_delete(struct mac_entry_s *entry);
 
 struct probe_metric_s {
     int ap_weight;         /* TODO: Never evaluated? */
@@ -211,7 +210,6 @@ extern struct client_s *client_set_bc;
 extern pthread_mutex_t client_array_mutex;
 
 probe_entry *insert_to_array(probe_entry *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
-bool probe_array_delete(probe_entry *entry);
 probe_entry *probe_array_get_entry(struct dawn_mac bssid_addr, struct dawn_mac client_addr);
 void remove_old_probe_entries(time_t current_time, long long int threshold);
 void print_probe_array(void);
@@ -221,18 +219,15 @@ void denied_req_array_delete(auth_entry *entry);
 auth_entry *insert_to_denied_req_array(auth_entry *entry, int inc_counter, time_t expiry);
 void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac);
 void print_auth_entry(auth_entry *entry);
-bool probe_array_update_rssi(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rssi, int send_network);
 bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rcpi, uint32_t rsni, int send_network);
 void remove_old_client_entries(time_t current_time, long long int threshold);
 client *insert_client_to_array(client *entry, time_t expiry);
 int kick_clients(ap *kicking_ap, uint32_t id);
 void update_iw_info(struct dawn_mac bssid);
-void client_array_insert(client *entry, client **insert_pos);
 client *client_array_get_client(const struct dawn_mac client_addr);
 client *client_array_delete(client *entry, int unlink_only);
 void print_client_array(void);
 void print_client_entry(client *entry);
-bool is_connected_somehwere(struct dawn_mac client_addr);
 ap *insert_to_ap_array(ap *entry, time_t expiry);
 void remove_old_ap_entries(time_t current_time, long long int threshold);
 void print_ap_array(void);
