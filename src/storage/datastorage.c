@@ -1004,13 +1004,10 @@ client *insert_client_to_array(client *entry, time_t expiry)
 
 void insert_macs_from_file(void)
 {
-    FILE *fp;
-    char *line = NULL;
-#ifdef DAWN_MEMORY_AUDITING
-    char *old_line = NULL;
-#endif
+    char *line = NULL, *old_line = NULL;
     size_t len = 0;
     ssize_t read;
+    FILE *fp;
 
     /* TODO: Loading to array is not constrained by array checks. Buffer overrun can occur. */
     fp = fopen("/tmp/dawn_mac_list", "r");
@@ -1020,7 +1017,6 @@ void insert_macs_from_file(void)
     dawn_regmem(fp);
 
     while ((read = getline(&line, &len, fp)) != -1) {
-#ifdef DAWN_MEMORY_AUDITING
         if (old_line != line) {
             if (old_line != NULL) {
                 dawn_unregmem(old_line);
@@ -1028,7 +1024,6 @@ void insert_macs_from_file(void)
             old_line = line;
             dawn_regmem(old_line);
         }
-#endif
         printf("Retrieved line of length %zu:\n%s", read, line);
 
         /* Need to scanf to an array of ints as there is no byte format specifier */
