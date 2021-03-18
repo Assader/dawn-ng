@@ -121,12 +121,6 @@ typedef struct probe_entry_s {
     uint32_t rsni;
 } probe_entry;
 
-/*struct probe_entry_s {
-    struct dawn_mac client_addr;
-    struct dawn_mac bssid_addr;
-    struct probe_entry_s* entry;
-}; */
-
 typedef struct auth_entry_s {
     struct auth_entry_s *next_auth;
     struct dawn_mac bssid_addr;
@@ -212,19 +206,11 @@ typedef struct ap_s {
     char hostname[HOST_NAME_MAX];
 } ap;
 
-enum {
-    TIME_THRESHOLD_AP = 30,
-    TIME_THRESHOLD_CLIENT = 30,
-    TIME_THRESHOLD_CLIENT_UPDATE = 10,
-    TIME_THRESHOLD_CLIENT_KICK = 60,
-};
-
 extern struct ap_s *ap_set;
 extern pthread_mutex_t ap_array_mutex;
 
 extern struct client_s *client_set_bc;
 extern pthread_mutex_t client_array_mutex;
-
 
 probe_entry *insert_to_array(probe_entry *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
 bool probe_array_delete(probe_entry *entry);
@@ -237,7 +223,6 @@ void denied_req_array_delete(auth_entry *entry);
 auth_entry *insert_to_denied_req_array(auth_entry *entry, int inc_counter, time_t expiry);
 void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac);
 void print_auth_entry(auth_entry *entry);
-
 bool probe_array_update_rssi(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rssi, int send_network);
 bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rcpi, uint32_t rsni, int send_network);
 void remove_old_client_entries(time_t current_time, long long int threshold);
@@ -259,7 +244,6 @@ bool probe_array_set_all_probe_count(struct dawn_mac client_addr, uint32_t probe
 int ap_get_collision_count(int col_domain);
 #endif
 void send_beacon_reports(struct dawn_mac bssid, int id);
-
 int better_ap_available(ap *kicking_ap, struct dawn_mac client_addr, char *neighbor_report);
 
 /* All users of datastorage should call init_ / destroy_mutex at initialisation and termination respectively */
