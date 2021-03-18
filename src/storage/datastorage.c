@@ -66,50 +66,23 @@ int mac_set_last;
 /* Used as a filler where a value is required but not used functionally */
 static const struct dawn_mac dawn_mac_null = {.u8 = {0, 0, 0, 0, 0, 0}};
 
-/* The ..._find_first() functions perform an efficient search of the core storage linked lists.
- * "Skipping" linear searches and binary searches are used depending on anticipated array size.
- * TODO:  It may be more efficient to use skipping lists for all?  Telemetry required.
- * The return is a pointer to the linked list field that references the element indicated by the
- * target parameters. In this context "indicated by" means the first element in the list that matches
- * the search parameters, or if the element is not in the list the position where it would be inserted.
- * In other words, if A precedes B and B is sought then a pointer to the field in A that references B
- * is returned.  If A links to C and B would be positioned between then the same pointer is returned.
- * Hence the return should be checked to see if the element it references is the target or not.  If not
- * then the target element does not exist, but can be inserted by using the returned reference. */
-
-static struct probe_entry_s **probe_skip_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid_mac, int do_bssid)
+static struct probe_entry_s **probe_skip_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid)
 {
-    int lo = 0;
-    struct probe_entry_s **lo_ptr = &probe_skip_set;
-    int hi = probe_skip_entry_last;
+    struct probe_entry_s **entry = &probe_skip_set;
 
-    while (lo < hi) {
-        struct probe_entry_s **i = lo_ptr;
-        int scan_pos = lo;
+    for (; *entry != NULL; entry = &((*entry)->next_probe_skip)) {
+        bool found = mac_is_equal_bb((*entry)->client_addr, client_mac);
 
-        // m is next test position of binary search
-        int m = (lo + hi) / 2;
-
-        // find entry with ordinal position m
-        while (scan_pos++ < m) {
-            i = &((*i)->next_probe_skip);
+        if (found && check_bssid) {
+            found = mac_is_equal_bb((*entry)->bssid_addr, bssid);
         }
 
-        int this_cmp = mac_compare_bb((*i)->client_addr, client_mac);
-
-        if (this_cmp == 0 && do_bssid)
-            this_cmp = mac_compare_bb((*i)->bssid_addr, bssid_mac);
-
-        if (this_cmp < 0) {
-            lo = m + 1;
-            lo_ptr = &((*i)->next_probe_skip);
-        }
-        else {
-            hi = m;
+        if (found) {
+            break;
         }
     }
 
-    return lo_ptr;
+    return entry;
 }
 
 static probe_entry **probe_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid_mac, bool do_bssid)
@@ -149,72 +122,37 @@ static probe_entry **probe_array_find_first_entry(struct dawn_mac client_mac, st
     return lo_ptr;
 }
 
-static ap **ap_array_find_first_entry(struct dawn_mac bssid_mac)
+static ap **ap_array_find_first_entry(struct dawn_mac bssid)
 {
-    int lo = 0;
-    ap **lo_ptr = &ap_set;
-    int hi = ap_entry_last;
+    ap **entry = &ap_set;
 
-    while (lo < hi) {
-        ap **i = lo_ptr;
-        int scan_pos = lo;
-
-        // m is next test position of binary search
-        int m = (lo + hi) / 2;
-
-        // find entry with ordinal position m
-        while (scan_pos++ < m) {
-            i = &((*i)->next_ap);
-        }
-
-        int this_cmp = mac_compare_bb((*i)->bssid_addr, bssid_mac);
-
-        if (this_cmp < 0) {
-            lo = m + 1;
-            lo_ptr = &((*i)->next_ap);
-        }
-        else {
-            hi = m;
+    for (; *entry != NULL; entry = &((*entry)->next_ap)) {
+        if (mac_is_equal_bb((*entry)->bssid_addr, bssid)) {
+           break;
         }
     }
 
-    return lo_ptr;
+    return entry;
 }
 
 /* Manage a list of client entries sorted by BSSID and client MAC */
-static struct client_s **client_skip_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid_mac, bool do_bssid)
+static struct client_s **client_skip_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid)
 {
-    int lo = 0;
-    struct client_s **lo_ptr = &client_skip_set;
-    int hi = client_skip_entry_last;
+    struct client_s **entry = &client_skip_set;
 
-    while (lo < hi) {
-        struct client_s **i = lo_ptr;
-        int scan_pos = lo;
+    for (; *entry != NULL; entry = &((*entry)->next_skip_entry_bc)) {
+        bool found = mac_is_equal_bb((*entry)->client_addr, client_mac);
 
-        // m is next test position of binary search
-        int m = (lo + hi) / 2;
-
-        // find entry with ordinal position m
-        while (scan_pos++ < m) {
-            i = &((*i)->next_skip_entry_bc);
+        if (found && check_bssid) {
+            found = mac_is_equal_bb((*entry)->bssid_addr, bssid);
         }
 
-        int this_cmp = mac_compare_bb((*i)->client_addr, client_mac);
-
-        if (this_cmp == 0 && do_bssid)
-            this_cmp = mac_compare_bb((*i)->bssid_addr, bssid_mac);
-
-        if (this_cmp < 0) {
-            lo = m + 1;
-            lo_ptr = &((*i)->next_skip_entry_bc);
-        }
-        else {
-            hi = m;
+        if (found) {
+            break;
         }
     }
 
-    return lo_ptr;
+    return entry;
 }
 
 static client **client_find_first_bc_entry(struct dawn_mac bssid_mac, struct dawn_mac client_mac, bool do_client)
@@ -258,102 +196,43 @@ static client **client_find_first_bc_entry(struct dawn_mac bssid_mac, struct daw
 /* Manage a list of client entries srted by client MAC only */
 static client **client_find_first_c_entry(struct dawn_mac client_mac)
 {
-    int lo = 0;
-    client **lo_ptr = &client_set_c;
-    int hi = client_entry_last;
+    client **entry = &client_set_c;
 
-    while (lo < hi) {
-        client **i = lo_ptr;
-        int scan_pos = lo;
-
-        // m is next test position of binary search
-        int m = (lo + hi) / 2;
-
-        // find entry with ordinal position m
-        while (scan_pos++ < m) {
-            i = &((*i)->next_entry_c);
-        }
-
-        int this_cmp = mac_compare_bb((*i)->client_addr, client_mac);
-
-        if (this_cmp < 0) {
-            lo = m + 1;
-            lo_ptr = &((*i)->next_entry_c);
-        }
-        else {
-            hi = m;
+    for (; *entry != NULL; entry = &((*entry)->next_entry_c)) {
+        if (mac_is_equal_bb((*entry)->client_addr, client_mac)) {
+           break;
         }
     }
 
-    return lo_ptr;
+    return entry;
 }
 #endif
 
-auth_entry **auth_entry_find_first_entry(struct dawn_mac bssid_mac, struct dawn_mac client_mac)
+auth_entry **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac)
 {
-    int lo = 0;
-    auth_entry **lo_ptr = &denied_req_set;
-    int hi = denied_req_last;
+    auth_entry **entry = &denied_req_set;
 
-    while (lo < hi) {
-        auth_entry **i = lo_ptr;
-        int scan_pos = lo;
-
-        // m is next test position of binary search
-        int m = (lo + hi) / 2;
-
-        // find entry with ordinal position m
-        while (scan_pos++ < m) {
-            i = &((*i)->next_auth);
-        }
-
-        int this_cmp = mac_compare_bb((*i)->bssid_addr, bssid_mac);
-
-        if (this_cmp == 0)
-            this_cmp = mac_compare_bb((*i)->client_addr, client_mac);
-
-        if (this_cmp < 0) {
-            lo = m + 1;
-            lo_ptr = &((*i)->next_auth);
-        }
-        else {
-            hi = m;
+    for (; *entry != NULL; entry = &((*entry)->next_auth)) {
+        if (mac_is_equal_bb((*entry)->client_addr, client_mac) &&
+                mac_is_equal_bb((*entry)->bssid_addr, bssid)) {
+            break;
         }
     }
 
-    return lo_ptr;
+    return entry;
 }
 
 static struct mac_entry_s **mac_find_first_entry(struct dawn_mac mac)
 {
-    int lo = 0;
-    struct mac_entry_s **lo_ptr = &mac_set;
-    int hi = mac_set_last;
+    struct mac_entry_s **entry = &mac_set;
 
-    while (lo < hi) {
-        struct mac_entry_s **i = lo_ptr;
-        int scan_pos = lo;
-
-        // m is next test position of binary search
-        int m = (lo + hi) / 2;
-
-        // find entry with ordinal position m
-        while (scan_pos++ < m) {
-            i = &((*i)->next_mac);
-        }
-
-        int this_cmp = mac_compare_bb((*i)->mac, mac);
-
-        if (this_cmp < 0) {
-            lo = m + 1;
-            lo_ptr = &((*i)->next_mac);
-        }
-        else {
-            hi = m;
+    for (; *entry != NULL; entry = &((*entry)->next_mac)) {
+        if (mac_is_equal_bb((*entry)->mac, mac)) {
+            break;
         }
     }
 
-    return lo_ptr;
+    return entry;
 }
 
 void send_beacon_reports(struct dawn_mac bssid, int id)
