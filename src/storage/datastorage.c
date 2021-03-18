@@ -66,15 +66,16 @@ int mac_set_last;
 /* Used as a filler where a value is required but not used functionally */
 static const struct dawn_mac dawn_mac_null = {.u8 = {0, 0, 0, 0, 0, 0}};
 
-static struct probe_entry_s **probe_skip_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid)
+static char **find_first_entry(char **entry,
+                               uint8_t *mac0, intptr_t mac0_offset,
+                               uint8_t *mac1, intptr_t mac1_offset,
+                               bool check_mac1, intptr_t next_offset)
 {
-    struct probe_entry_s **entry = &probe_skip_set;
+    for (; *entry != NULL; entry = (char **) (*entry + next_offset)) {
+        bool found = mac_is_equal(*entry + mac0_offset, mac0);
 
-    for (; *entry != NULL; entry = &((*entry)->next_probe_skip)) {
-        bool found = mac_is_equal_bb((*entry)->client_addr, client_mac);
-
-        if (found && check_bssid) {
-            found = mac_is_equal_bb((*entry)->bssid_addr, bssid);
+        if (found && check_mac1) {
+            found = mac_is_equal(*entry + mac1_offset, mac1);
         }
 
         if (found) {
@@ -83,6 +84,62 @@ static struct probe_entry_s **probe_skip_array_find_first_entry(struct dawn_mac 
     }
 
     return entry;
+}
+
+static inline struct probe_entry_s **probe_skip_array_find_first_entry(
+        struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid)
+{
+    return (struct probe_entry_s **)
+            find_first_entry((char **) &probe_skip_set,
+                             client_mac.u8, offsetof(struct probe_entry_s, client_addr),
+                             bssid.u8, offsetof(struct probe_entry_s, bssid_addr),
+                             check_bssid, offsetof(struct probe_entry_s, next_probe_skip));
+}
+
+static inline ap **ap_array_find_first_entry(struct dawn_mac bssid)
+{
+    return (ap **)
+            find_first_entry((char **) &ap_set,
+                             bssid.u8, offsetof(ap, bssid_addr),
+                             0, 0, false, offsetof(ap, next_ap));
+}
+
+static inline struct client_s **client_skip_array_find_first_entry(
+        struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid)
+{
+    return (struct client_s **)
+            find_first_entry((char **) &client_skip_set,
+                             client_mac.u8, offsetof(struct client_s, client_addr),
+                             bssid.u8, offsetof(struct client_s, bssid_addr),
+                             check_bssid, offsetof(struct client_s, next_skip_entry_bc));
+}
+
+#ifndef DAWN_CLIENT_SCAN_BC_ONLY
+/* Manage a list of client entries srted by client MAC only */
+static inline client **client_find_first_c_entry(struct dawn_mac client_mac)
+{
+    return (client **)
+            find_first_entry((char **) &client_set_c,
+                             client_mac.u8, offsetof(client, client_addr),
+                             0, 0, false, offsetof(client, next_entry_c));
+}
+#endif
+
+inline auth_entry **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac)
+{
+    return (auth_entry **)
+            find_first_entry((char **) &denied_req_set,
+                             client_mac.u8, offsetof(auth_entry, client_addr),
+                             bssid.u8, offsetof(auth_entry, bssid_addr),
+                             true, offsetof(auth_entry, next_auth));
+}
+
+static inline struct mac_entry_s **mac_find_first_entry(struct dawn_mac mac)
+{
+    return (struct mac_entry_s **)
+            find_first_entry((char **) &mac_set,
+                             mac.u8, offsetof(struct mac_entry_s, mac),
+                             0, 0, false, offsetof(struct mac_entry_s, next_mac));
 }
 
 static probe_entry **probe_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid_mac, bool do_bssid)
@@ -122,39 +179,6 @@ static probe_entry **probe_array_find_first_entry(struct dawn_mac client_mac, st
     return lo_ptr;
 }
 
-static ap **ap_array_find_first_entry(struct dawn_mac bssid)
-{
-    ap **entry = &ap_set;
-
-    for (; *entry != NULL; entry = &((*entry)->next_ap)) {
-        if (mac_is_equal_bb((*entry)->bssid_addr, bssid)) {
-           break;
-        }
-    }
-
-    return entry;
-}
-
-/* Manage a list of client entries sorted by BSSID and client MAC */
-static struct client_s **client_skip_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid)
-{
-    struct client_s **entry = &client_skip_set;
-
-    for (; *entry != NULL; entry = &((*entry)->next_skip_entry_bc)) {
-        bool found = mac_is_equal_bb((*entry)->client_addr, client_mac);
-
-        if (found && check_bssid) {
-            found = mac_is_equal_bb((*entry)->bssid_addr, bssid);
-        }
-
-        if (found) {
-            break;
-        }
-    }
-
-    return entry;
-}
-
 static client **client_find_first_bc_entry(struct dawn_mac bssid_mac, struct dawn_mac client_mac, bool do_client)
 {
     client **lo_skip_ptr = &client_skip_set;
@@ -190,49 +214,6 @@ static client **client_find_first_bc_entry(struct dawn_mac bssid_mac, struct daw
     }
 
     return lo_ptr;
-}
-
-#ifndef DAWN_CLIENT_SCAN_BC_ONLY
-/* Manage a list of client entries srted by client MAC only */
-static client **client_find_first_c_entry(struct dawn_mac client_mac)
-{
-    client **entry = &client_set_c;
-
-    for (; *entry != NULL; entry = &((*entry)->next_entry_c)) {
-        if (mac_is_equal_bb((*entry)->client_addr, client_mac)) {
-           break;
-        }
-    }
-
-    return entry;
-}
-#endif
-
-auth_entry **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac)
-{
-    auth_entry **entry = &denied_req_set;
-
-    for (; *entry != NULL; entry = &((*entry)->next_auth)) {
-        if (mac_is_equal_bb((*entry)->client_addr, client_mac) &&
-                mac_is_equal_bb((*entry)->bssid_addr, bssid)) {
-            break;
-        }
-    }
-
-    return entry;
-}
-
-static struct mac_entry_s **mac_find_first_entry(struct dawn_mac mac)
-{
-    struct mac_entry_s **entry = &mac_set;
-
-    for (; *entry != NULL; entry = &((*entry)->next_mac)) {
-        if (mac_is_equal_bb((*entry)->mac, mac)) {
-            break;
-        }
-    }
-
-    return entry;
 }
 
 void send_beacon_reports(struct dawn_mac bssid, int id)
@@ -1315,7 +1296,7 @@ bool init_mutex(void)
         fprintf(stderr, "Failed to initialize mutex!\n");
     }
 
-    return !!err;
+    return !err;
 }
 
 void destroy_mutex(void)
