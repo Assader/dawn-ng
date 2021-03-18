@@ -727,13 +727,11 @@ void print_probe_array(void)
 
 void print_probe_entry(probe_entry *entry)
 {
-#ifndef DAWN_NO_OUTPUT
     printf(" - bssid_addr: " MACSTR ", client_addr: " MACSTR ", signal: %d, "
            "freq: %d, counter: %d, vht: %d, min_rate: %d, max_rate: %d\n",
            MAC2STR(entry->bssid_addr.u8), MAC2STR(entry->client_addr.u8),
            entry->signal, entry->freq, entry->counter, entry->vht_capabilities,
            entry->min_supp_datarate, entry->max_supp_datarate);
-#endif
 }
 
 static void insert_to_skip_array(struct probe_entry_s *entry)
@@ -1154,20 +1152,16 @@ struct mac_entry_s *insert_to_mac_array(struct mac_entry_s *entry)
 
 void print_auth_entry(auth_entry *entry)
 {
-#ifndef DAWN_NO_OUTPUT
     printf(" - bssid_addr: " MACSTR ", client_addr: " MACSTR ", signal: %d, freq: %d\n",
            MAC2STR(entry->bssid_addr.u8), MAC2STR(entry->client_addr.u8), entry->signal, entry->freq);
-#endif
 }
 
 void print_client_entry(client *entry)
 {
-#ifndef DAWN_NO_OUTPUT
     printf(" - bssid_addr: " MACSTR ", client_addr: " MACSTR ", freq: %d, "
            "ht_supported: %d, vht_supported: %d, ht: %d, vht: %d, kick: %d\n",
            MAC2STR(entry->bssid_addr.u8), MAC2STR(entry->client_addr.u8), entry->freq,
            entry->ht_supported, entry->vht_supported, entry->ht, entry->vht, entry->kick_count);
-#endif
 }
 
 void print_client_array(void)
@@ -1180,13 +1174,11 @@ void print_client_array(void)
 
 static void print_ap_entry(ap *entry)
 {
-#ifndef DAWN_NO_OUTPUT
     printf(" - ssid: %s, bssid_addr: " MACSTR ", freq: %d, ht: %d, vht: %d, "
            "chan_utilz: %d, col_d: %d, bandwidth: %d, col_count: %d neighbor_report: %s\n",
            entry->ssid, MAC2STR(entry->bssid_addr.u8), entry->freq, entry->ht_support, entry->vht_support,
            entry->channel_utilization, entry->collision_domain, entry->bandwidth,
            ap_get_collision_count(entry->collision_domain), entry->neighbor_report);
-#endif
 }
 
 void print_ap_array(void)
