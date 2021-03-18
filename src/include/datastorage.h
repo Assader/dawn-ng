@@ -112,11 +112,9 @@ typedef struct probe_entry_s {
     uint8_t vht_capabilities;    /* eval_probe_metric() */
     time_t time;                 /* remove_old...entries */
     int counter;
-#ifndef DAWN_NO_OUTPUT
     int deny_counter;          /* TODO: Never used? */
     uint8_t max_supp_datarate; /* TODO: Never used? */
     uint8_t min_supp_datarate; /* TODO: Never used? */
-#endif
     uint32_t rcpi;
     uint32_t rsni;
 } probe_entry;
@@ -240,9 +238,7 @@ void remove_old_ap_entries(time_t current_time, long long int threshold);
 void print_ap_array(void);
 ap *ap_array_get_ap(struct dawn_mac bssid_mac);
 bool probe_array_set_all_probe_count(struct dawn_mac client_addr, uint32_t probe_count);
-#ifndef DAWN_NO_OUTPUT
 int ap_get_collision_count(int col_domain);
-#endif
 void send_beacon_reports(struct dawn_mac bssid, int id);
 int better_ap_available(ap *kicking_ap, struct dawn_mac client_addr, char *neighbor_report);
 
