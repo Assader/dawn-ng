@@ -347,7 +347,7 @@ int parse_to_beacon_rep(struct blob_attr *msg)
 
     /* HACKY WORKAROUND! */
     printf("Try update RCPI and RSNI for beacon report!\n");
-    if (probe_array_update_rcpi_rsni(msg_bssid, msg_client, rcpi, rsni, true) == 0) {
+    if (!probe_array_update_rcpi_rsni(msg_bssid, msg_client, rcpi, rsni, true)) {
         printf("Beacon: No Probe Entry Existing!\n");
 
         probe_entry *beacon_rep, *beacon_rep_updated = NULL;
