@@ -23,22 +23,10 @@ SET(SOURCES
         utils/dawn_iwinfo.c
         utils/ieee80211_utils.c)
 
-SET(SOURCES_TEST_STORAGE
-        test/test_storage.c
-        utils/mac_utils.c
-        utils/memory_utils.c
-        storage/datastorage.c
-        utils/ieee80211_utils.c)
-
-SET(SOURCES_TEST_HEADER
-        test/test_header.c)
-
 SET(LIBS
         ubox ubus json-c blobmsg_json uci gcrypt iwinfo pthread)
 
 ADD_EXECUTABLE(dawn ${SOURCES})
-ADD_EXECUTABLE(test_storage ${SOURCES_TEST_STORAGE})
-ADD_EXECUTABLE(test_header ${SOURCES_TEST_HEADER})
 
 TARGET_LINK_LIBRARIES(dawn ${LIBS})
 
