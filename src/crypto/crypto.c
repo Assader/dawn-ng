@@ -5,8 +5,10 @@
 
 /* Based on: https://github.com/vedantk/gcrypt-example/blob/master/gcry.cc */
 
-#define GCRY_CIPHER GCRY_CIPHER_AES128   /* Pick the cipher here */
-#define GCRY_C_MODE GCRY_CIPHER_MODE_ECB /* Pick the cipher mode here */
+enum {
+    GCRY_CIPHER      = GCRY_CIPHER_AES,      /* Pick the cipher here */
+    GCRY_CIPHER_MODE = GCRY_CIPHER_MODE_ECB, /* Pick the cipher mode here */
+};
 
 static gcry_cipher_hd_t gcry_cipher_hd;
 
@@ -36,7 +38,7 @@ bool gcrypt_init(char *key, char *iv)
         goto error;
     }
 
-    err = gcry_cipher_open(&gcry_cipher_hd, GCRY_CIPHER, GCRY_C_MODE, 0);
+    err = gcry_cipher_open(&gcry_cipher_hd, GCRY_CIPHER, GCRY_CIPHER_MODE, 0);
     if (err != GPG_ERR_NO_ERROR) {
         goto error;
     }
