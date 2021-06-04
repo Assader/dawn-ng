@@ -48,10 +48,10 @@ int send_string(const char *msg)
 {
     size_t msglen = strlen(msg) + 1;
     int err = -1;
-    char *enc;
 
     if (network_config.use_symm_enc) {
         int enc_length;
+        char *enc;
 
         enc = gcrypt_encrypt_msg(msg, msglen, &enc_length);
         if (enc == NULL) {
@@ -73,7 +73,7 @@ int send_string(const char *msg)
     pthread_mutex_unlock(&send_mutex);
 
     if (network_config.use_symm_enc) {
-        dawn_free(enc);
+        dawn_free((void *) msg);
     }
 
 exit:
@@ -88,8 +88,8 @@ void close_socket(void)
 
 static void *receive_msg(void *args)
 {
-    while (1) {
-        char *msg = recv_string, *dec;
+    while (true) {
+        char *msg = recv_string;
 
         int rcv_len = recvfrom(sock, msg, MAX_RECV_STRING, 0, NULL, 0);
         if (rcv_len == -1) {
@@ -98,6 +98,8 @@ static void *receive_msg(void *args)
         }
 
         if (network_config.use_symm_enc) {
+            char *dec;
+
             dec = gcrypt_decrypt_msg(recv_string, rcv_len);
             if (dec == NULL) {
                 fprintf(stderr, "Failed to decrypt message!\n");
@@ -110,7 +112,7 @@ static void *receive_msg(void *args)
         handle_network_msg(msg);
 
         if (network_config.use_symm_enc) {
-            dawn_free(dec);
+            dawn_free(msg);
         }
     }
 }
