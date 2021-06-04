@@ -39,6 +39,7 @@ static struct uloop_fd server;
 static LIST_HEAD(tcp_sock_list);
 
 static struct network_con_s *tcp_list_contains_address(struct sockaddr_in entry);
+static void print_tcp_array(void);
 
 static void client_close(struct ustream *s)
 {
@@ -102,7 +103,7 @@ static void client_read_cb(struct ustream *s, int bytes)
 
     while (1) {
         if (cl->state == READ_STATUS_READY) {
-            uint32_t msg_length;
+            size_t msg_length;
 
             printf("tcp_socket: commencing message...\n");
 
@@ -191,12 +192,12 @@ void send_tcp(const char *msg)
 {
     struct network_con_s *con, *tmp;
     size_t msglen = strlen(msg) + 1;
-    char *enc;
 
     print_tcp_array();
 
     if (network_config.use_symm_enc) {
         int enc_length;
+        char *enc;
 
         enc = gcrypt_encrypt_msg(msg, msglen, &enc_length);
         if (enc == NULL) {
@@ -228,7 +229,7 @@ void send_tcp(const char *msg)
     }
 
     if (network_config.use_symm_enc) {
-        dawn_free(enc);
+        dawn_free((void *) msg);
     }
 }
 
@@ -252,13 +253,13 @@ static void server_cb(struct uloop_fd *fd, unsigned int events)
     fprintf(stderr, "New connection\n");
 }
 
-int run_server(int port)
+int run_server(uint16_t port)
 {
     char port_str[12];
 
     printf("Adding socket!\n");
 
-    sprintf(port_str, "%d", port);
+    sprintf(port_str, "%u", port);
 
     server.cb = server_cb;
     server.fd = usock(USOCK_TCP | USOCK_SERVER | USOCK_IPV4ONLY | USOCK_NUMERIC, INADDR_ANY, port_str);
@@ -304,13 +305,13 @@ static void connect_cb(struct uloop_fd *f, unsigned int events)
     entry->connected = 1;
 }
 
-int add_tcp_conncection(const char *ipv4, int port)
+int add_tcp_conncection(const char *ipv4, uint16_t port)
 {
     struct network_con_s *tcp_entry;
     struct sockaddr_in serv_addr;
     char port_str[12];
 
-    sprintf(port_str, "%d", port);
+    sprintf(port_str, "%u", port);
 
     memset(&serv_addr, 0, sizeof (serv_addr));
     serv_addr.sin_family = AF_INET;
@@ -346,7 +347,7 @@ int add_tcp_conncection(const char *ipv4, int port)
     tcp_entry->fd.cb = connect_cb;
     uloop_fd_add(&tcp_entry->fd, ULOOP_WRITE | ULOOP_EDGE_TRIGGER);
 
-    printf("New TCP connection to %s:%d\n", ipv4, port);
+    printf("New TCP connection to %s:%u\n", ipv4, port);
     list_add(&tcp_entry->list, &tcp_sock_list);
 
     return 0;
@@ -365,7 +366,7 @@ struct network_con_s *tcp_list_contains_address(struct sockaddr_in entry)
     return NULL;
 }
 
-void print_tcp_array(void)
+static void print_tcp_array(void)
 {
     char ip_addr[INET_ADDRSTRLEN];
     struct network_con_s *con;

@@ -10,24 +10,19 @@
  * @param port
  * @return
  */
-int add_tcp_conncection(const char *ipv4, int port);
+int add_tcp_conncection(const char *ipv4, uint16_t port);
 
 /**
  * Opens a tcp server and adds it to the uloop.
  * @param port
  * @return
  */
-int run_server(int port);
+int run_server(uint16_t port);
 
 /**
  * Send message via tcp to all other hosts.
  * @param msg
  */
 void send_tcp(const char *msg);
-
-/**
- * Debug message.
- */
-void print_tcp_array(void);
 
 #endif /* DAWN_TCPSOCKET_H */
