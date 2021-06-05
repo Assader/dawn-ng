@@ -46,41 +46,26 @@ static struct blob_buf b_umdns;
 static struct blob_buf b_beacon;
 static struct blob_buf b_nr;
 
+static LIST_HEAD(hostapd_sock_list);
+
 static void update_clients(struct uloop_timeout *t);
 static void update_tcp_connections(struct uloop_timeout *t);
 static void update_channel_utilization(struct uloop_timeout *t);
 static void run_server_update(struct uloop_timeout *t);
 static void update_beacon_reports(struct uloop_timeout *t);
+static void remove_ap_array_cb(struct uloop_timeout *t);
+static void denied_req_array_cb(struct uloop_timeout *t);
+static void remove_client_array_cb(struct uloop_timeout *t);
+static void remove_probe_array_cb(struct uloop_timeout *t);
 
 static struct uloop_timeout client_timer = {
     .cb = update_clients
-};
-static struct uloop_timeout hostapd_timer = {
-    .cb = update_hostapd_sockets
 };
 static struct uloop_timeout tcp_con_timer = {
     .cb = update_tcp_connections
 };
 static struct uloop_timeout channel_utilization_timer = {
     .cb = update_channel_utilization
-};
-
-static void remove_ap_array_cb(struct uloop_timeout *t);
-static void denied_req_array_cb(struct uloop_timeout *t);
-static void remove_client_array_cb(struct uloop_timeout *t);
-static void remove_probe_array_cb(struct uloop_timeout *t);
-
-static struct uloop_timeout probe_timeout = {
-    .cb = remove_probe_array_cb
-};
-static struct uloop_timeout client_timeout = {
-    .cb = remove_client_array_cb
-};
-static struct uloop_timeout ap_timeout = {
-    .cb = remove_ap_array_cb
-};
-static struct uloop_timeout denied_req_timeout = {
-    .cb = denied_req_array_cb
 };
 /* TODO: Never scheduled? */
 static struct uloop_timeout usock_timer = {
@@ -89,8 +74,21 @@ static struct uloop_timeout usock_timer = {
 static struct uloop_timeout beacon_reports_timer = {
     .cb = update_beacon_reports
 };
-
-static LIST_HEAD(hostapd_sock_list);
+static struct uloop_timeout hostapd_timer = {
+    .cb = update_hostapd_sockets
+};
+static struct uloop_timeout ap_timeout = {
+    .cb = remove_ap_array_cb
+};
+static struct uloop_timeout denied_req_timeout = {
+    .cb = denied_req_array_cb
+};
+static struct uloop_timeout client_timeout = {
+    .cb = remove_client_array_cb
+};
+static struct uloop_timeout probe_timeout = {
+    .cb = remove_probe_array_cb
+};
 
 struct hostapd_sock_entry {
     struct list_head list;
@@ -194,7 +192,6 @@ static const struct blobmsg_policy rrm_array_policy[__RRM_MAX] = {
     [RRM_ARRAY] = {.name = "value", .type = BLOBMSG_TYPE_ARRAY},
 };
 
-/* Function Definitions */
 static int hostapd_notify(struct ubus_context *ctx, struct ubus_object *obj,
                           struct ubus_request_data *req, const char *method,
                           struct blob_attr *msg);
@@ -225,18 +222,25 @@ static bool subscriber_to_interface(const char *ifname);
 static bool subscribe(struct hostapd_sock_entry *hostapd_entry);
 static int parse_to_beacon_rep(struct blob_attr *msg);
 static void ubus_set_nr(void);
+static void add_client_update_timer(time_t time);
+static int parse_to_assoc_req(struct blob_attr *msg, assoc_entry *assoc_req);
+static bool parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req);
+static int decide_function(probe_entry *prob_req, int req_type);
+static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr);
+static int handle_auth_req(struct blob_attr *msg);
+static int send_blob_attr_via_network(struct blob_attr *msg, char *method);
 
-void add_client_update_timer(time_t time)
+static void add_client_update_timer(time_t time)
 {
     uloop_timeout_set(&client_timer, time);
 }
 
-static inline int subscription_wait(struct ubus_event_handler *handler)
+static int subscription_wait(struct ubus_event_handler *handler)
 {
     return ubus_register_event_handler(ctx, handler, "ubus.object.add");
 }
 
-void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr)
+static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr)
 {
     char *s;
 
@@ -278,7 +282,7 @@ static int decide_function(probe_entry *prob_req, int req_type)
     return 1;
 }
 
-bool parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req)
+static bool parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req)
 {
     struct blob_attr *tb[__AUTH_MAX];
     int err = EINVAL;
@@ -305,12 +309,12 @@ exit:
     return !!err;
 }
 
-int parse_to_assoc_req(struct blob_attr *msg, assoc_entry *assoc_req)
+static int parse_to_assoc_req(struct blob_attr *msg, assoc_entry *assoc_req)
 {
     return parse_to_auth_req(msg, assoc_req);
 }
 
-int parse_to_beacon_rep(struct blob_attr *msg)
+static int parse_to_beacon_rep(struct blob_attr *msg)
 {
     struct blob_attr *tb[__BEACON_REP_MAX];
     struct dawn_mac msg_bssid;
@@ -348,9 +352,9 @@ int parse_to_beacon_rep(struct blob_attr *msg)
     /* HACKY WORKAROUND! */
     printf("Try update RCPI and RSNI for beacon report!\n");
     if (!probe_array_update_rcpi_rsni(msg_bssid, msg_client, rcpi, rsni, true)) {
-        printf("Beacon: No Probe Entry Existing!\n");
-
         probe_entry *beacon_rep, *beacon_rep_updated = NULL;
+
+        printf("Beacon: No Probe Entry Existing!\n");
 
         beacon_rep = dawn_malloc(sizeof (probe_entry));
         if (beacon_rep == NULL) {
@@ -388,7 +392,7 @@ int parse_to_beacon_rep(struct blob_attr *msg)
     return 0;
 }
 
-int handle_auth_req(struct blob_attr *msg)
+static int handle_auth_req(struct blob_attr *msg)
 {
     int ret = WLAN_STATUS_SUCCESS;
     bool discard_entry = true;
@@ -540,7 +544,7 @@ static int handle_beacon_rep(struct blob_attr *msg)
     return 0;
 }
 
-int send_blob_attr_via_network(struct blob_attr *msg, char *method)
+static int send_blob_attr_via_network(struct blob_attr *msg, char *method)
 {
     char *data_str, *str;
 
@@ -625,9 +629,8 @@ int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
         fprintf(stderr, "Failed to connect to ubus\n");
         return -1;
     }
-
-    printf("Connected to ubus\n");
     dawn_regmem(ctx);
+    printf("Connected to ubus\n");
 
     ubus_add_uloop(ctx);
 
@@ -674,6 +677,7 @@ static void ubus_get_clients_cb(struct ubus_request *req, int type, struct blob_
         return;
     }
 
+    /* braindead bullshit, replace with _add_blob */
     char *data_str = blobmsg_format_json(msg, 1);
     dawn_regmem(data_str);
 

@@ -28,22 +28,6 @@ void start_tcp_con_update(void);
 int ubus_call_umdns(void);
 
 /**
- * Parse to authentication request.
- * @param msg
- * @param auth_req
- * @return
- */
-bool parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req);
-
-/**
- * Parse to association request.
- * @param msg
- * @param assoc_req
- * @return
- */
-int parse_to_assoc_req(struct blob_attr *msg, assoc_entry *assoc_req);
-
-/**
  * Kick client from all hostapd interfaces.
  * @param client_addr - the client adress of the client to kick.
  * @param reason - the reason to kick the client.
@@ -65,7 +49,6 @@ int build_hearing_map_sort_client(struct blob_buf *b);
 int build_network_overview(struct blob_buf *b);
 int ap_get_nr(struct blob_buf *b, struct dawn_mac own_bssid_addr);
 int parse_add_mac_to_file(struct blob_attr *msg);
-int handle_auth_req(struct blob_attr *msg);
 
 /**
  * Send probe message via the network.
@@ -73,28 +56,6 @@ int handle_auth_req(struct blob_attr *msg);
  * @return
  */
 int ubus_send_probe_via_network(struct probe_entry_s *probe_entry);
-
-/**
- * Add mac to a list that contains addresses of clients that can not be controlled.
- * @param buf
- * @param name
- * @param addr
- */
-void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr);
-
-/**
- * Send message via network.
- * @param msg
- * @param method
- * @return
- */
-int send_blob_attr_via_network(struct blob_attr *msg, char *method);
-
-/**
- * Set client timer for updating the clients.
- * @param time
- */
-void add_client_update_timer(time_t time);
 
 /**
  * Kick client from hostapd interface.
