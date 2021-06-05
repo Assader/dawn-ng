@@ -416,7 +416,7 @@ static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
 
     /* Copy signature */
     if (tb[CLIENT_SIGNATURE]) {
-        strncpy(client_entry->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN * sizeof (char));
+        strncpy(client_entry->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN);
     }
 
     pthread_mutex_lock(&client_array_mutex);
@@ -472,79 +472,81 @@ int handle_hostapd_clients_msg(struct blob_attr *msg, int do_kick, uint32_t id)
 
     blobmsg_parse(client_table_policy, __CLIENT_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
 
-    if (tb[CLIENT_TABLE] && tb[CLIENT_TABLE_BSSID] && tb[CLIENT_TABLE_FREQ]) {
-        int num_stations =
-                dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
-                                  blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
-                                  blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
+    if (!tb[CLIENT_TABLE] || !tb[CLIENT_TABLE_BSSID] || !tb[CLIENT_TABLE_FREQ]) {
+        goto exit;
+    }
 
-        ap *ap_entry = dawn_calloc(1, sizeof (struct ap_s));
-        if (ap_entry == NULL) {
-            fprintf(stderr, "Failed to allocate memory!");
-            goto exit;
-        }
+    int num_stations =
+            dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
+                              blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
+                              blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
 
-        hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid_addr.u8);
-        ap_entry->freq = blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]);
+    ap *ap_entry = dawn_calloc(1, sizeof (struct ap_s));
+    if (ap_entry == NULL) {
+        fprintf(stderr, "Failed to allocate memory!");
+        goto exit;
+    }
 
-        if (tb[CLIENT_TABLE_HT]) {
-            ap_entry->ht_support = blobmsg_get_u8(tb[CLIENT_TABLE_HT]);
-        }
-        if (tb[CLIENT_TABLE_VHT]) {
-            ap_entry->vht_support = blobmsg_get_u8(tb[CLIENT_TABLE_VHT]);
-        }
+    hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid_addr.u8);
+    ap_entry->freq = blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]);
 
-        if (tb[CLIENT_TABLE_CHAN_UTIL]) {
-            ap_entry->channel_utilization = blobmsg_get_u32(tb[CLIENT_TABLE_CHAN_UTIL]);
-        }
-        else {
-            /* if this is not existing set to 0?
-            TODO: Consider setting to a value that will not mislead eval_probe_metric(), eg dawn_metric.chan_util_val? */
-            ap_entry->channel_utilization = 0;
-        }
+    if (tb[CLIENT_TABLE_HT]) {
+        ap_entry->ht_support = blobmsg_get_u8(tb[CLIENT_TABLE_HT]);
+    }
+    if (tb[CLIENT_TABLE_VHT]) {
+        ap_entry->vht_support = blobmsg_get_u8(tb[CLIENT_TABLE_VHT]);
+    }
 
-        if (tb[CLIENT_TABLE_SSID]) {
-            strcpy((char *) ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
-        }
+    if (tb[CLIENT_TABLE_CHAN_UTIL]) {
+        ap_entry->channel_utilization = blobmsg_get_u32(tb[CLIENT_TABLE_CHAN_UTIL]);
+    }
+    else {
+        /* if this is not existing set to 0?
+        TODO: Consider setting to a value that will not mislead eval_probe_metric(), eg dawn_metric.chan_util_val? */
+        ap_entry->channel_utilization = 0;
+    }
 
-        if (tb[CLIENT_TABLE_COL_DOMAIN]) {
-            ap_entry->collision_domain = blobmsg_get_u32(tb[CLIENT_TABLE_COL_DOMAIN]);
-        }
-        else {
-            ap_entry->collision_domain = -1;
-        }
+    if (tb[CLIENT_TABLE_SSID]) {
+        strcpy((char *) ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
+    }
 
-        if (tb[CLIENT_TABLE_BANDWIDTH]) {
-            ap_entry->bandwidth = blobmsg_get_u32(tb[CLIENT_TABLE_BANDWIDTH]);
-        }
-        else {
-            ap_entry->bandwidth = -1;
-        }
+    if (tb[CLIENT_TABLE_COL_DOMAIN]) {
+        ap_entry->collision_domain = blobmsg_get_u32(tb[CLIENT_TABLE_COL_DOMAIN]);
+    }
+    else {
+        ap_entry->collision_domain = -1;
+    }
 
-        ap_entry->station_count = num_stations;
+    if (tb[CLIENT_TABLE_BANDWIDTH]) {
+        ap_entry->bandwidth = blobmsg_get_u32(tb[CLIENT_TABLE_BANDWIDTH]);
+    }
+    else {
+        ap_entry->bandwidth = -1;
+    }
 
-        if (tb[CLIENT_TABLE_WEIGHT]) {
-            ap_entry->ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_WEIGHT]);
-        }
+    ap_entry->station_count = num_stations;
 
-        if (tb[CLIENT_TABLE_NEIGHBOR]) {
-            strncpy(ap_entry->neighbor_report, blobmsg_get_string(tb[CLIENT_TABLE_NEIGHBOR]), NEIGHBOR_REPORT_LEN);
-        }
+    if (tb[CLIENT_TABLE_WEIGHT]) {
+        ap_entry->ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_WEIGHT]);
+    }
 
-        if (tb[CLIENT_TABLE_IFACE]) {
-            strncpy(ap_entry->iface, blobmsg_get_string(tb[CLIENT_TABLE_IFACE]), MAX_INTERFACE_NAME);
-        }
+    if (tb[CLIENT_TABLE_NEIGHBOR]) {
+        strncpy(ap_entry->neighbor_report, blobmsg_get_string(tb[CLIENT_TABLE_NEIGHBOR]), NEIGHBOR_REPORT_LEN);
+    }
 
-        if (tb[CLIENT_TABLE_HOSTNAME]) {
-            strncpy(ap_entry->hostname, blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]), HOST_NAME_MAX);
-        }
+    if (tb[CLIENT_TABLE_IFACE]) {
+        strncpy(ap_entry->iface, blobmsg_get_string(tb[CLIENT_TABLE_IFACE]), MAX_INTERFACE_NAME);
+    }
 
-        insert_to_ap_array(ap_entry, time(NULL));
+    if (tb[CLIENT_TABLE_HOSTNAME]) {
+        strncpy(ap_entry->hostname, blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]), HOST_NAME_MAX);
+    }
 
-        if (do_kick && dawn_metric.kicking) {
-            update_iw_info(ap_entry->bssid_addr);
-            kick_clients(ap_entry, id);
-        }
+    insert_to_ap_array(ap_entry, time(NULL));
+
+    if (do_kick && dawn_metric.kicking) {
+        update_iw_info(ap_entry->bssid_addr);
+        kick_clients(ap_entry, id);
     }
 
     ret = 0;
