@@ -25,7 +25,8 @@ bool gcrypt_init(char *key, char *iv)
         goto error;
     }
 
-    if (strlen(key) < keylen || strlen(iv) < blklen) {
+    /* TODO: use strnlen */
+    if (strnlen(key, MAX_KEY_LENGTH) < keylen || strnlen(iv, MAX_KEY_LENGTH) < blklen) {
         err = gpg_err_make(GPG_ERR_SOURCE_USER_1, GPG_ERR_BAD_KEY);
         goto error;
     }
@@ -35,6 +36,7 @@ bool gcrypt_init(char *key, char *iv)
     err |= gcry_control(GCRYCTL_RESUME_SECMEM_WARN);
     err |= gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
     if (err != GPG_ERR_NO_ERROR) {
+        err = gpg_err_make(GPG_ERR_SOURCE_USER_1, GPG_ERR_INTERNAL);
         goto error;
     }
 
@@ -70,7 +72,9 @@ char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
     gcry_error_t err;
     char *out = NULL;
 
+    /* Check if message fits cipher alignment requirements... */
     if ((msg_length & (blklen - 1u)) != 0u) {
+        /* ... and append some trash if it does not. */
         msg_length += blklen - (msg_length & (blklen - 1u));
     }
 
