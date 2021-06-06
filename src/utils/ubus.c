@@ -214,7 +214,7 @@ static int get_network(struct ubus_context *ctx, struct ubus_object *obj,
                        struct ubus_request_data *req, const char *method,
                        struct blob_attr *msg);
 
-static void ubus_add_oject(void);
+static void ubus_add_obj(void);
 
 static void respond_to_notify(uint32_t id);
 static void subscribe_to_new_interfaces(const char *hostapd_sock_path);
@@ -229,6 +229,17 @@ static int decide_function(probe_entry *prob_req, int req_type);
 static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr);
 static int handle_auth_req(struct blob_attr *msg);
 static int send_blob_attr_via_network(struct blob_attr *msg, char *method);
+static void start_tcp_con_update(void);
+static void update_hostapd_sockets(struct uloop_timeout *t);
+static void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
+static void del_client_interface(uint32_t id, const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
+static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *msg);
+static int ubus_call_umdns(void);
+static int uci_send_via_network(void);
+static int build_hearing_map_sort_client(struct blob_buf *b);
+static int build_network_overview(struct blob_buf *b);
+static int ap_get_nr(struct blob_buf *b, struct dawn_mac own_bssid_addr);
+static void uloop_add_data_cbs(void);
 
 static void add_client_update_timer(time_t time)
 {
@@ -648,7 +659,7 @@ int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
         uloop_timeout_add(&beacon_reports_timer);
     }
 
-    ubus_add_oject();
+    ubus_add_obj();
 
     if (network_config.network_option == DAWN_SOCKET_TCP) {
         start_tcp_con_update();
@@ -768,10 +779,15 @@ static void ubus_get_rrm_cb(struct ubus_request *req, int type, struct blob_attr
     int len = blobmsg_data_len(tb[RRM_ARRAY]);
 
     __blob_for_each_attr(attr, blobmsg_data(tb[RRM_ARRAY]), len) {
+        /* The content of `value' is like
+         * ["f8:f0:82:62:19:11",
+         * "SSID",
+         * "f8f082621911af0900005301070603010300"],
+         * so we count to 3 to get nr. I wounder if there is a better way?.. */
         if (i == 2) {
             char *neighborreport = blobmsg_get_string(attr);
             strcpy(entry->neighbor_report, neighborreport);
-            printf("Copied Neighborreport: %s,\n", entry->neighbor_report);
+            printf("Copied Neighbor report: %s,\n", entry->neighbor_report);
         }
         i++;
     }
@@ -791,7 +807,7 @@ static int ubus_get_rrm(void)
     return 0;
 }
 
-void update_clients(struct uloop_timeout *t)
+static void update_clients(struct uloop_timeout *t)
 {
     ubus_get_clients();
     if (dawn_metric.set_hostapd_nr) {
@@ -801,14 +817,14 @@ void update_clients(struct uloop_timeout *t)
     uloop_timeout_set(&client_timer, timeout_config.update_client * 1000);
 }
 
-void run_server_update(struct uloop_timeout *t)
+static void run_server_update(struct uloop_timeout *t)
 {
     if (run_server(network_config.tcp_port)) {
         uloop_timeout_set(&usock_timer, 1000);
     }
 }
 
-void update_channel_utilization(struct uloop_timeout *t)
+static void update_channel_utilization(struct uloop_timeout *t)
 {
     struct hostapd_sock_entry *sub;
 
@@ -847,7 +863,7 @@ void ubus_send_beacon_report(struct dawn_mac client, int id)
     ubus_invoke(ctx, id, "rrm_beacon_req", b_beacon.head, NULL, NULL, 1000);
 }
 
-void update_beacon_reports(struct uloop_timeout *t)
+static void update_beacon_reports(struct uloop_timeout *t)
 {
     struct hostapd_sock_entry *sub;
 
@@ -867,7 +883,7 @@ void update_beacon_reports(struct uloop_timeout *t)
     uloop_timeout_set(&beacon_reports_timer, timeout_config.update_beacon_reports * 1000);
 }
 
-void update_tcp_connections(struct uloop_timeout *t)
+static void update_tcp_connections(struct uloop_timeout *t)
 {
     if (strcmp(network_config.server_ip, "")) {
         /* Nothing happens if tcp connection is already established */
@@ -882,19 +898,19 @@ void update_tcp_connections(struct uloop_timeout *t)
     uloop_timeout_set(&tcp_con_timer, timeout_config.update_tcp_con * 1000);
 }
 
-void start_tcp_con_update(void)
+static void start_tcp_con_update(void)
 {
     /* Update connections */
     uloop_timeout_add(&tcp_con_timer);
 }
 
-void update_hostapd_sockets(struct uloop_timeout *t)
+static void update_hostapd_sockets(struct uloop_timeout *t)
 {
     subscribe_to_new_interfaces(hostapd_dir);
     uloop_timeout_set(&hostapd_timer, timeout_config.update_hostapd * 1000);
 }
 
-void ubus_set_nr(void)
+static void ubus_set_nr(void)
 {
     struct hostapd_sock_entry *sub;
 
@@ -907,7 +923,7 @@ void ubus_set_nr(void)
     }
 }
 
-void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time)
+static void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time)
 {
     struct hostapd_sock_entry *sub;
 
@@ -924,7 +940,7 @@ void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reaso
     }
 }
 
-void del_client_interface(uint32_t id, const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time)
+static void del_client_interface(uint32_t id, const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time)
 {
     struct hostapd_sock_entry *sub;
 
@@ -971,7 +987,6 @@ int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *
 static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 {
     struct blob_attr *tb[__DAWN_UMDNS_TABLE_MAX], *attr;
-    struct blobmsg_hdr *hdr;
 
     if (msg == NULL) {
         return;
@@ -987,25 +1002,25 @@ static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *
 
     __blob_for_each_attr(attr, blobmsg_data(tb[DAWN_UMDNS_TABLE]), len) {
         struct blob_attr *tb_dawn[__DAWN_UMDNS_MAX];
+        struct blobmsg_hdr *hdr;
 
         hdr = blob_data(attr);
 
         blobmsg_parse(dawn_umdns_policy, __DAWN_UMDNS_MAX, tb_dawn, blobmsg_data(attr), blobmsg_len(attr));
 
+        if (!tb_dawn[DAWN_UMDNS_IPV4] || !tb_dawn[DAWN_UMDNS_PORT]) {
+            continue;
+        }
+
         printf("Hostname: %s\n", hdr->name);
-        if (tb_dawn[DAWN_UMDNS_IPV4] && tb_dawn[DAWN_UMDNS_PORT]) {
-            printf("IPV4: %s\n", blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]));
-            printf("Port: %d\n", blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
-        }
-        else {
-            return;
-        }
+        printf("IPV4: %s\n", blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]));
+        printf("Port: %d\n", blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
 
         add_tcp_conncection(blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]), blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
     }
 }
 
-int ubus_call_umdns(void)
+static int ubus_call_umdns(void)
 {
     u_int32_t id;
 
@@ -1192,7 +1207,7 @@ static int get_network(struct ubus_context *ctx, struct ubus_object *obj,
     return 0;
 }
 
-static void ubus_add_oject(void)
+static void ubus_add_obj(void)
 {
     int ret;
 
@@ -1251,9 +1266,9 @@ static void hostapd_handle_remove(struct ubus_context *ctx,
     subscription_wait(&hostapd_sock->wait_handler);
 }
 
-bool subscribe(struct hostapd_sock_entry *hostapd_entry)
+static bool subscribe(struct hostapd_sock_entry *hostapd_entry)
 {
-    char subscribe_name[sizeof("hostapd.") + MAX_INTERFACE_NAME + 1];
+    char subscribe_name[sizeof ("hostapd.") + MAX_INTERFACE_NAME];
 
     if (hostapd_entry->subscribed) {
         return false;
@@ -1276,7 +1291,7 @@ bool subscribe(struct hostapd_sock_entry *hostapd_entry)
     hostapd_entry->subscribed = true;
 
     iwinfo_get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid_addr.u8);
-    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, (SSID_MAX_LEN) * sizeof (char));
+    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, SSID_MAX_LEN);
 
     hostapd_entry->ht_support = (uint8_t) iwinfo_ht_supported(hostapd_entry->iface_name);
     hostapd_entry->vht_support = (uint8_t) iwinfo_vht_supported(hostapd_entry->iface_name);
@@ -1311,7 +1326,7 @@ static void wait_cb(struct ubus_context *ctx, struct ubus_event_handler *ev_hand
     path = blobmsg_data(attr);
 
     path = strchr(path, '.');
-    if (!path) {
+    if (path == NULL) {
         return;
     }
 
@@ -1322,7 +1337,7 @@ static void wait_cb(struct ubus_context *ctx, struct ubus_event_handler *ev_hand
     subscribe(sub);
 }
 
-bool subscriber_to_interface(const char *ifname)
+static bool subscriber_to_interface(const char *ifname)
 {
     struct hostapd_sock_entry *hostapd_entry;
 
@@ -1347,7 +1362,7 @@ bool subscriber_to_interface(const char *ifname)
     return subscribe(hostapd_entry);
 }
 
-void subscribe_to_new_interfaces(const char *hostapd_sock_path)
+static void subscribe_to_new_interfaces(const char *hostapd_sock_path)
 {
     struct hostapd_sock_entry *sub;
     struct dirent *entry;
@@ -1389,7 +1404,7 @@ void subscribe_to_new_interfaces(const char *hostapd_sock_path)
     return;
 }
 
-int uci_send_via_network(void)
+static int uci_send_via_network(void)
 {
     void *metric, *times;
 
@@ -1446,7 +1461,7 @@ int uci_send_via_network(void)
     return 0;
 }
 
-int build_hearing_map_sort_client(struct blob_buf *b)
+static int build_hearing_map_sort_client(struct blob_buf *b)
 {
     void *client_list, *ap_list, *ssid_list;
     char ap_mac_buf[20], client_mac_buf[20];
@@ -1513,7 +1528,7 @@ int build_hearing_map_sort_client(struct blob_buf *b)
             }
         }
 
-        if ((m->next_ap == NULL) || strcmp((char *) m->ssid, (char *) m->next_ap->ssid) != 0) {
+        if (m->next_ap != NULL && strcmp((char *) m->ssid, (char *) m->next_ap->ssid) != 0) {
             blobmsg_close_table(b, ssid_list);
             same_ssid = false;
         }
@@ -1527,7 +1542,7 @@ int build_hearing_map_sort_client(struct blob_buf *b)
     return 0;
 }
 
-int build_network_overview(struct blob_buf *b)
+static int build_network_overview(struct blob_buf *b)
 {
     void *client_list, *ap_list, *ssid_list;
     char ap_mac_buf[20], client_mac_buf[20];
@@ -1605,12 +1620,8 @@ int build_network_overview(struct blob_buf *b)
         }
         blobmsg_close_table(b, ap_list);
 
-        /* Rely on short-circuit of OR to protect NULL reference in 2nd clause */
-        if ((m->next_ap == NULL) || strcmp((char *) m->ssid, (char *) m->next_ap->ssid) != 0) {
+        if (m->next_ap != NULL && strcmp((char *) m->ssid, (char *) m->next_ap->ssid) != 0) {
             blobmsg_close_table(b, ssid_list);
-        }
-
-        if ((m->next_ap != NULL) && strcmp((char *) m->ssid, (char *) m->next_ap->ssid) != 0) {
             add_ssid = true;
         }
     }
@@ -1619,7 +1630,7 @@ int build_network_overview(struct blob_buf *b)
 
 /* TODO: Does all APs constitute neighbor report? How about using list of AP connected
  * clients can also see (from probe_set) to give more (physically) local set? */
-int ap_get_nr(struct blob_buf *b_local, struct dawn_mac own_bssid_addr)
+static int ap_get_nr(struct blob_buf *b_local, struct dawn_mac own_bssid_addr)
 {
     pthread_mutex_lock(&ap_array_mutex);
 
@@ -1648,7 +1659,7 @@ int ap_get_nr(struct blob_buf *b_local, struct dawn_mac own_bssid_addr)
     return 0;
 }
 
-void uloop_add_data_cbs(void)
+static void uloop_add_data_cbs(void)
 {
     uloop_timeout_add(&probe_timeout);
     uloop_timeout_add(&client_timeout);
@@ -1660,7 +1671,7 @@ void uloop_add_data_cbs(void)
 
 /* TODO: Move mutex handling to remove_??? function to make test harness simpler?
  * Or not needed as test harness not threaded? */
-void remove_probe_array_cb(struct uloop_timeout *t)
+static void remove_probe_array_cb(struct uloop_timeout *t)
 {
     pthread_mutex_lock(&probe_array_mutex);
     printf("[Thread] : Removing old probe entries!\n");
@@ -1673,7 +1684,7 @@ void remove_probe_array_cb(struct uloop_timeout *t)
 
 /* TODO: Move mutex handling to remove_??? function to make test harness simpler?
  * Or not needed as test harness not threaded? */
-void remove_client_array_cb(struct uloop_timeout *t)
+static void remove_client_array_cb(struct uloop_timeout *t)
 {
     pthread_mutex_lock(&client_array_mutex);
     printf("[Thread] : Removing old client entries!\n");
@@ -1685,7 +1696,7 @@ void remove_client_array_cb(struct uloop_timeout *t)
 
 /* TODO: Move mutex handling to remove_??? function to make test harness simpler?
  * Or not needed as test harness not threaded? */
-void remove_ap_array_cb(struct uloop_timeout *t)
+static void remove_ap_array_cb(struct uloop_timeout *t)
 {
     pthread_mutex_lock(&ap_array_mutex);
     printf("[ULOOP] : Removing old ap entries!\n");
@@ -1697,7 +1708,7 @@ void remove_ap_array_cb(struct uloop_timeout *t)
 
 /* TODO: Move mutex handling to (new) remove_??? function to make test harness simpler?
  * Or not needed as test harness not threaded? */
-void denied_req_array_cb(struct uloop_timeout *t)
+static void denied_req_array_cb(struct uloop_timeout *t)
 {
     pthread_mutex_lock(&denied_array_mutex);
     printf("[ULOOP] : Processing denied authentication!\n");

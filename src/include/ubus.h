@@ -16,38 +16,7 @@
  */
 int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir);
 
-/**
- * Start the umdns timer for updating the zeroconfiguration properties.
- */
-void start_tcp_con_update(void);
-
-/**
- * Call umdns update to update the TCP connections.
- * @return
- */
-int ubus_call_umdns(void);
-
-/**
- * Kick client from all hostapd interfaces.
- * @param client_addr - the client adress of the client to kick.
- * @param reason - the reason to kick the client.
- * @param deauth - if the client should be deauthenticated.
- * @param ban_time - the ban time the client is not allowed to connect again.
- */
-void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
-
-/**
- * Update the hostapd sockets.
- * @param t
- */
-void update_hostapd_sockets(struct uloop_timeout *t);
-
 void ubus_send_beacon_report(struct dawn_mac client, int id);
-void uloop_add_data_cbs(void);
-int uci_send_via_network(void);
-int build_hearing_map_sort_client(struct blob_buf *b);
-int build_network_overview(struct blob_buf *b);
-int ap_get_nr(struct blob_buf *b, struct dawn_mac own_bssid_addr);
 int parse_add_mac_to_file(struct blob_attr *msg);
 
 /**
@@ -56,16 +25,6 @@ int parse_add_mac_to_file(struct blob_attr *msg);
  * @return
  */
 int ubus_send_probe_via_network(struct probe_entry_s *probe_entry);
-
-/**
- * Kick client from hostapd interface.
- * @param id - the ubus id.
- * @param client_addr - the client adress of the client to kick.
- * @param reason - the reason to kick the client.
- * @param deauth - if the client should be deauthenticated.
- * @param ban_time - the ban time the client is not allowed to connect again.
- */
-void del_client_interface(uint32_t id, const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
 
 /**
  * Function to set the probe counter to the min probe request.
