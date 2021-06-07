@@ -241,7 +241,7 @@ static int build_network_overview(struct blob_buf *b);
 static int ap_get_nr(struct blob_buf *b, struct dawn_mac own_bssid_addr);
 static void uloop_add_data_cbs(void);
 
-static void add_client_update_timer(time_t time)
+static void __attribute__((__unused__)) add_client_update_timer(time_t time)
 {
     uloop_timeout_set(&client_timer, time);
 }
@@ -923,7 +923,9 @@ static void ubus_set_nr(void)
     }
 }
 
-static void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time)
+static void __attribute__((__unused__)) del_client_all_interfaces(
+        const struct dawn_mac client_addr, uint32_t reason,
+        uint8_t deauth, uint32_t ban_time)
 {
     struct hostapd_sock_entry *sub;
 
@@ -940,7 +942,9 @@ static void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_
     }
 }
 
-static void del_client_interface(uint32_t id, const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time)
+static void __attribute__((__unused__)) del_client_interface(
+        uint32_t id, const struct dawn_mac client_addr, uint32_t reason,
+        uint8_t deauth, uint32_t ban_time)
 {
     struct hostapd_sock_entry *sub;
 
