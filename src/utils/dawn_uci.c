@@ -82,68 +82,65 @@ bool uci_get_dawn_times(struct time_config_s *time_config)
     return true;
 }
 
-struct probe_metric_s uci_get_dawn_metric(void)
+bool uci_get_dawn_metric(struct probe_metric_s *metric_config)
 {
-    struct probe_metric_s ret = {0};
     struct uci_element *e;
 
     uci_foreach_element(&uci_pkg->sections, e) {
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "metric") == 0) {
-            ret.ap_weight = uci_lookup_option_int(uci_ctx, s, "ap_weight", 0);
+            metric_config->ap_weight = uci_lookup_option_int(uci_ctx, s, "ap_weight", 0);
 
-            ret.ht_support = uci_lookup_option_int(uci_ctx, s, "ht_support", 0);
-            ret.vht_support = uci_lookup_option_int(uci_ctx, s, "vht_support", 0);
-            ret.no_ht_support = uci_lookup_option_int(uci_ctx, s, "no_ht_support", 0);
-            ret.no_vht_support = uci_lookup_option_int(uci_ctx, s, "no_vht_support", 0);
+            metric_config->ht_support = uci_lookup_option_int(uci_ctx, s, "ht_support", 0);
+            metric_config->vht_support = uci_lookup_option_int(uci_ctx, s, "vht_support", 0);
+            metric_config->no_ht_support = uci_lookup_option_int(uci_ctx, s, "no_ht_support", 0);
+            metric_config->no_vht_support = uci_lookup_option_int(uci_ctx, s, "no_vht_support", 0);
 
-            ret.freq = uci_lookup_option_int(uci_ctx, s, "freq", 100);
+            metric_config->freq = uci_lookup_option_int(uci_ctx, s, "freq", 100);
 
-
-            ret.rssi_val = uci_lookup_option_int(uci_ctx, s, "rssi_val", -60);
-            ret.rssi = uci_lookup_option_int(uci_ctx, s, "rssi", 20);
-            ret.low_rssi_val = uci_lookup_option_int(uci_ctx, s, "low_rssi_val", -77);
-            ret.low_rssi = uci_lookup_option_int(uci_ctx, s, "low_rssi", -500);
-
-
-            ret.chan_util_val = uci_lookup_option_int(uci_ctx, s, "chan_util_val", 140);
-            ret.chan_util = uci_lookup_option_int(uci_ctx, s, "chan_util", 0);
-            ret.max_chan_util_val = uci_lookup_option_int(uci_ctx, s, "max_chan_util_val", 170);
-            ret.max_chan_util = uci_lookup_option_int(uci_ctx, s, "max_chan_util", -500);
-            ret.chan_util_avg_period = uci_lookup_option_int(uci_ctx, s, "chan_util_avg_period", 3);
-
-            ret.min_probe_count = uci_lookup_option_int(uci_ctx, s, "min_probe_count", 0);
-
-            ret.bandwidth_threshold = uci_lookup_option_int(uci_ctx, s, "bandwidth_threshold", 6);
-
-            ret.use_station_count = uci_lookup_option_int(uci_ctx, s, "use_station_count", 1);
-            ret.max_station_diff = uci_lookup_option_int(uci_ctx, s, "max_station_diff", 3);
-
-            ret.eval_probe_req = uci_lookup_option_int(uci_ctx, s, "eval_probe_req", 1);
-            ret.eval_auth_req = uci_lookup_option_int(uci_ctx, s, "eval_auth_req", 1);
-            ret.eval_assoc_req = uci_lookup_option_int(uci_ctx, s, "eval_assoc_req", 1);
-
-            ret.deny_auth_reason = uci_lookup_option_int(uci_ctx, s, "deny_auth_reason", 1);
-            ret.deny_assoc_reason = uci_lookup_option_int(uci_ctx, s, "deny_assoc_reason", 17);
+            metric_config->rssi_val = uci_lookup_option_int(uci_ctx, s, "rssi_val", -60);
+            metric_config->rssi = uci_lookup_option_int(uci_ctx, s, "rssi", 20);
+            metric_config->low_rssi_val = uci_lookup_option_int(uci_ctx, s, "low_rssi_val", -77);
+            metric_config->low_rssi = uci_lookup_option_int(uci_ctx, s, "low_rssi", -500);
 
 
-            ret.use_driver_recog = uci_lookup_option_int(uci_ctx, s, "use_driver_recog", 1);
+            metric_config->chan_util_val = uci_lookup_option_int(uci_ctx, s, "chan_util_val", 140);
+            metric_config->chan_util = uci_lookup_option_int(uci_ctx, s, "chan_util", 0);
+            metric_config->max_chan_util_val = uci_lookup_option_int(uci_ctx, s, "max_chan_util_val", 170);
+            metric_config->max_chan_util = uci_lookup_option_int(uci_ctx, s, "max_chan_util", -500);
+            metric_config->chan_util_avg_period = uci_lookup_option_int(uci_ctx, s, "chan_util_avg_period", 3);
 
-            ret.kicking = uci_lookup_option_int(uci_ctx, s, "kicking", 1);
-            ret.min_kick_count = uci_lookup_option_int(uci_ctx, s, "min_number_to_kick", 3);
+            metric_config->min_probe_count = uci_lookup_option_int(uci_ctx, s, "min_probe_count", 0);
 
-            ret.set_hostapd_nr = uci_lookup_option_int(uci_ctx, s, "set_hostapd_nr", 1);
-            ret.op_class = uci_lookup_option_int(uci_ctx, s, "op_class", 0);
-            ret.duration = uci_lookup_option_int(uci_ctx, s, "duration", 0);
-            ret.mode = uci_lookup_option_int(uci_ctx, s, "mode", 0);
-            ret.scan_channel = uci_lookup_option_int(uci_ctx, s, "scan_channel", 0);
+            metric_config->bandwidth_threshold = uci_lookup_option_int(uci_ctx, s, "bandwidth_threshold", 6);
+
+            metric_config->use_station_count = uci_lookup_option_int(uci_ctx, s, "use_station_count", 1);
+            metric_config->max_station_diff = uci_lookup_option_int(uci_ctx, s, "max_station_diff", 3);
+
+            metric_config->eval_probe_req = uci_lookup_option_int(uci_ctx, s, "eval_probe_req", 1);
+            metric_config->eval_auth_req = uci_lookup_option_int(uci_ctx, s, "eval_auth_req", 1);
+            metric_config->eval_assoc_req = uci_lookup_option_int(uci_ctx, s, "eval_assoc_req", 1);
+
+            metric_config->deny_auth_reason = uci_lookup_option_int(uci_ctx, s, "deny_auth_reason", 1);
+            metric_config->deny_assoc_reason = uci_lookup_option_int(uci_ctx, s, "deny_assoc_reason", 17);
+
+            metric_config->use_driver_recog = uci_lookup_option_int(uci_ctx, s, "use_driver_recog", 1);
+
+            metric_config->kicking = uci_lookup_option_int(uci_ctx, s, "kicking", 1);
+            metric_config->min_kick_count = uci_lookup_option_int(uci_ctx, s, "min_number_to_kick", 3);
+
+            metric_config->set_hostapd_nr = uci_lookup_option_int(uci_ctx, s, "set_hostapd_nr", 1);
+            metric_config->op_class = uci_lookup_option_int(uci_ctx, s, "op_class", 0);
+            metric_config->duration = uci_lookup_option_int(uci_ctx, s, "duration", 0);
+            metric_config->mode = uci_lookup_option_int(uci_ctx, s, "mode", 0);
+            metric_config->scan_channel = uci_lookup_option_int(uci_ctx, s, "scan_channel", 0);
 
             break;
         }
     }
 
-    return ret;
+    return true;
 }
 
 struct network_config_s uci_get_dawn_network(void)

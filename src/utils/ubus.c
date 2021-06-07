@@ -646,7 +646,7 @@ int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
     ubus_add_uloop(ctx);
 
     /* Set dawn metric */
-    dawn_metric = uci_get_dawn_metric();
+    uci_get_dawn_metric(&dawn_metric);
 
     /* Set up callbacks to remove aged data */
     uloop_add_data_cbs();
@@ -1159,7 +1159,7 @@ static int reload_config(struct ubus_context *ctx, struct ubus_object *obj,
     blob_buf_init(&b, 0);
 
     uci_reset();
-    dawn_metric = uci_get_dawn_metric();
+    uci_get_dawn_metric(&dawn_metric);
     uci_get_dawn_times(&timeout_config);
     uci_get_dawn_hostapd_dir();
 

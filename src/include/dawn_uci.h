@@ -21,7 +21,7 @@ void uci_clear(void);
  * Function that returns the metric for the load balancing sheme using uci.
  * @return the load balancing metric.
  */
-struct probe_metric_s uci_get_dawn_metric(void);
+bool uci_get_dawn_metric(struct probe_metric_s *metric_config);
 
 /**
  * Function that returns a struct with all the time config values.
