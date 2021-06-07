@@ -12,8 +12,6 @@ enum {
 
 static gcry_cipher_hd_t gcry_cipher_hd;
 
-static void secure_zero(void *s, size_t n);
-
 bool gcrypt_init(char *key, char *iv)
 {
     size_t keylen = gcry_cipher_get_algo_keylen(GCRY_CIPHER),
@@ -132,7 +130,7 @@ exit:
 }
 
 /* I'd like to use memset_s, but for compatibility reasons... */
-static void secure_zero(void *s, size_t n)
+void secure_zero(void *s, size_t n)
 {
     volatile char *p = s;
 

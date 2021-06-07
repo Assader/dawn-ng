@@ -173,21 +173,44 @@ bool uci_get_dawn_network(struct network_config_s *network_config)
     return true;
 }
 
-void uci_get_dawn_crypto(char *key, char *iv)
+bool uci_get_dawn_crypto(char *key, char *init_vector)
 {
-    struct uci_element *e;
+    struct uci_context *uci_crypto_context;
+    char path[] = {"dawn.@crypto[0]"};
+    struct uci_ptr crypto;
+    bool result = false;
 
-    uci_foreach_element(&uci_pkg->sections, e) {
-        struct uci_section *s = uci_to_section(e);
-
-        if (strcmp(s->type, "crypto") == 0) {
-            const char *str_key = uci_lookup_option_string(uci_ctx, s, "shared_key");
-            strncpy(key, str_key, MAX_KEY_LENGTH);
-
-            const char *str_iv = uci_lookup_option_string(uci_ctx, s, "iv");
-            strncpy(iv, str_iv, MAX_KEY_LENGTH);
-        }
+    /* Here we are using separated uci context to leave as less traces in memory as possible. */
+    uci_crypto_context = uci_alloc_context();
+    if (uci_crypto_context == NULL) {
+        goto exit;
     }
+    dawn_regmem(uci_crypto_context);
+
+    /* This only context performs crypto section lookup. */
+    if (uci_lookup_ptr(uci_crypto_context, &crypto, path, true) != UCI_OK || crypto.s == NULL) {
+        goto cleanup;
+    }
+
+    const char *tmp = uci_lookup_option_string(uci_crypto_context, crypto.s, "key");
+    if (tmp == NULL) {
+        goto cleanup;
+    }
+    strncpy(key, tmp, MAX_KEY_LENGTH);
+
+    tmp = uci_lookup_option_string(uci_crypto_context, crypto.s, "init_vector");
+    if (tmp == NULL) {
+        secure_zero(key, MAX_KEY_LENGTH);
+        goto cleanup;
+    }
+    strncpy(init_vector, tmp, MAX_KEY_LENGTH);
+
+    result = true;
+cleanup:
+    uci_free_context(uci_crypto_context);
+    dawn_unregmem(uci_crypto_context);
+exit:
+    return result;
 }
 
 bool uci_get_dawn_hostapd_dir(void)

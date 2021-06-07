@@ -41,7 +41,7 @@ bool uci_get_dawn_network(struct network_config_s *network_config);
  */
 bool uci_get_dawn_hostapd_dir(void);
 
-void uci_get_dawn_crypto(char *key, char *iv);
+bool uci_get_dawn_crypto(char *key, char *init_vector);
 
 int uci_set_network(char *uci_cmd);
 
