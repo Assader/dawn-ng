@@ -32,19 +32,18 @@ void uci_get_hostname(char *hostname)
     }
     dawn_regmem(c);
 
-    if ((uci_lookup_ptr(c, &ptr, path, true) != UCI_OK) || (ptr.o == NULL || ptr.o->v.string == NULL)) {
+    if (uci_lookup_ptr(c, &ptr, path, true) != UCI_OK || ptr.o == NULL || ptr.o->v.string == NULL) {
         goto exit;
     }
 
-    if (ptr.flags & UCI_LOOKUP_COMPLETE) {
-        char *dot = strchr(ptr.o->v.string, '.');
-        size_t len = HOST_NAME_MAX - 1;
-
-        if (dot && dot < ptr.o->v.string + len) {
-            len = dot - ptr.o->v.string;
-        }
-        snprintf(hostname, HOST_NAME_MAX, "%.*s", (int) len, ptr.o->v.string);
+    char *dot = strchr(ptr.o->v.string, '.');
+    int len = HOST_NAME_MAX - 1;
+    /* If hostname uses `name.domain' format, cut it and use `name' only. */
+    if (dot && dot < ptr.o->v.string + len) {
+        len = dot - ptr.o->v.string;
     }
+
+    snprintf(hostname, HOST_NAME_MAX, "%.*s", len, ptr.o->v.string);
 
 exit:
     uci_free_context(c);
