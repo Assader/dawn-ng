@@ -53,6 +53,7 @@ static void update_tcp_connections(struct uloop_timeout *t);
 static void update_channel_utilization(struct uloop_timeout *t);
 static void run_server_update(struct uloop_timeout *t);
 static void update_beacon_reports(struct uloop_timeout *t);
+static void update_hostapd_sockets(struct uloop_timeout *t);
 static void remove_ap_array_cb(struct uloop_timeout *t);
 static void denied_req_array_cb(struct uloop_timeout *t);
 static void remove_client_array_cb(struct uloop_timeout *t);
@@ -230,7 +231,6 @@ static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const st
 static int handle_auth_req(struct blob_attr *msg);
 static int send_blob_attr_via_network(struct blob_attr *msg, char *method);
 static void start_tcp_con_update(void);
-static void update_hostapd_sockets(struct uloop_timeout *t);
 static void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
 static void del_client_interface(uint32_t id, const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
 static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *msg);
