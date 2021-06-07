@@ -180,7 +180,7 @@ void uci_get_dawn_crypto(char *key, char *iv)
     uci_foreach_element(&uci_pkg->sections, e) {
         struct uci_section *s = uci_to_section(e);
 
-        if (strcmp(s->type, "network") == 0) {
+        if (strcmp(s->type, "crypto") == 0) {
             const char *str_key = uci_lookup_option_string(uci_ctx, s, "shared_key");
             strncpy(key, str_key, MAX_KEY_LENGTH);
 
