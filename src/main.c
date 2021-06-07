@@ -22,7 +22,7 @@ int main(int argc, char **argv)
     connect_signals();
 
     uci_init();
-    network_config = uci_get_dawn_network();
+    uci_get_dawn_network(&network_config);
     uci_get_dawn_times(&timeout_config);
     uci_get_dawn_hostapd_dir();
 

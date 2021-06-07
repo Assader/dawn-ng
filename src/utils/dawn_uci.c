@@ -143,9 +143,8 @@ bool uci_get_dawn_metric(struct probe_metric_s *metric_config)
     return true;
 }
 
-struct network_config_s uci_get_dawn_network(void)
+bool uci_get_dawn_network(struct network_config_s *network_config)
 {
-    struct network_config_s ret = {0};
     struct uci_element *e;
 
     uci_foreach_element(&uci_pkg->sections, e) {
@@ -153,25 +152,25 @@ struct network_config_s uci_get_dawn_network(void)
 
         if (strcmp(s->type, "network") == 0) {
             const char *str_broadcast = uci_lookup_option_string(uci_ctx, s, "broadcast_ip");
-            strncpy(ret.broadcast_ip, str_broadcast, MAX_IP_LENGTH);
+            strncpy(network_config->broadcast_ip, str_broadcast, MAX_IP_LENGTH);
 
             const char *str_server_ip = uci_lookup_option_string(uci_ctx, s, "server_ip");
             if (str_server_ip) {
-                strncpy(ret.server_ip, str_server_ip, MAX_IP_LENGTH);
+                strncpy(network_config->server_ip, str_server_ip, MAX_IP_LENGTH);
             }
 
-            ret.broadcast_port = uci_lookup_option_int(uci_ctx, s, "broadcast_port", 1025);
-            ret.network_option = uci_lookup_option_int(uci_ctx, s, "network_option", 2);
-            ret.tcp_port = uci_lookup_option_int(uci_ctx, s, "tcp_port", 1026);
-            ret.use_symm_enc = uci_lookup_option_int(uci_ctx, s, "use_symm_enc", 1);
-            ret.collision_domain = uci_lookup_option_int(uci_ctx, s, "collision_domain", -1);
-            ret.bandwidth = uci_lookup_option_int(uci_ctx, s, "bandwidth", -1);
+            network_config->broadcast_port = uci_lookup_option_int(uci_ctx, s, "broadcast_port", 1025);
+            network_config->network_option = uci_lookup_option_int(uci_ctx, s, "network_option", 2);
+            network_config->tcp_port = uci_lookup_option_int(uci_ctx, s, "tcp_port", 1026);
+            network_config->use_symm_enc = uci_lookup_option_int(uci_ctx, s, "use_symm_enc", 1);
+            network_config->collision_domain = uci_lookup_option_int(uci_ctx, s, "collision_domain", -1);
+            network_config->bandwidth = uci_lookup_option_int(uci_ctx, s, "bandwidth", -1);
 
             break;
         }
     }
 
-    return ret;
+    return true;
 }
 
 void uci_get_dawn_crypto(char *key, char *iv)

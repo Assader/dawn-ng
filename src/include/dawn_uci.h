@@ -33,7 +33,7 @@ bool uci_get_dawn_times(struct time_config_s *time_config);
  * Function that returns all the network informations.
  * @return the network config values.
  */
-struct network_config_s uci_get_dawn_network(void);
+bool uci_get_dawn_network(struct network_config_s *network_config);
 
 /**
  * Function that returns the hostapd directory reading from the config file.
