@@ -86,7 +86,7 @@ void close_socket(void)
     close(sock);
 }
 
-static void *receive_msg(void *args)
+_Noreturn static void *receive_msg(void *args)
 {
     while (true) {
         char *msg = recv_string;
