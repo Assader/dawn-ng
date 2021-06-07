@@ -23,7 +23,7 @@ int main(int argc, char **argv)
 
     uci_init();
     uci_get_dawn_network(&network_config);
-    uci_get_dawn_times(&timeout_config);
+    uci_get_dawn_intervals(&timeout_config);
     uci_get_dawn_hostapd_dir();
 
     if (network_config.use_symm_enc) {

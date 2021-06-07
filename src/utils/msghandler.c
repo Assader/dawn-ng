@@ -556,7 +556,7 @@ exit:
 
 enum {
     UCI_TABLE_METRIC,
-    UCI_TABLE_TIMES,
+    UCI_TABLE_INTERVALS,
     __UCI_TABLE_MAX
 };
 
@@ -605,12 +605,12 @@ enum {
     UCI_UPDATE_TCP_CON,
     UCI_UPDATE_CHAN_UTIL,
     UCI_UPDATE_BEACON_REPORTS,
-    __UCI_TIMES_MAX,
+    __UCI_INTERVALS_MAX,
 };
 
 static const struct blobmsg_policy uci_table_policy[__UCI_TABLE_MAX] = {
     [UCI_TABLE_METRIC] = {.name = "metric", .type = BLOBMSG_TYPE_TABLE},
-    [UCI_TABLE_TIMES] = {.name = "times", .type = BLOBMSG_TYPE_TABLE}};
+    [UCI_TABLE_INTERVALS] = {.name = "intervals", .type = BLOBMSG_TYPE_TABLE}};
 
 static const struct blobmsg_policy uci_metric_policy[__UCI_METIC_MAX] = {
     [UCI_HT_SUPPORT] = {.name = "ht_support", .type = BLOBMSG_TYPE_INT32},
@@ -646,7 +646,7 @@ static const struct blobmsg_policy uci_metric_policy[__UCI_METIC_MAX] = {
     [UCI_SCAN_CHANNEL] = {.name = "mode", .type = BLOBMSG_TYPE_INT32},
 };
 
-static const struct blobmsg_policy uci_times_policy[__UCI_TIMES_MAX] = {
+static const struct blobmsg_policy uci_intervals_policy[__UCI_INTERVALS_MAX] = {
     [UCI_UPDATE_CLIENT] = {.name = "update_client", .type = BLOBMSG_TYPE_INT32},
     [UCI_DENIED_REQ_THRESHOLD] = {.name = "denied_req_threshold", .type = BLOBMSG_TYPE_INT32},
     [UCI_REMOVE_CLIENT] = {.name = "remove_client", .type = BLOBMSG_TYPE_INT32},
@@ -660,12 +660,12 @@ static const struct blobmsg_policy uci_times_policy[__UCI_TIMES_MAX] = {
 
 static int handle_uci_config(struct blob_attr *msg)
 {
-    struct blob_attr *tb[__UCI_TABLE_MAX], *tb_metric[__UCI_METIC_MAX], *tb_times[__UCI_TIMES_MAX];
+    struct blob_attr *tb[__UCI_TABLE_MAX], *tb_metric[__UCI_METIC_MAX], *tb_intervals[__UCI_INTERVALS_MAX];
     char cmd_buffer[1024];
 
     blobmsg_parse(uci_table_policy, __UCI_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
     blobmsg_parse(uci_metric_policy, __UCI_METIC_MAX, tb_metric, blobmsg_data(tb[UCI_TABLE_METRIC]), blobmsg_len(tb[UCI_TABLE_METRIC]));
-    blobmsg_parse(uci_times_policy, __UCI_TIMES_MAX, tb_times, blobmsg_data(tb[UCI_TABLE_TIMES]), blobmsg_len(tb[UCI_TABLE_TIMES]));
+    blobmsg_parse(uci_intervals_policy, __UCI_INTERVALS_MAX, tb_intervals, blobmsg_data(tb[UCI_TABLE_INTERVALS]), blobmsg_len(tb[UCI_TABLE_INTERVALS]));
 
     struct {
         const char *config_option;
@@ -686,11 +686,11 @@ static int handle_uci_config(struct blob_attr *msg)
     {"@metric[0].min_number_to_kick", tb_metric, UCI_MIN_NUMBER_TO_KICK}, {"@metric[0].chan_util_avg_period", tb_metric, UCI_CHAN_UTIL_AVG_PERIOD},
     {"@metric[0].set_hostapd_nr", tb_metric, UCI_SET_HOSTAPD_NR}, {"@metric[0].op_class", tb_metric, UCI_OP_CLASS},
     {"@metric[0].duration", tb_metric, UCI_DURATION}, {"@metric[0].mode", tb_metric, UCI_MODE},
-    {"@times[0].update_client", tb_times, UCI_UPDATE_CLIENT}, {"@times[0].denied_req_threshold", tb_times, UCI_DENIED_REQ_THRESHOLD},
-    {"@times[0].remove_client", tb_times, UCI_REMOVE_CLIENT}, {"@times[0].remove_probe", tb_times, UCI_REMOVE_PROBE},
-    {"@times[0].remove_ap", tb_times, UCI_REMOVE_AP}, {"@times[0].update_hostapd", tb_times, UCI_UPDATE_HOSTAPD},
-    {"@times[0].update_tcp_con", tb_times, UCI_UPDATE_TCP_CON}, {"@times[0].update_chan_util", tb_times, UCI_UPDATE_CHAN_UTIL},
-    {"@times[0].update_beacon_reports", tb_times, UCI_UPDATE_BEACON_REPORTS}};
+    {"@intervals[0].update_client", tb_intervals, UCI_UPDATE_CLIENT}, {"@intervals[0].denied_req_threshold", tb_intervals, UCI_DENIED_REQ_THRESHOLD},
+    {"@intervals[0].remove_client", tb_intervals, UCI_REMOVE_CLIENT}, {"@intervals[0].remove_probe", tb_intervals, UCI_REMOVE_PROBE},
+    {"@intervals[0].remove_ap", tb_intervals, UCI_REMOVE_AP}, {"@intervals[0].update_hostapd", tb_intervals, UCI_UPDATE_HOSTAPD},
+    {"@intervals[0].update_tcp_con", tb_intervals, UCI_UPDATE_TCP_CON}, {"@intervals[0].update_chan_util", tb_intervals, UCI_UPDATE_CHAN_UTIL},
+    {"@intervals[0].update_beacon_reports", tb_intervals, UCI_UPDATE_BEACON_REPORTS}};
 
     for (size_t i = 0; i < ARRAY_SIZE(option_array); ++i) {
         sprintf(cmd_buffer, "dawn.%s=%d", option_array[i].config_option,
@@ -700,7 +700,7 @@ static int handle_uci_config(struct blob_attr *msg)
 
     uci_reset();
     uci_get_dawn_metric(&dawn_metric);
-    uci_get_dawn_times(&timeout_config);
+    uci_get_dawn_intervals(&timeout_config);
 
     return 0;
 }

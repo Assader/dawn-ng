@@ -1160,7 +1160,7 @@ static int reload_config(struct ubus_context *ctx, struct ubus_object *obj,
 
     uci_reset();
     uci_get_dawn_metric(&dawn_metric);
-    uci_get_dawn_times(&timeout_config);
+    uci_get_dawn_intervals(&timeout_config);
     uci_get_dawn_hostapd_dir();
 
     /* Allow setting timeout to 0 */
@@ -1406,7 +1406,7 @@ static void subscribe_to_new_interfaces(const char *hostapd_sock_path)
 
 static int uci_send_via_network(void)
 {
-    void *metric, *times;
+    void *metric, *intervals;
 
     blob_buf_init(&b, 0);
     metric = blobmsg_open_table(&b, "metric");
@@ -1444,7 +1444,7 @@ static int uci_send_via_network(void)
     blobmsg_add_u32(&b, "scan_channel", dawn_metric.scan_channel);
     blobmsg_close_table(&b, metric);
 
-    times = blobmsg_open_table(&b, "times");
+    intervals = blobmsg_open_table(&b, "intervals");
     blobmsg_add_u32(&b, "update_client", timeout_config.update_client);
     blobmsg_add_u32(&b, "denied_req_threshold", timeout_config.denied_req_threshold);
     blobmsg_add_u32(&b, "remove_client", timeout_config.remove_client);
@@ -1454,7 +1454,7 @@ static int uci_send_via_network(void)
     blobmsg_add_u32(&b, "update_tcp_con", timeout_config.update_tcp_con);
     blobmsg_add_u32(&b, "update_chan_util", timeout_config.update_chan_util);
     blobmsg_add_u32(&b, "update_beacon_reports", timeout_config.update_beacon_reports);
-    blobmsg_close_table(&b, times);
+    blobmsg_close_table(&b, intervals);
 
     send_blob_attr_via_network(b.head, "uci");
 

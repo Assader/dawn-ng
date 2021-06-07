@@ -27,7 +27,7 @@ bool uci_get_dawn_metric(struct probe_metric_s *metric_config);
  * Function that returns a struct with all the time config values.
  * @return the time config values.
  */
-bool uci_get_dawn_times(struct time_config_s *time_config);
+bool uci_get_dawn_intervals(struct time_config_s *time_config);
 
 /**
  * Function that returns all the network informations.

@@ -57,23 +57,23 @@ cleanup:
     dawn_unregmem(c);
 }
 
-bool uci_get_dawn_times(struct time_config_s *time_config)
+bool uci_get_dawn_intervals(struct time_config_s *time_config)
 {
-    struct uci_section *section = uci_lookup_section(uci_ctx, uci_pkg, "times");
+    struct uci_section *intervals = uci_lookup_section(uci_ctx, uci_pkg, "intervals");
 
-    if (section == NULL) {
+    if (intervals == NULL) {
         return false;
     }
 
-    time_config->update_client = uci_lookup_option_int(uci_ctx, section, "update_client", 10);
-    time_config->remove_client = uci_lookup_option_int(uci_ctx, section, "remove_client", 15);
-    time_config->remove_probe = uci_lookup_option_int(uci_ctx, section, "remove_probe", 30);
-    time_config->update_hostapd = uci_lookup_option_int(uci_ctx, section, "update_hostapd", 10);
-    time_config->remove_ap = uci_lookup_option_int(uci_ctx, section, "remove_ap", 460);
-    time_config->update_tcp_con = uci_lookup_option_int(uci_ctx, section, "update_tcp_con", 10);
-    time_config->denied_req_threshold = uci_lookup_option_int(uci_ctx, section, "denied_req_threshold", 30);
-    time_config->update_chan_util = uci_lookup_option_int(uci_ctx, section, "update_chan_util", 5);
-    time_config->update_beacon_reports = uci_lookup_option_int(uci_ctx, section, "update_beacon_reports", 20);
+    time_config->update_client = uci_lookup_option_int(uci_ctx, intervals, "update_client", 10);
+    time_config->remove_client = uci_lookup_option_int(uci_ctx, intervals, "remove_client", 15);
+    time_config->remove_probe = uci_lookup_option_int(uci_ctx, intervals, "remove_probe", 30);
+    time_config->update_hostapd = uci_lookup_option_int(uci_ctx, intervals, "update_hostapd", 10);
+    time_config->remove_ap = uci_lookup_option_int(uci_ctx, intervals, "remove_ap", 460);
+    time_config->update_tcp_con = uci_lookup_option_int(uci_ctx, intervals, "update_tcp_con", 10);
+    time_config->denied_req_threshold = uci_lookup_option_int(uci_ctx, intervals, "denied_req_threshold", 30);
+    time_config->update_chan_util = uci_lookup_option_int(uci_ctx, intervals, "update_chan_util", 5);
+    time_config->update_beacon_reports = uci_lookup_option_int(uci_ctx, intervals, "update_beacon_reports", 20);
 
     return true;
 }
