@@ -11,13 +11,20 @@
 static struct uci_context *uci_ctx;
 static struct uci_package *uci_pkg;
 
-/* Found here: https://github.com/br101/pingcheck/blob/master/uci.c */
-static int uci_lookup_option_int(struct uci_context *uci, struct uci_section *s,
-                                 const char *name)
+static int uci_lookup_option_int(struct uci_context *uci_context, struct uci_section *section,
+                                 const char *name, int default_value)
 {
-    const char *str = uci_lookup_option_string(uci, s, name);
+    int value = default_value;
 
-    return (str == NULL)? -1 : atoi(str);
+    const char *str = uci_lookup_option_string(uci_context, section, name);
+    if (str == NULL) {
+        goto exit;
+    }
+
+    (void) sscanf(str, "%d", &value);
+
+exit:
+    return value;
 }
 
 void uci_get_hostname(char *hostname)
@@ -58,15 +65,15 @@ bool uci_get_dawn_times(struct time_config_s *time_config)
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "times") == 0) {
-            time_config->update_client = uci_lookup_option_int(uci_ctx, s, "update_client");
-            time_config->remove_client = uci_lookup_option_int(uci_ctx, s, "remove_client");
-            time_config->remove_probe = uci_lookup_option_int(uci_ctx, s, "remove_probe");
-            time_config->update_hostapd = uci_lookup_option_int(uci_ctx, s, "update_hostapd");
-            time_config->remove_ap = uci_lookup_option_int(uci_ctx, s, "remove_ap");
-            time_config->update_tcp_con = uci_lookup_option_int(uci_ctx, s, "update_tcp_con");
-            time_config->denied_req_threshold = uci_lookup_option_int(uci_ctx, s, "denied_req_threshold");
-            time_config->update_chan_util = uci_lookup_option_int(uci_ctx, s, "update_chan_util");
-            time_config->update_beacon_reports = uci_lookup_option_int(uci_ctx, s, "update_beacon_reports");
+            time_config->update_client = uci_lookup_option_int(uci_ctx, s, "update_client", 10);
+            time_config->remove_client = uci_lookup_option_int(uci_ctx, s, "remove_client", 15);
+            time_config->remove_probe = uci_lookup_option_int(uci_ctx, s, "remove_probe", 30);
+            time_config->update_hostapd = uci_lookup_option_int(uci_ctx, s, "update_hostapd", 10);
+            time_config->remove_ap = uci_lookup_option_int(uci_ctx, s, "remove_ap", 460);
+            time_config->update_tcp_con = uci_lookup_option_int(uci_ctx, s, "update_tcp_con", 10);
+            time_config->denied_req_threshold = uci_lookup_option_int(uci_ctx, s, "denied_req_threshold", 30);
+            time_config->update_chan_util = uci_lookup_option_int(uci_ctx, s, "update_chan_util", 5);
+            time_config->update_beacon_reports = uci_lookup_option_int(uci_ctx, s, "update_beacon_reports", 20);
 
             break;
         }
@@ -84,38 +91,53 @@ struct probe_metric_s uci_get_dawn_metric(void)
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "metric") == 0) {
-            ret.ap_weight = uci_lookup_option_int(uci_ctx, s, "ap_weight");
-            ret.kicking = uci_lookup_option_int(uci_ctx, s, "kicking");
-            ret.ht_support = uci_lookup_option_int(uci_ctx, s, "ht_support");
-            ret.vht_support = uci_lookup_option_int(uci_ctx, s, "vht_support");
-            ret.no_ht_support = uci_lookup_option_int(uci_ctx, s, "no_ht_support");
-            ret.no_vht_support = uci_lookup_option_int(uci_ctx, s, "no_vht_support");
-            ret.rssi = uci_lookup_option_int(uci_ctx, s, "rssi");
-            ret.freq = uci_lookup_option_int(uci_ctx, s, "freq");
-            ret.rssi_val = uci_lookup_option_int(uci_ctx, s, "rssi_val");
-            ret.chan_util = uci_lookup_option_int(uci_ctx, s, "chan_util");
-            ret.max_chan_util = uci_lookup_option_int(uci_ctx, s, "max_chan_util");
-            ret.chan_util_val = uci_lookup_option_int(uci_ctx, s, "chan_util_val");
-            ret.max_chan_util_val = uci_lookup_option_int(uci_ctx, s, "max_chan_util_val");
-            ret.min_probe_count = uci_lookup_option_int(uci_ctx, s, "min_probe_count");
-            ret.low_rssi = uci_lookup_option_int(uci_ctx, s, "low_rssi");
-            ret.low_rssi_val = uci_lookup_option_int(uci_ctx, s, "low_rssi_val");
-            ret.bandwidth_threshold = uci_lookup_option_int(uci_ctx, s, "bandwidth_threshold");
-            ret.use_station_count = uci_lookup_option_int(uci_ctx, s, "use_station_count");
-            ret.eval_probe_req = uci_lookup_option_int(uci_ctx, s, "eval_probe_req");
-            ret.eval_auth_req = uci_lookup_option_int(uci_ctx, s, "eval_auth_req");
-            ret.eval_assoc_req = uci_lookup_option_int(uci_ctx, s, "eval_assoc_req");
-            ret.deny_auth_reason = uci_lookup_option_int(uci_ctx, s, "deny_auth_reason");
-            ret.deny_assoc_reason = uci_lookup_option_int(uci_ctx, s, "deny_assoc_reason");
-            ret.max_station_diff = uci_lookup_option_int(uci_ctx, s, "max_station_diff");
-            ret.use_driver_recog = uci_lookup_option_int(uci_ctx, s, "use_driver_recog");
-            ret.min_kick_count = uci_lookup_option_int(uci_ctx, s, "min_number_to_kick");
-            ret.chan_util_avg_period = uci_lookup_option_int(uci_ctx, s, "chan_util_avg_period");
-            ret.set_hostapd_nr = uci_lookup_option_int(uci_ctx, s, "set_hostapd_nr");
-            ret.op_class = uci_lookup_option_int(uci_ctx, s, "op_class");
-            ret.duration = uci_lookup_option_int(uci_ctx, s, "duration");
-            ret.mode = uci_lookup_option_int(uci_ctx, s, "mode");
-            ret.scan_channel = uci_lookup_option_int(uci_ctx, s, "scan_channel");
+            ret.ap_weight = uci_lookup_option_int(uci_ctx, s, "ap_weight", 0);
+
+            ret.ht_support = uci_lookup_option_int(uci_ctx, s, "ht_support", 0);
+            ret.vht_support = uci_lookup_option_int(uci_ctx, s, "vht_support", 0);
+            ret.no_ht_support = uci_lookup_option_int(uci_ctx, s, "no_ht_support", 0);
+            ret.no_vht_support = uci_lookup_option_int(uci_ctx, s, "no_vht_support", 0);
+
+            ret.freq = uci_lookup_option_int(uci_ctx, s, "freq", 100);
+
+
+            ret.rssi_val = uci_lookup_option_int(uci_ctx, s, "rssi_val", -60);
+            ret.rssi = uci_lookup_option_int(uci_ctx, s, "rssi", 20);
+            ret.low_rssi_val = uci_lookup_option_int(uci_ctx, s, "low_rssi_val", -77);
+            ret.low_rssi = uci_lookup_option_int(uci_ctx, s, "low_rssi", -500);
+
+
+            ret.chan_util_val = uci_lookup_option_int(uci_ctx, s, "chan_util_val", 140);
+            ret.chan_util = uci_lookup_option_int(uci_ctx, s, "chan_util", 0);
+            ret.max_chan_util_val = uci_lookup_option_int(uci_ctx, s, "max_chan_util_val", 170);
+            ret.max_chan_util = uci_lookup_option_int(uci_ctx, s, "max_chan_util", -500);
+            ret.chan_util_avg_period = uci_lookup_option_int(uci_ctx, s, "chan_util_avg_period", 3);
+
+            ret.min_probe_count = uci_lookup_option_int(uci_ctx, s, "min_probe_count", 0);
+
+            ret.bandwidth_threshold = uci_lookup_option_int(uci_ctx, s, "bandwidth_threshold", 6);
+
+            ret.use_station_count = uci_lookup_option_int(uci_ctx, s, "use_station_count", 1);
+            ret.max_station_diff = uci_lookup_option_int(uci_ctx, s, "max_station_diff", 3);
+
+            ret.eval_probe_req = uci_lookup_option_int(uci_ctx, s, "eval_probe_req", 1);
+            ret.eval_auth_req = uci_lookup_option_int(uci_ctx, s, "eval_auth_req", 1);
+            ret.eval_assoc_req = uci_lookup_option_int(uci_ctx, s, "eval_assoc_req", 1);
+
+            ret.deny_auth_reason = uci_lookup_option_int(uci_ctx, s, "deny_auth_reason", 1);
+            ret.deny_assoc_reason = uci_lookup_option_int(uci_ctx, s, "deny_assoc_reason", 17);
+
+
+            ret.use_driver_recog = uci_lookup_option_int(uci_ctx, s, "use_driver_recog", 1);
+
+            ret.kicking = uci_lookup_option_int(uci_ctx, s, "kicking", 1);
+            ret.min_kick_count = uci_lookup_option_int(uci_ctx, s, "min_number_to_kick", 3);
+
+            ret.set_hostapd_nr = uci_lookup_option_int(uci_ctx, s, "set_hostapd_nr", 1);
+            ret.op_class = uci_lookup_option_int(uci_ctx, s, "op_class", 0);
+            ret.duration = uci_lookup_option_int(uci_ctx, s, "duration", 0);
+            ret.mode = uci_lookup_option_int(uci_ctx, s, "mode", 0);
+            ret.scan_channel = uci_lookup_option_int(uci_ctx, s, "scan_channel", 0);
 
             break;
         }
@@ -141,12 +163,12 @@ struct network_config_s uci_get_dawn_network(void)
                 strncpy(ret.server_ip, str_server_ip, MAX_IP_LENGTH);
             }
 
-            ret.broadcast_port = uci_lookup_option_int(uci_ctx, s, "broadcast_port");
-            ret.network_option = uci_lookup_option_int(uci_ctx, s, "network_option");
-            ret.tcp_port = uci_lookup_option_int(uci_ctx, s, "tcp_port");
-            ret.use_symm_enc = uci_lookup_option_int(uci_ctx, s, "use_symm_enc");
-            ret.collision_domain = uci_lookup_option_int(uci_ctx, s, "collision_domain");
-            ret.bandwidth = uci_lookup_option_int(uci_ctx, s, "bandwidth");
+            ret.broadcast_port = uci_lookup_option_int(uci_ctx, s, "broadcast_port", 1025);
+            ret.network_option = uci_lookup_option_int(uci_ctx, s, "network_option", 2);
+            ret.tcp_port = uci_lookup_option_int(uci_ctx, s, "tcp_port", 1026);
+            ret.use_symm_enc = uci_lookup_option_int(uci_ctx, s, "use_symm_enc", 1);
+            ret.collision_domain = uci_lookup_option_int(uci_ctx, s, "collision_domain", -1);
+            ret.bandwidth = uci_lookup_option_int(uci_ctx, s, "bandwidth", -1);
 
             break;
         }
