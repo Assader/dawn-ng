@@ -156,7 +156,6 @@ bool uci_get_dawn_network(struct network_config_s *network_config)
     network_config->tcp_port = uci_lookup_option_int(uci_ctx, network, "tcp_port", 1026);
     network_config->use_symm_enc = uci_lookup_option_int(uci_ctx, network, "use_symm_enc", 1);
     network_config->collision_domain = uci_lookup_option_int(uci_ctx, network, "collision_domain", -1);
-    network_config->bandwidth = uci_lookup_option_int(uci_ctx, network, "bandwidth", -1);
 
     return true;
 }

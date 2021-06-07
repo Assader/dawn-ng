@@ -267,10 +267,7 @@ int eval_probe_metric(struct probe_entry_s *probe_entry, ap *ap_entry)
         score += probe_entry->ht_capabilities && ap_entry->ht_support ? dawn_metric.ht_support : 0;
         score += !probe_entry->ht_capabilities && !ap_entry->ht_support ? dawn_metric.no_ht_support : 0;
 
-        /* Performance anomaly? */
-        if (network_config.bandwidth >= 1000 || network_config.bandwidth == -1) {
-            score += probe_entry->vht_capabilities && ap_entry->vht_support ? dawn_metric.vht_support : 0;
-        }
+        score += probe_entry->vht_capabilities && ap_entry->vht_support ? dawn_metric.vht_support : 0;
 
         /* TODO: Is both devices not having a capability worthy of scoring? */
         score += !probe_entry->vht_capabilities && !ap_entry->vht_support ? dawn_metric.no_vht_support : 0;

@@ -695,7 +695,6 @@ static void ubus_get_clients_cb(struct ubus_request *req, int type, struct blob_
     blob_buf_init(&b_domain, 0);
     blobmsg_add_json_from_string(&b_domain, data_str);
     blobmsg_add_u32(&b_domain, "collision_domain", network_config.collision_domain);
-    blobmsg_add_u32(&b_domain, "bandwidth", network_config.bandwidth);
 
     list_for_each_entry(sub, &hostapd_sock_list, list) {
         if (sub->id == req->peer) {

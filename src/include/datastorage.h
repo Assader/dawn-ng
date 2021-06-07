@@ -11,12 +11,12 @@
 
 /* Mac */
 
-extern struct mac_entry_s *mac_set;
-
 struct mac_entry_s {
     struct mac_entry_s *next_mac;
     struct dawn_mac mac;
 };
+
+extern struct mac_entry_s *mac_set;
 
 void insert_macs_from_file(void);
 int insert_to_maclist(struct dawn_mac mac);
@@ -82,7 +82,6 @@ struct network_config_s {
     int network_option;
     int use_symm_enc;
     int collision_domain;
-    int bandwidth;
 };
 
 extern struct network_config_s network_config;
