@@ -50,30 +50,29 @@ exit:
     dawn_unregmem(c);
 }
 
-struct time_config_s uci_get_dawn_times(void)
+bool uci_get_dawn_times(struct time_config_s *time_config)
 {
-    struct time_config_s ret = {0};
     struct uci_element *e;
 
     uci_foreach_element(&uci_pkg->sections, e) {
         struct uci_section *s = uci_to_section(e);
 
         if (strcmp(s->type, "times") == 0) {
-            ret.update_client = uci_lookup_option_int(uci_ctx, s, "update_client");
-            ret.remove_client = uci_lookup_option_int(uci_ctx, s, "remove_client");
-            ret.remove_probe = uci_lookup_option_int(uci_ctx, s, "remove_probe");
-            ret.update_hostapd = uci_lookup_option_int(uci_ctx, s, "update_hostapd");
-            ret.remove_ap = uci_lookup_option_int(uci_ctx, s, "remove_ap");
-            ret.update_tcp_con = uci_lookup_option_int(uci_ctx, s, "update_tcp_con");
-            ret.denied_req_threshold = uci_lookup_option_int(uci_ctx, s, "denied_req_threshold");
-            ret.update_chan_util = uci_lookup_option_int(uci_ctx, s, "update_chan_util");
-            ret.update_beacon_reports = uci_lookup_option_int(uci_ctx, s, "update_beacon_reports");
+            time_config->update_client = uci_lookup_option_int(uci_ctx, s, "update_client");
+            time_config->remove_client = uci_lookup_option_int(uci_ctx, s, "remove_client");
+            time_config->remove_probe = uci_lookup_option_int(uci_ctx, s, "remove_probe");
+            time_config->update_hostapd = uci_lookup_option_int(uci_ctx, s, "update_hostapd");
+            time_config->remove_ap = uci_lookup_option_int(uci_ctx, s, "remove_ap");
+            time_config->update_tcp_con = uci_lookup_option_int(uci_ctx, s, "update_tcp_con");
+            time_config->denied_req_threshold = uci_lookup_option_int(uci_ctx, s, "denied_req_threshold");
+            time_config->update_chan_util = uci_lookup_option_int(uci_ctx, s, "update_chan_util");
+            time_config->update_beacon_reports = uci_lookup_option_int(uci_ctx, s, "update_beacon_reports");
 
             break;
         }
     }
 
-    return ret;
+    return true;
 }
 
 struct probe_metric_s uci_get_dawn_metric(void)

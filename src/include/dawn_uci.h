@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <time.h>
 
+#include "datastorage.h"
+
 /**
  * Init uci. Call this function before using the other functions!
  * @return if call was successful.
@@ -25,7 +27,7 @@ struct probe_metric_s uci_get_dawn_metric(void);
  * Function that returns a struct with all the time config values.
  * @return the time config values.
  */
-struct time_config_s uci_get_dawn_times(void);
+bool uci_get_dawn_times(struct time_config_s *time_config);
 
 /**
  * Function that returns all the network informations.

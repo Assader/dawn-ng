@@ -1160,7 +1160,7 @@ static int reload_config(struct ubus_context *ctx, struct ubus_object *obj,
 
     uci_reset();
     dawn_metric = uci_get_dawn_metric();
-    timeout_config = uci_get_dawn_times();
+    uci_get_dawn_times(&timeout_config);
     uci_get_dawn_hostapd_dir();
 
     /* Allow setting timeout to 0 */
