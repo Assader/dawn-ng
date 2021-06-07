@@ -5,10 +5,8 @@
 #include "ieee80211_utils.h"
 #include "mac_utils.h"
 #include "memory_utils.h"
-
 #include "datastorage.h"
 #include "msghandler.h"
-#include "test_storage.h"
 #include "ubus.h"
 
 #ifndef BIT

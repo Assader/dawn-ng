@@ -236,6 +236,7 @@ bool probe_array_set_all_probe_count(struct dawn_mac client_addr, uint32_t probe
 int ap_get_collision_count(int col_domain);
 void send_beacon_reports(struct dawn_mac bssid, int id);
 int better_ap_available(ap *kicking_ap, struct dawn_mac client_addr, char *neighbor_report);
+void ap_array_insert(ap *entry);
 
 /* All users of datastorage should call init_ / destroy_mutex at initialisation and termination respectively */
 bool init_mutex(void);
