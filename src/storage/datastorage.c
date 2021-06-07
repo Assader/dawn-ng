@@ -263,27 +263,22 @@ int eval_probe_metric(struct probe_entry_s *probe_entry, ap *ap_entry)
 
     /* Check if ap entry is available */
     if (ap_entry != NULL) {
-        /* TODO: Is both devices not having a capability worthy of scoring? */
-        score += probe_entry->ht_capabilities && ap_entry->ht_support ? dawn_metric.ht_support : 0;
-        score += !probe_entry->ht_capabilities && !ap_entry->ht_support ? dawn_metric.no_ht_support : 0;
-
-        score += probe_entry->vht_capabilities && ap_entry->vht_support ? dawn_metric.vht_support : 0;
-
-        /* TODO: Is both devices not having a capability worthy of scoring? */
-        score += !probe_entry->vht_capabilities && !ap_entry->vht_support ? dawn_metric.no_vht_support : 0;
-        score += ap_entry->channel_utilization <= dawn_metric.chan_util_val ? dawn_metric.chan_util : 0;
-        score += ap_entry->channel_utilization > dawn_metric.max_chan_util_val ? dawn_metric.max_chan_util : 0;
-
         score += ap_entry->ap_weight;
+
+        score += (probe_entry->ht_capabilities && ap_entry->ht_support)? dawn_metric.ht_support : 0;
+        score += (!probe_entry->ht_capabilities && !ap_entry->ht_support)? dawn_metric.no_ht_support : 0;
+        score += (probe_entry->vht_capabilities && ap_entry->vht_support)? dawn_metric.vht_support : 0;
+        score += (!probe_entry->vht_capabilities && !ap_entry->vht_support)? dawn_metric.no_vht_support : 0;
+
+        score += (ap_entry->channel_utilization <= dawn_metric.chan_util_val)? dawn_metric.chan_util : 0;
+        score += (ap_entry->channel_utilization > dawn_metric.max_chan_util_val)? dawn_metric.max_chan_util : 0;
     }
 
-    score += (probe_entry->freq > 5000) ? dawn_metric.freq : 0;
+    score += (probe_entry->freq > 5000)? dawn_metric.freq : 0;
 
     /* TODO: Should RCPI be used here as well? */
-    /* TODO: Should this be more scaled?  Should -63dB on current and -77dB on other both score 0 if low / high are -80db and -60dB? */
-    /* TODO: That then lets device capabilites dominate score - making them more important than RSSI difference of 14dB. */
-    score += (probe_entry->signal >= dawn_metric.rssi_val) ? dawn_metric.rssi : 0;
-    score += (probe_entry->signal <= dawn_metric.low_rssi_val) ? dawn_metric.low_rssi : 0;
+    score += (probe_entry->signal >= dawn_metric.rssi_val)? dawn_metric.rssi : 0;
+    score += (probe_entry->signal <= dawn_metric.low_rssi_val)? dawn_metric.low_rssi : 0;
 
     /* TODO: This magic value never checked by caller.  What does it achieve? */
     if (score < 0) {
