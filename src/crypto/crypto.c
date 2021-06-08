@@ -1,6 +1,7 @@
 #include <gcrypt.h>
 
 #include "crypto.h"
+#include "dawn_log.h"
 #include "memory_utils.h"
 
 /* Based on: https://github.com/vedantk/gcrypt-example/blob/master/gcry.cc */
@@ -12,7 +13,7 @@ enum {
 
 static gcry_cipher_hd_t gcry_cipher_hd;
 
-bool gcrypt_init(char *key, char *iv)
+bool gcrypt_init(char *key, char *init_vector)
 {
     size_t keylen = gcry_cipher_get_algo_keylen(GCRY_CIPHER),
            blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
@@ -23,8 +24,7 @@ bool gcrypt_init(char *key, char *iv)
         goto error;
     }
 
-    /* TODO: use strnlen */
-    if (strnlen(key, MAX_KEY_LENGTH) < keylen || strnlen(iv, MAX_KEY_LENGTH) < blklen) {
+    if (strnlen(key, MAX_KEY_LENGTH) < keylen || strnlen(init_vector, MAX_KEY_LENGTH) < blklen) {
         err = gpg_err_make(GPG_ERR_SOURCE_USER_1, GPG_ERR_BAD_KEY);
         goto error;
     }
@@ -48,22 +48,21 @@ bool gcrypt_init(char *key, char *iv)
         goto error;
     }
 
-    err = gcry_cipher_setiv(gcry_cipher_hd, iv, blklen);
+    err = gcry_cipher_setiv(gcry_cipher_hd, init_vector, blklen);
     if (err != GPG_ERR_NO_ERROR) {
         goto error;
     }
 
     secure_zero(key, keylen);
-    secure_zero(iv, blklen);
+    secure_zero(init_vector, blklen);
 
     return true;
 error:
-    fprintf(stderr, "Failed to initialize gcrypt: %s/%s\n", gcry_strsource(err), gcry_strerror(err));
+    DAWN_LOG_ERROR("Failed to initialize gcrypt: %s/%s", gcry_strsource(err), gcry_strerror(err));
 
     return false;
 }
 
-/* Free out buffer after using! */
 char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
 {
     size_t blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
@@ -78,15 +77,13 @@ char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
 
     out = dawn_malloc(msg_length);
     if (out == NULL) {
-        fprintf(stderr, "Failed to allocate memory!\n");
+        DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;
     }
 
     err = gcry_cipher_encrypt(gcry_cipher_hd, out, msg_length, msg, msg_length);
     if (err != GPG_ERR_NO_ERROR) {
-        fprintf(stderr, "gcry_cipher_encrypt failed: %s/%s\n",
-                gcry_strsource(err),
-                gcry_strerror(err));
+        DAWN_LOG_ERROR("Failed to encrypt message: %s/%s", gcry_strsource(err), gcry_strerror(err));
         dawn_free(out);
         out = NULL;
         goto exit;
@@ -98,7 +95,6 @@ exit:
     return out;
 }
 
-/* Free out buffer after using! */
 char *gcrypt_decrypt_msg(const char *msg, size_t msg_length)
 {
     size_t blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
@@ -106,21 +102,19 @@ char *gcrypt_decrypt_msg(const char *msg, size_t msg_length)
     char *out = NULL;
 
     if ((msg_length & (blklen - 1u)) != 0u) {
-        fprintf(stderr, "Message length does not fit alignment requirements. Won't decrypt!\n");
+        DAWN_LOG_ERROR("Message length does not fit alignment requirements! Won't decrypt");
         goto exit;
     }
 
     out = dawn_malloc(msg_length);
     if (out == NULL) {
-        fprintf(stderr, "Failed to allocate memory!\n");
+        DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;
     }
 
     err = gcry_cipher_decrypt(gcry_cipher_hd, out, msg_length, msg, msg_length);
     if (err != GPG_ERR_NO_ERROR) {
-        fprintf(stderr, "gcry_cipher_decrypt failed: %s/%s\n",
-                gcry_strsource(err),
-                gcry_strerror(err));
+        DAWN_LOG_ERROR("Failed to decrypt message: %s/%s", gcry_strsource(err), gcry_strerror(err));
         dawn_free(out);
         out = NULL;
     }

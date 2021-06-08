@@ -16,7 +16,7 @@ enum {
  * @param iv
  * @return true if init was successfull, false otherwise.
  */
-bool gcrypt_init(char *key, char *iv);
+bool gcrypt_init(char *key, char *init_vector);
 
 /**
  * Function that encrypts the message.
