@@ -1,15 +1,17 @@
-#include <stdio.h>
+#include <errno.h>
 #include <string.h>
+#include <sys/socket.h>
 #include <unistd.h>
 
 #include "broadcastsocket.h"
+#include "dawn_log.h"
 
-int setup_broadcast_socket(const char *broadcast_ip, unsigned short broadcast_port, struct sockaddr_in *addr)
+int dawn_setup_broadcast_socket(const char *broadcast_ip, uint16_t broadcast_port, struct sockaddr_in *addr)
 {
     int sock;
 
     if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
-        perror("Failed to create socket");
+        DAWN_LOG_ERROR("Failed to create socket: %s", strerror(errno));
         goto error;
     }
 
@@ -17,7 +19,7 @@ int setup_broadcast_socket(const char *broadcast_ip, unsigned short broadcast_po
     int broadcasting = 1;
     if (setsockopt(sock, SOL_SOCKET, SO_BROADCAST, (void *) &broadcasting,
                    sizeof (broadcasting)) != 0) {
-        perror("Failed to set SO_BROADCAST option to socket");
+        DAWN_LOG_ERROR("Failed to set SO_BROADCAST option to socket: %s", strerror(errno));
         goto error;
     }
 
@@ -28,7 +30,7 @@ int setup_broadcast_socket(const char *broadcast_ip, unsigned short broadcast_po
     addr->sin_port = htons(broadcast_port);
 
     if (bind(sock, (struct sockaddr *) addr, sizeof (*addr)) != 0) {
-        perror("Socket binding failed");
+        DAWN_LOG_ERROR("Failed to bind address to socket: %s", strerror(errno));
         goto error;
     }
 

@@ -2,6 +2,7 @@
 #define DAWN_BROADCASTSOCKET_H
 
 #include <arpa/inet.h>
+#include <stdint.h>
 
 /**
  * Function that setups a broadcast socket.
@@ -10,6 +11,6 @@
  * @param addr The sockaddr_in struct.
  * @return the socket that was created.
  */
-int setup_broadcast_socket(const char *broadcast_ip, unsigned short broadcast_port, struct sockaddr_in *addr);
+int dawn_setup_broadcast_socket(const char *broadcast_ip, uint16_t broadcast_port, struct sockaddr_in *addr);
 
 #endif /* DAWN_BROADCASTSOCKET_H */
