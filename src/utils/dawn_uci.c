@@ -5,6 +5,7 @@
 #include "crypto.h"
 #include "datastorage.h"
 #include "dawn_iwinfo.h"
+#include "dawn_log.h"
 #include "dawn_uci.h"
 #include "memory_utils.h"
 
@@ -156,6 +157,8 @@ bool uci_get_dawn_network(struct network_config_s *network_config)
     network_config->tcp_port = uci_lookup_option_int(uci_ctx, network, "tcp_port", 1026);
     network_config->use_symm_enc = uci_lookup_option_int(uci_ctx, network, "use_symm_enc", 1);
     network_config->collision_domain = uci_lookup_option_int(uci_ctx, network, "collision_domain", -1);
+    network_config->log_level = uci_lookup_option_int(uci_ctx, network, "log_level", DAWN_LOG_LEVEL_WARNING);
+    dawn_set_log_level(network_config->log_level);
 
     return true;
 }
