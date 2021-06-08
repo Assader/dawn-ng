@@ -21,13 +21,12 @@ static int sock;
 static struct sockaddr_in addr;
 static char recv_buff[MAX_RECV_LENGTH];
 static pthread_mutex_t send_mutex;
+static pthread_t sniffer_thread;
 
 static void *receive_msg(void *args);
 
 bool dawn_init_network(const char *ip, uint16_t port, int sock_type)
 {
-    pthread_t sniffer_thread;
-
     sock = ((sock_type == DAWN_SOCKET_MULTICAST)?
                 dawn_setup_multicast_socket : dawn_setup_broadcast_socket)(ip, port, &addr);
     if (sock == -1) {
@@ -80,9 +79,10 @@ exit:
     return err;
 }
 
-void close_socket(void)
+void dawn_deinit_network(void)
 {
-    /* TODO: rcv thread could be canceled here. */
+    pthread_cancel(sniffer_thread);
+    pthread_join(sniffer_thread, NULL);
     close(sock);
 }
 

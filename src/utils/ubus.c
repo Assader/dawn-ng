@@ -672,7 +672,7 @@ int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
 
     uloop_run();
 
-    close_socket();
+    dawn_deinit_network();
     ubus_free(ctx);
     dawn_unregmem(ctx);
     uloop_done();

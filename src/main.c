@@ -89,7 +89,7 @@ static void signal_handler(int sig)
 static void dawn_shutdown(void)
 {
     /* kill threads */
-    close_socket();
+    dawn_deinit_network();
     uci_clear();
     uloop_end();
     destroy_mutex();
