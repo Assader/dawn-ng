@@ -1,29 +1,30 @@
-#include <libubox/blobmsg_json.h>
-#include <pthread.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <errno.h>
 #include <string.h>
+#include <sys/socket.h>
+#include <pthread.h>
+#include <unistd.h>
 
 #include "broadcastsocket.h"
 #include "crypto.h"
 #include "datastorage.h"
+#include "dawn_log.h"
 #include "memory_utils.h"
 #include "msghandler.h"
 #include "multicastsocket.h"
 #include "networksocket.h"
 
 enum {
-    MAX_RECV_STRING = 2048
+    MAX_RECV_LENGTH = 2048
 };
 
 static int sock;
 static struct sockaddr_in addr;
-static char recv_string[MAX_RECV_STRING + 1];
+static char recv_buff[MAX_RECV_LENGTH];
 static pthread_mutex_t send_mutex;
 
 static void *receive_msg(void *args);
 
-bool init_network_socket(const char *ip, uint16_t port, int sock_type)
+bool dawn_init_network(const char *ip, uint16_t port, int sock_type)
 {
     pthread_t sniffer_thread;
 
@@ -33,13 +34,13 @@ bool init_network_socket(const char *ip, uint16_t port, int sock_type)
         return false;
     }
 
-    if (pthread_create(&sniffer_thread, NULL, receive_msg, NULL)) {
-        fprintf(stderr, "Failed to create receiving thread!\n");
+    if (pthread_create(&sniffer_thread, NULL, receive_msg, NULL) != 0) {
+        DAWN_LOG_ERROR("Failed to create receiving thread");
         close(sock);
         return false;
     }
 
-    printf("Connected to %s:%d\n", ip, port);
+    DAWN_LOG_INFO("Network init done. Operating on %s:%d", ip, port);
 
     return true;
 }
@@ -55,7 +56,6 @@ int send_string(const char *msg)
 
         enc = gcrypt_encrypt_msg(msg, msglen, &enc_length);
         if (enc == NULL) {
-            fprintf(stderr, "Failed to encrypt message!\n");
             goto exit;
         }
 
@@ -67,7 +67,7 @@ int send_string(const char *msg)
 
     err = sendto(sock, msg, msglen, 0, (struct sockaddr *) &addr, sizeof (addr));
     if (err == -1) {
-        perror("Failed to send network message");
+        DAWN_LOG_ERROR("Failed to send network message: %d", strerror(errno));
     }
 
     pthread_mutex_unlock(&send_mutex);
@@ -89,17 +89,16 @@ void close_socket(void)
 _Noreturn static void *receive_msg(void *args)
 {
     while (true) {
-        char *msg = recv_string;
+        char *msg = recv_buff;
 
-        int rcv_len = recvfrom(sock, msg, MAX_RECV_STRING, 0, NULL, 0);
+        int rcv_len = recvfrom(sock, msg, MAX_RECV_LENGTH, 0, NULL, 0);
         if (rcv_len == -1) {
-            fprintf(stderr, "Failed to receive message!\n");
+            DAWN_LOG_ERROR("Failed to receive message");
             continue;
         }
 
         if (network_config.use_symm_enc) {
             if (!gcrypt_decrypt_msg(msg, rcv_len)) {
-                fprintf(stderr, "Failed to decrypt message!\n");
                 continue;
             }
         }

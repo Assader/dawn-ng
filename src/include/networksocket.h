@@ -17,7 +17,7 @@ enum {
  * @param sock_type
  * @return true if init was successfull, false otherwise.
  */
-bool init_network_socket(const char *ip, uint16_t port, int sock_type);
+bool dawn_init_network(const char *ip, uint16_t port, int sock_type);
 
 /**
  * @brief send_string
