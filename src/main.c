@@ -61,7 +61,7 @@ static void connect_signals(void)
     struct sigaction signal_action = {0};
 
     signal_action.sa_handler = signal_handler;
-    sigaction(SIGHUP, &signal_action, NULL);
+    sigaction(SIGUSR1, &signal_action, NULL);
     sigaction(SIGTERM, &signal_action, NULL);
     sigaction(SIGINT, &signal_action, NULL);
     signal(SIGPIPE, SIG_IGN);
@@ -70,18 +70,14 @@ static void connect_signals(void)
 static void signal_handler(int sig)
 {
     switch (sig) {
-    case SIGHUP:
-        /* dawn_shutdown(); */
+    case SIGUSR1:
         dawn_memory_audit();
         break;
     case SIGINT:
-        dawn_shutdown();
-        break;
     case SIGTERM:
         dawn_shutdown();
-        exit(EXIT_SUCCESS);
+        break;
     default:
-        dawn_shutdown();
         break;
     }
 }
