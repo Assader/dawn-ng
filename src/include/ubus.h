@@ -16,6 +16,8 @@
  */
 int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir);
 
+void dawn_reload_config(void);
+
 void ubus_send_beacon_report(struct dawn_mac client, int id);
 int parse_add_mac_to_file(struct blob_attr *msg);
 

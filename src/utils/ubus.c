@@ -1153,14 +1153,8 @@ static int add_mac(struct ubus_context *ctx, struct ubus_object *obj,
     return 0;
 }
 
-static int reload_config(struct ubus_context *ctx, struct ubus_object *obj,
-                         struct ubus_request_data *req, const char *method,
-                         struct blob_attr *msg)
+void dawn_reload_config(void)
 {
-    int ret;
-
-    blob_buf_init(&b, 0);
-
     uci_reset();
     uci_get_dawn_metric(&dawn_metric);
     uci_get_dawn_intervals(&timeout_config);
@@ -1172,6 +1166,18 @@ static int reload_config(struct ubus_context *ctx, struct ubus_object *obj,
     }
 
     uci_send_via_network();
+}
+
+static int reload_config(struct ubus_context *ctx, struct ubus_object *obj,
+                         struct ubus_request_data *req, const char *method,
+                         struct blob_attr *msg)
+{
+    int ret;
+
+    dawn_reload_config();
+
+    blob_buf_init(&b, 0);
+
     ret = ubus_send_reply(ctx, req, b.head);
     if (ret) {
         fprintf(stderr, "Failed to send reply: %s\n", ubus_strerror(ret));
