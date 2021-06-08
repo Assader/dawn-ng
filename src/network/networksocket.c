@@ -28,7 +28,7 @@ bool init_network_socket(const char *ip, uint16_t port, int sock_type)
     pthread_t sniffer_thread;
 
     sock = ((sock_type == DAWN_SOCKET_MULTICAST)?
-                setup_multicast_socket : dawn_setup_broadcast_socket)(ip, port, &addr);
+                dawn_setup_multicast_socket : dawn_setup_broadcast_socket)(ip, port, &addr);
     if (sock == -1) {
         return false;
     }
