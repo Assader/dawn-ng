@@ -35,7 +35,7 @@ char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length);
  * @param msg_length
  * @return the decrypted string.
  */
-char *gcrypt_decrypt_msg(const char *msg, size_t msg_length);
+bool gcrypt_decrypt_msg(char *msg, size_t msg_length);
 
 void secure_zero(void *s, size_t n);
 

@@ -95,32 +95,23 @@ exit:
     return out;
 }
 
-char *gcrypt_decrypt_msg(const char *msg, size_t msg_length)
+bool gcrypt_decrypt_msg(char *msg, size_t msg_length)
 {
     size_t blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
     gcry_error_t err;
-    char *out = NULL;
 
     if ((msg_length & (blklen - 1u)) != 0u) {
         DAWN_LOG_ERROR("Message length does not fit alignment requirements! Won't decrypt");
-        goto exit;
+        return false;
     }
 
-    out = dawn_malloc(msg_length);
-    if (out == NULL) {
-        DAWN_LOG_ERROR("Failed to allocate memory");
-        goto exit;
-    }
-
-    err = gcry_cipher_decrypt(gcry_cipher_hd, out, msg_length, msg, msg_length);
+    err = gcry_cipher_decrypt(gcry_cipher_hd, msg, msg_length, NULL, 0);
     if (err != GPG_ERR_NO_ERROR) {
         DAWN_LOG_ERROR("Failed to decrypt message: %s/%s", gcry_strsource(err), gcry_strerror(err));
-        dawn_free(out);
-        out = NULL;
+        return false;
     }
 
-exit:
-    return out;
+    return true;
 }
 
 /* I'd like to use memset_s, but for compatibility reasons... */

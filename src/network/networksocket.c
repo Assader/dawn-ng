@@ -98,21 +98,12 @@ _Noreturn static void *receive_msg(void *args)
         }
 
         if (network_config.use_symm_enc) {
-            char *dec;
-
-            dec = gcrypt_decrypt_msg(recv_string, rcv_len);
-            if (dec == NULL) {
+            if (!gcrypt_decrypt_msg(msg, rcv_len)) {
                 fprintf(stderr, "Failed to decrypt message!\n");
                 continue;
             }
-
-            msg = dec;
         }
 
         handle_network_msg(msg);
-
-        if (network_config.use_symm_enc) {
-            dawn_free(msg);
-        }
     }
 }

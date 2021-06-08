@@ -163,17 +163,14 @@ static void client_read_cb(struct ustream *s, int bytes)
 
             if (network_config.use_symm_enc) {
                 /* Len of str is final_len */
-                char *dec = gcrypt_decrypt_msg(cl->str, cl->final_len);
-                if (dec == NULL) {
+                if (!gcrypt_decrypt_msg(cl->str, cl->final_len)) {
                     fprintf(stderr, "Failed to decrypt message (%d)\n", __LINE__);
                     goto cleanup;
                 }
-                handle_network_msg(dec);
-                dawn_free(dec);
             }
-            else {
-                handle_network_msg(cl->str);
-            }
+
+            handle_network_msg(cl->str);
+
 cleanup:
             cl->state = READ_STATUS_READY;
             cl->curr_len = 0;
