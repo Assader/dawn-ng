@@ -134,7 +134,6 @@ static inline struct client_s **client_skip_array_find_first_entry(
                              check_bssid, offsetof(struct client_s, next_skip_entry_bc));
 }
 
-#ifndef DAWN_CLIENT_SCAN_BC_ONLY
 /* Manage a list of client entries srted by client MAC only */
 static inline client **client_find_first_c_entry(struct dawn_mac client_mac)
 {
@@ -143,7 +142,6 @@ static inline client **client_find_first_c_entry(struct dawn_mac client_mac)
                              client_mac.u8, offsetof(client, client_addr),
                              NULL, 0, false, offsetof(client, next_entry_c));
 }
-#endif
 
 static inline auth_entry **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac)
 {
@@ -310,7 +308,7 @@ static bool compare_station_count(ap *ap_entry_own, ap *ap_entry_to_compare, str
 
     printf("Comparing own station count %d to %d\n", sta_count, sta_count_to_compare);
 
-    return sta_count - sta_count_to_compare > dawn_metric.max_station_diff;
+    return (sta_count - sta_count_to_compare) > dawn_metric.max_station_diff;
 }
 
 int better_ap_available(ap *kicking_ap, struct dawn_mac client_mac, char *neighbor_report)
@@ -353,30 +351,24 @@ int better_ap_available(ap *kicking_ap, struct dawn_mac client_mac, char *neighb
         int score_to_compare = eval_probe_metric(i, candidate_ap);
         printf("AP we're comparing with has score %d\n", score_to_compare);
 
-        /* Find better score... */
         if (score_to_compare > max_score) {
-            if (neighbor_report == NULL) {
-                fprintf(stderr, "Neigbor-Report is NULL!\n");
-                return 1; /* TODO: Should this be -1? */
-            }
-
             kick = true;
 
-            /* Instead of returning we append a neighbor report list... */
+            if (neighbor_report == NULL) {
+                break;
+            }
+
             strncpy(neighbor_report, candidate_ap->neighbor_report, NEIGHBOR_REPORT_LEN);
 
             max_score = score_to_compare;
         }
-        /* if ap have same value but station count is different... */
-        /* TODO: Is absolute number meaningful when AP have diffeent capacity? */
         else if (score_to_compare == max_score && dawn_metric.use_station_count) {
             if (compare_station_count(kicking_ap, candidate_ap, client_mac)) {
-                if (neighbor_report == NULL) {
-                    fprintf(stderr, "Neigbor-Report is NULL!\n");
-                    return 1; /* TODO: Should this be -1? */
-                }
-
                 kick = true;
+
+                if (neighbor_report == NULL) {
+                    break;
+                }
 
                 strncpy(neighbor_report, candidate_ap->neighbor_report, NEIGHBOR_REPORT_LEN);
             }
@@ -415,7 +407,7 @@ int kick_clients(ap *kicking_ap, uint32_t id)
             continue;
         }
 
-        char neighbor_report[NEIGHBOR_REPORT_LEN + 1] = "";
+        char neighbor_report[NEIGHBOR_REPORT_LEN + 1] = {""};
         bool do_kick = kick_client(kicking_ap, j, neighbor_report);
 
         printf("Chosen AP %s\n", neighbor_report);
@@ -497,14 +489,6 @@ void update_iw_info(struct dawn_mac bssid)
 
 static bool is_connected_somehwere(struct dawn_mac client_addr)
 {
-#ifndef DAWN_CLIENT_SCAN_BC_ONLY
-#else
-    client *i = client_set_bc;
-    while (i != NULL && !mac_is_equal_bb(client_addr, i->client_addr)) {
-        i = i->next_entry_bc;
-    }
-#endif
-
     return *client_find_first_c_entry(client_addr) != NULL;
 }
 
@@ -529,11 +513,9 @@ static void client_array_insert(client *entry, client **insert_pos)
     entry->next_entry_bc = *insert_pos;
     *insert_pos = entry;
 
-#ifndef DAWN_CLIENT_SCAN_BC_ONLY
     insert_pos = client_find_first_c_entry(entry->client_addr);
     entry->next_entry_c = *insert_pos;
     *insert_pos = entry;
-#endif
 
     client_entry_last++;
 
@@ -546,18 +528,6 @@ static void client_array_insert(client *entry, client **insert_pos)
 
 client *client_array_get_client(const struct dawn_mac client_addr)
 {
-    /* pthread_mutex_lock(&client_array_mutex); */
-
-#ifndef DAWN_CLIENT_SCAN_BC_ONLY
-#else
-    client *ret = client_set_bc;
-    while (ret != NULL && !mac_is_equal_bb(client_addr, ret->client_addr)) {
-        ret = ret->next_entry_bc;
-    }
-#endif
-
-    /* pthread_mutex_unlock(&client_array_mutex); */
-
     return *client_find_first_c_entry(client_addr);
 }
 
@@ -575,21 +545,18 @@ static client *client_array_unlink_entry(client **ref_bc, int unlink_only)
     }
 
     /* Accident of history that we always pass in the _bc ref, so need to find _c ref */
-#ifndef DAWN_CLIENT_SCAN_BC_ONLY
     client **ref_c = &client_set_c;
     while (*ref_c != NULL && *ref_c != entry)
         ref_c = &((*ref_c)->next_entry_c);
 
     *ref_c = entry->next_entry_c;
-#endif
+
     *ref_bc = entry->next_entry_bc;
     client_entry_last--;
 
     if (unlink_only) {
         entry->next_entry_bc = NULL;
-#ifndef DAWN_CLIENT_SCAN_BC_ONLY
         entry->next_entry_c = NULL;
-#endif
     }
     else {
         dawn_free(entry);

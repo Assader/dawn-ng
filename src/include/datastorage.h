@@ -159,9 +159,7 @@ enum {
 typedef struct client_s {
     struct client_s *next_entry_bc;
     struct client_s *next_skip_entry_bc;
-#ifndef DAWN_CLIENT_SCAN_BC_ONLY
     struct client_s *next_entry_c;
-#endif
     struct dawn_mac bssid_addr;
     struct dawn_mac client_addr;
     char signature[SIGNATURE_LEN]; /* TODO: Never evaluated? */
