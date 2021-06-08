@@ -82,6 +82,7 @@ struct network_config_s {
     int network_option;
     int use_symm_enc;
     int collision_domain;
+    int log_level;
 };
 
 extern struct network_config_s network_config;
