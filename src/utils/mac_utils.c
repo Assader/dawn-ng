@@ -1,8 +1,6 @@
-#include <ctype.h>
 #include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 
+#include "dawn_log.h"
 #include "mac_utils.h"
 
 /* source: https://elixir.bootlin.com/linux/v4.9/source/lib/hexdump.c#L28
@@ -59,7 +57,7 @@ void write_mac_to_file(const char *path, struct dawn_mac addr)
 {
     FILE *f = fopen(path, "a");
     if (f == NULL) {
-        fprintf(stderr, "Error opening mac file!\n");
+        DAWN_LOG_ERROR("Failed to open mac file");
         return;
     }
 
