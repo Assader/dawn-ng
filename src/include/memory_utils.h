@@ -4,7 +4,7 @@
 #include <stdlib.h>
 
 enum dawn_memop {
-    DAWN_MALLOC,
+    DAWN_MALLOC = 0,
     DAWN_CALLOC,
     DAWN_REALLOC,
     DAWN_MEMREG,

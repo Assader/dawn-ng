@@ -1,9 +1,7 @@
-#include <inttypes.h>
 #include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 
+#include "dawn_log.h"
 #include "memory_utils.h"
 
 enum {
@@ -54,13 +52,12 @@ void *dawn_memory_alloc(enum dawn_memop type, const char *file, int line, size_t
 
 void *dawn_memory_register(enum dawn_memop type, const char *file, int line, size_t size, void *ptr)
 {
-    void *ret = NULL;
     struct mem_list *this_log = NULL;
     char type_c = '?';
 
     /* Ignore over enthusiastic effort to register a failed allocation */
     if (ptr == NULL) {
-        return ret;
+        goto exit;
     }
 
     switch (type) {
@@ -77,7 +74,7 @@ void *dawn_memory_register(enum dawn_memop type, const char *file, int line, siz
         type_c = 'X';
         break;
     default:
-        printf("mem-audit: Unexpected memory op tag!\n");
+        DAWN_LOG_WARNING("Unexpected memory operation tag");
         break;
     }
 
@@ -88,46 +85,43 @@ void *dawn_memory_register(enum dawn_memop type, const char *file, int line, siz
     }
 
     if (*ipos != NULL && (*ipos)->ptr == ptr) {
-        printf("mem-audit: attempting to register memory already registered (%c@%s:%d)...\n", type_c, file, line);
+        DAWN_LOG_WARNING("Attempting to register memory already registered (%c@%s:%d)...\n", type_c, file, line);
     }
     else {
         this_log = malloc(sizeof (struct mem_list));
         if (this_log == NULL) {
-            printf("mem-audit: Oh the irony! malloc() failed in dawn_memory_register()!\n");
+            DAWN_LOG_WARNING("Oh the irony! malloc() failed in dawn_memory_register()");
+            goto exit;
+        }
+
+        this_log->next_mem = *ipos;
+        *ipos = this_log;
+
+        /* Just use filename - no path */
+        file = strrchr(file, '/');
+
+        if (file != NULL) {
+            strncpy(this_log->file, file + 1, DAWN_MEM_FILENAME_LEN);
         }
         else {
-            this_log->next_mem = *ipos;
-            *ipos = this_log;
-
-            /* Just use filename - no path */
-            file = strrchr(file, '/');
-
-            if (file != NULL) {
-                strncpy(this_log->file, file + 1, DAWN_MEM_FILENAME_LEN);
-            }
-            else {
-                strncpy(this_log->file, "?? UNKNOWN ??", DAWN_MEM_FILENAME_LEN);
-            }
-
-            this_log->type = type_c;
-            this_log->line = line;
-            this_log->ptr = ptr;
-            this_log->size = size;
-            this_log->ref = alloc_ref++;
+            strncpy(this_log->file, "?? UNKNOWN ??", DAWN_MEM_FILENAME_LEN);
         }
+
+        this_log->type = type_c;
+        this_log->line = line;
+        this_log->ptr = ptr;
+        this_log->size = size;
+        this_log->ref = alloc_ref++;
     }
 
-    return ret;
+exit:
+    return ptr;
 }
 
 void dawn_memory_unregister(enum dawn_memop type, const char *file, int line, void *ptr)
 {
     struct mem_list **mem = &mem_base;
     char type_c = '?';
-
-    while (*mem != NULL && (*mem)->ptr < ptr) {
-        mem = &((*mem)->next_mem);
-    }
 
     switch (type) {
     case DAWN_FREE:
@@ -140,8 +134,12 @@ void dawn_memory_unregister(enum dawn_memop type, const char *file, int line, vo
         type_c = 'R';
         break;
     default:
-        printf("mem-audit: Unexpected memory op tag!\n");
+        DAWN_LOG_WARNING("Unexpected memory operation tag");
         break;
+    }
+
+    while (*mem != NULL && (*mem)->ptr < ptr) {
+        mem = &((*mem)->next_mem);
     }
 
     if (*mem != NULL && (*mem)->ptr == ptr) {
@@ -150,7 +148,7 @@ void dawn_memory_unregister(enum dawn_memop type, const char *file, int line, vo
         free(tmp);
     }
     else {
-        printf("mem-audit: Releasing (%c) memory we hadn't registered (%s:%d)...\n", type_c, file, line);
+        DAWN_LOG_WARNING("Releasing (%c) memory we hadn't registered (%s:%d)...", type_c, file, line);
     }
 
     return;
@@ -166,9 +164,9 @@ void dawn_memory_audit(void)
 {
     size_t total = 0;
 
-    printf("mem-audit: Currently recorded allocations...\n");
+    DAWN_LOG_DEBUG("Listing currently recorded allocations...");
     for (struct mem_list *mem = mem_base; mem != NULL; mem = mem->next_mem) {
-        printf("mem-audit: %8" PRIu64 "=%c - %s@%d: %zu\n", mem->ref, mem->type, mem->file, mem->line, mem->size);
+        DAWN_LOG_DEBUG(" - %8ull - %c@%s:d %zu\n", mem->ref, mem->type, mem->file, mem->line, mem->size);
         total += mem->size;
     }
 
@@ -178,5 +176,5 @@ void dawn_memory_audit(void)
         suffix = "kbytes";
     }
 
-    printf("mem-audit: [End of list: %zu %s]\n", total, suffix);
+    DAWN_LOG_DEBUG("End of list: %zu %s", total, suffix);
 }
