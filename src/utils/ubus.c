@@ -515,7 +515,7 @@ static int handle_assoc_req(struct blob_attr *msg)
 static int handle_probe_req(struct blob_attr *msg)
 {
     /* MUSTDO: Untangle dawn_malloc() and linking of probe_entry */
-    probe_entry *probe_req = handle_hostapd_probe_req(msg),
+    probe_entry *probe_req = handle_hostapd_probe_request(msg),
             *probe_req_updated = NULL;
 
     if (probe_req != NULL) {
@@ -622,7 +622,7 @@ static int hostapd_notify(struct ubus_context *ctx, struct ubus_object *obj,
     }
     else if (strcmp(method, "deauth") == 0) {
         send_blob_attr_via_network(b_notify.head, "deauth");
-        return handle_deauth_req(b_notify.head);
+        return handle_hostapd_deauth_request(b_notify.head);
     }
     else if (strcmp(method, "beacon-report") == 0) {
         return handle_beacon_rep(b_notify.head);
@@ -730,7 +730,7 @@ static void ubus_get_clients_cb(struct ubus_request *req, int type, struct blob_
 
     send_blob_attr_via_network(b_domain.head, "clients");
     /* TODO: Have we just bit-packed data to send to something locally to unpack it again?  Performance / scalability? */
-    handle_hostapd_clients_msg(b_domain.head, 1, req->peer);
+    handle_hostapd_clients_message(b_domain.head, 1, req->peer);
 
     print_client_array();
     print_ap_array();

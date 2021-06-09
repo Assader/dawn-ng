@@ -1,7 +1,7 @@
-#include <libubus.h>
+#include <libubox/blobmsg_json.h>
 
-#include "datastorage.h"
 #include "dawn_uci.h"
+#include "dawn_log.h"
 #include "memory_utils.h"
 #include "msghandler.h"
 #include "ubus.h"
@@ -124,42 +124,113 @@ static const struct blobmsg_policy client_policy[__CLIENT_MAX] = {
     [CLIENT_RRM] = {.name = "rrm", .type = BLOBMSG_TYPE_ARRAY},
 };
 
-static int handle_set_probe(struct blob_attr *msg);
-static int handle_uci_config(struct blob_attr *msg);
+static void handle_set_probe(struct blob_attr *message);
+static int handle_uci_config(struct blob_attr *message);
+static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry *notify_req);
+static uint8_t dump_rrm_table(struct blob_attr *head, int len);
+static uint8_t dump_rrm_data(void *data, int len, int type);
+static int dump_client_table(struct blob_attr *head, int len, const char *bssid_addr,
+                             uint32_t freq, uint8_t ht_supported, uint8_t vht_supported);
+static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
+                        const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
+                        uint8_t vht_supported);
 
-bool handle_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_req)
+bool handle_network_message(const char *message)
 {
-    struct blob_attr *tb[__HOSTAPD_NOTIFY_MAX];
+    struct blob_attr *tb[__NETWORK_MAX];
+    char *method, *data;
+    bool result = false;
 
-    blobmsg_parse(hostapd_notify_policy, __HOSTAPD_NOTIFY_MAX, tb, blob_data(msg), blob_len(msg));
+    blob_buf_init(&network_buf, 0);
+    blobmsg_add_json_from_string(&network_buf, message);
 
-    if (!tb[HOSTAPD_NOTIFY_BSSID_ADDR] || !tb[HOSTAPD_NOTIFY_CLIENT_ADDR]) {
-        return false;
+    blobmsg_parse(network_policy, __NETWORK_MAX, tb, blob_data(network_buf.head), blob_len(network_buf.head));
+
+    if (!tb[NETWORK_METHOD] || !tb[NETWORK_DATA]) {
+        DAWN_LOG_ERROR("Failed to parse network message");
+        goto exit;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID_ADDR]), notify_req->bssid_addr.u8)) {
-        return false;
+    method = blobmsg_data(tb[NETWORK_METHOD]);
+    data = blobmsg_data(tb[NETWORK_DATA]);
+
+    DAWN_LOG_DEBUG("Handling network message: %s / %s", method, message);
+
+    blob_buf_init(&data_buf, 0);
+    blobmsg_add_json_from_string(&data_buf, data);
+
+    if (data_buf.head == NULL || blob_len(data_buf.head) <= 0 || strlen(method) < 2) {
+        DAWN_LOG_ERROR("Data field of network message is corrupt");
+        goto exit;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->client_addr.u8)) {
-        return false;
+    /* Add inactive death... */
+
+    if (strcmp(method, "probe") == 0) {
+        DAWN_LOG_INFO("Handling `probe' message");
+        probe_entry *entry = handle_hostapd_probe_request(data_buf.head);
+        if (entry != NULL) {
+            if (entry != insert_to_array(entry, false, true, false, time(NULL))) { /* Use 802.11k values */
+                /* Insert found an existing entry, rather than linking in our new one */
+                dawn_free(entry);
+            }
+        }
+    }
+    else if (strcmp(method, "clients") == 0) {
+        DAWN_LOG_INFO("Handling `clients' message");
+        handle_hostapd_clients_message(data_buf.head, 0, 0);
+    }
+    else if (strcmp(method, "deauth") == 0) {
+        DAWN_LOG_INFO("Handling `deauth' message");
+        handle_hostapd_deauth_request(data_buf.head);
+    }
+    else if (strcmp(method, "setprobe") == 0) {
+        DAWN_LOG_INFO("Handling `setprobe' message");
+        handle_set_probe(data_buf.head);
+    }
+    else if (strcmp(method, "addmac") == 0) {
+        DAWN_LOG_INFO("Handling `addmac' message");
+        parse_add_mac_to_file(data_buf.head);
+    }
+    else if (strcmp(method, "macfile") == 0) {
+        DAWN_LOG_INFO("Handling `macfile' message");
+        parse_add_mac_to_file(data_buf.head);
+    }
+    else if (strcmp(method, "uci") == 0) {
+        DAWN_LOG_INFO("Handling `uci' message");
+        handle_uci_config(data_buf.head);
+    }
+    else if (strcmp(method, "beacon-report") == 0) {
+        DAWN_LOG_INFO("Handling `beacon-report' message");
+        /* TODO: Check beacon report stuff */
+
+        /*printf("HANDLING BEACON REPORT NETWORK!\n");
+        printf("The Method for beacon-report is: %s\n", method);
+         ignore beacon reports send via network!, use probe functions for it
+        probe_entry entry; // for now just stay at probe entry stuff...
+        parse_to_beacon_rep(data_buf.head, &entry, true); */
+    }
+    else {
+        DAWN_LOG_WARNING("No handler fonud for `%s' method", method);
     }
 
-    return true;
+    result = true;
+exit:
+    return result;
 }
 
-probe_entry *handle_hostapd_probe_req(struct blob_attr *msg)
+probe_entry *handle_hostapd_probe_request(struct blob_attr *message)
 {
     struct blob_attr *tb[__PROBE_MAX];
     probe_entry *probe_req;
 
     probe_req = dawn_calloc(1, sizeof (probe_entry));
     if (probe_req == NULL) {
-        fprintf(stderr, "Failed to allocate memory!\n");
+        DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;
     }
 
-    blobmsg_parse(probe_policy, __PROBE_MAX, tb, blob_data(msg), blob_len(msg));
+    blobmsg_parse(probe_policy, __PROBE_MAX, tb, blob_data(message), blob_len(message));
 
     if (!tb[PROBE_BSSID_ADDR] || !tb[PROBE_CLIENT_ADDR] || !tb[PROBE_TARGET_ADDR]) {
         goto error;
@@ -210,11 +281,12 @@ probe_entry *handle_hostapd_probe_req(struct blob_attr *msg)
 exit:
     return probe_req;
 error:
+    DAWN_LOG_ERROR("Failed to parse hostapd probe request");
     dawn_free(probe_req);
     return NULL;
 }
 
-int handle_deauth_req(struct blob_attr *msg)
+int handle_hostapd_deauth_request(struct blob_attr *msg)
 {
     hostapd_notify_entry notify_req;
 
@@ -224,133 +296,165 @@ int handle_deauth_req(struct blob_attr *msg)
 
     client *client_entry = client_array_get_client(notify_req.client_addr);
     if (client_entry != NULL) {
+        DAWN_LOG_INFO("Client " MACSTR " deauth from " MACSTR,
+                      MAC2STR(client_entry->client_addr.u8), MAC2STR(client_entry->bssid_addr.u8));
         client_array_delete(client_entry, false);
     }
 
     pthread_mutex_unlock(&client_array_mutex);
 
-    printf("[WC] Deauth: %s\n", "deauth");
-
     return 0;
 }
 
-static int handle_set_probe(struct blob_attr *msg)
+bool handle_hostapd_clients_message(struct blob_attr *message, int do_kick, uint32_t id)
+{
+    struct blob_attr *tb[__CLIENT_TABLE_MAX];
+    bool result = false;
+
+    if (message == NULL || blob_data(message) == NULL || blob_len(message) <= 0) {
+        DAWN_LOG_ERROR("Failed to parse hostapd clients message");
+        goto exit;
+    }
+
+    blobmsg_parse(client_table_policy, __CLIENT_TABLE_MAX, tb, blob_data(message), blob_len(message));
+
+    if (!tb[CLIENT_TABLE] || !tb[CLIENT_TABLE_BSSID] || !tb[CLIENT_TABLE_FREQ]) {
+        DAWN_LOG_ERROR("Failed parse hostapd clients message");
+        goto exit;
+    }
+
+    int num_stations =
+            dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
+                              blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
+                              blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
+
+    ap *ap_entry = dawn_calloc(1, sizeof (struct ap_s));
+    if (ap_entry == NULL) {
+        DAWN_LOG_ERROR("Failed to allocate memory");
+        goto exit;
+    }
+
+    hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid_addr.u8);
+    ap_entry->freq = blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]);
+
+    if (tb[CLIENT_TABLE_HT]) {
+        ap_entry->ht_support = blobmsg_get_u8(tb[CLIENT_TABLE_HT]);
+    }
+    if (tb[CLIENT_TABLE_VHT]) {
+        ap_entry->vht_support = blobmsg_get_u8(tb[CLIENT_TABLE_VHT]);
+    }
+
+    if (tb[CLIENT_TABLE_CHAN_UTIL]) {
+        ap_entry->channel_utilization = blobmsg_get_u32(tb[CLIENT_TABLE_CHAN_UTIL]);
+    }
+    else {
+        /* if this is not existing set to 0?
+        TODO: Consider setting to a value that will not mislead eval_probe_metric(), eg dawn_metric.chan_util_val? */
+        ap_entry->channel_utilization = 0;
+    }
+
+    if (tb[CLIENT_TABLE_SSID]) {
+        strcpy((char *) ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
+    }
+
+    if (tb[CLIENT_TABLE_COL_DOMAIN]) {
+        ap_entry->collision_domain = blobmsg_get_u32(tb[CLIENT_TABLE_COL_DOMAIN]);
+    }
+    else {
+        ap_entry->collision_domain = -1;
+    }
+
+    if (tb[CLIENT_TABLE_BANDWIDTH]) {
+        ap_entry->bandwidth = blobmsg_get_u32(tb[CLIENT_TABLE_BANDWIDTH]);
+    }
+    else {
+        ap_entry->bandwidth = -1;
+    }
+
+    ap_entry->station_count = num_stations;
+
+    if (tb[CLIENT_TABLE_WEIGHT]) {
+        ap_entry->ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_WEIGHT]);
+    }
+
+    if (tb[CLIENT_TABLE_NEIGHBOR]) {
+        strncpy(ap_entry->neighbor_report, blobmsg_get_string(tb[CLIENT_TABLE_NEIGHBOR]), NEIGHBOR_REPORT_LEN);
+    }
+
+    if (tb[CLIENT_TABLE_IFACE]) {
+        strncpy(ap_entry->iface, blobmsg_get_string(tb[CLIENT_TABLE_IFACE]), MAX_INTERFACE_NAME);
+    }
+
+    if (tb[CLIENT_TABLE_HOSTNAME]) {
+        strncpy(ap_entry->hostname, blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]), HOST_NAME_MAX);
+    }
+
+    insert_to_ap_array(ap_entry, time(NULL));
+
+    if (do_kick && behaviour_config.kicking) {
+        update_iw_info(ap_entry->bssid_addr);
+        kick_clients(ap_entry, id);
+    }
+
+    result = true;
+exit:
+    return result;
+}
+
+static void handle_set_probe(struct blob_attr *message)
 {
     hostapd_notify_entry notify_req;
 
-    handle_hostapd_notify(msg, &notify_req);
+    handle_hostapd_notify(message, &notify_req);
 
-    probe_array_set_all_probe_count(notify_req.client_addr, metric_config.min_probe_count);
-
-    return 0;
+    probe_array_set_all_probe_count(notify_req.client_addr, behaviour_config.min_probe_count);
 }
 
-int handle_network_msg(char *msg)
+static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry *notify_req)
 {
-    struct blob_attr *tb[__NETWORK_MAX];
-    char *method, *data;
-    int ret = -1;
+    struct blob_attr *tb[__HOSTAPD_NOTIFY_MAX];
 
-    blob_buf_init(&network_buf, 0);
-    blobmsg_add_json_from_string(&network_buf, msg);
+    blobmsg_parse(hostapd_notify_policy, __HOSTAPD_NOTIFY_MAX, tb, blob_data(message), blob_len(message));
 
-    blobmsg_parse(network_policy, __NETWORK_MAX, tb, blob_data(network_buf.head), blob_len(network_buf.head));
-
-    if (!tb[NETWORK_METHOD] || !tb[NETWORK_DATA]) {
-        goto exit;
+    if (!tb[HOSTAPD_NOTIFY_BSSID_ADDR] || !tb[HOSTAPD_NOTIFY_CLIENT_ADDR]) {
+        return false;
     }
 
-    method = blobmsg_data(tb[NETWORK_METHOD]);
-    data = blobmsg_data(tb[NETWORK_DATA]);
-
-    printf("Network Method new: %s : %s\n", method, msg);
-
-    blob_buf_init(&data_buf, 0);
-    blobmsg_add_json_from_string(&data_buf, data);
-
-    if (data_buf.head == NULL) {
-        goto exit;
+    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID_ADDR]), notify_req->bssid_addr.u8)) {
+        return false;
     }
 
-    if (blob_len(data_buf.head) <= 0) {
-        goto exit;
+    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->client_addr.u8)) {
+        return false;
     }
 
-    if (strlen(method) < 2) {
-        goto exit;
-    }
+    return true;
+}
 
-    /* add inactive death... */
+static int dump_client_table(struct blob_attr *head, int len, const char *bssid_addr,
+                             uint32_t freq, uint8_t ht_supported, uint8_t vht_supported)
+{
+    struct blob_attr *tb[__CLIENT_MAX], *attr;
+    struct blobmsg_hdr *hdr;
+    int station_count = 0;
 
-    if (strcmp(method, "probe") == 0) {
-        probe_entry *entry = handle_hostapd_probe_req(data_buf.head);
-        if (entry != NULL) {
-            if (entry != insert_to_array(entry, false, true, false, time(NULL))) { /* use 802.11k values */
-                /* insert found an existing entry, rather than linking in our new one */
-                dawn_free(entry);
-            }
+    __blob_for_each_attr(attr, head, len) {
+        hdr = blob_data(attr);
+
+        blobmsg_parse(client_policy, __CLIENT_MAX, tb, blobmsg_data(attr), blobmsg_len(attr));
+
+        int tmp_int_mac[ETH_ALEN];
+        struct dawn_mac tmp_mac;
+        sscanf((char *) hdr->name, MACSTR, STR2MAC(tmp_int_mac));
+        for (int i = 0; i < ETH_ALEN; ++i) {
+            tmp_mac.u8[i] = (uint8_t) tmp_int_mac[i];
         }
-    }
-    else if (strcmp(method, "clients") == 0) {
-        handle_hostapd_clients_msg(data_buf.head, 0, 0);
-    }
-    else if (strcmp(method, "deauth") == 0) {
-        printf("METHOD DEAUTH\n");
-        handle_deauth_req(data_buf.head);
-    }
-    else if (strcmp(method, "setprobe") == 0) {
-        printf("HANDLING SET PROBE!\n");
-        handle_set_probe(data_buf.head);
-    }
-    else if (strcmp(method, "addmac") == 0) {
-        parse_add_mac_to_file(data_buf.head);
-    }
-    else if (strcmp(method, "macfile") == 0) {
-        parse_add_mac_to_file(data_buf.head);
-    }
-    else if (strcmp(method, "uci") == 0) {
-        printf("HANDLING UCI!\n");
-        handle_uci_config(data_buf.head);
-    }
-    else if (strcmp(method, "beacon-report") == 0) {
-        /* TODO: Check beacon report stuff */
 
-        /*printf("HANDLING BEACON REPORT NETWORK!\n");
-        printf("The Method for beacon-report is: %s\n", method);
-         ignore beacon reports send via network!, use probe functions for it
-        probe_entry entry; // for now just stay at probe entry stuff...
-        parse_to_beacon_rep(data_buf.head, &entry, true); */
-    }
-    else {
-        printf("No method fonud for: %s\n", method);
+        dump_client(tb, tmp_mac, bssid_addr, freq, ht_supported, vht_supported);
+        ++station_count;
     }
 
-    ret = 0;
-exit:
-    return ret;
-}
-
-/* Modify from examples/blobmsg-example.c in libubox */
-static uint8_t dump_rrm_data(void *data, int len, int type)
-{
-    uint8_t ret = 0;
-
-    switch (type) {
-    case BLOBMSG_TYPE_INT32:
-        ret = *((uint8_t *) data);
-        break;
-    default:
-        fprintf(stderr, "wrong type of rrm array\n");
-        break;
-    }
-
-    return ret;
-}
-
-/* Modify from examples/blobmsg-example.c in libubox */
-static uint8_t dump_rrm_table(struct blob_attr *head, int len)
-{
-    return dump_rrm_data(blobmsg_data(head), blobmsg_data_len(head), blob_id(head));
+    return station_count;
 }
 
 /* TOOD: Refactor this! */
@@ -362,7 +466,7 @@ static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
 
     client_entry = dawn_calloc(1, sizeof (struct client_s));
     if (client_entry == NULL) {
-        fprintf(stderr, "Failed to allocate memory!\n");
+        DAWN_LOG_ERROR("Failed to allocate memory");
         return;
     }
 
@@ -427,130 +531,24 @@ static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
     pthread_mutex_unlock(&client_array_mutex);
 }
 
-static int dump_client_table(struct blob_attr *head, int len, const char *bssid_addr,
-                             uint32_t freq, uint8_t ht_supported, uint8_t vht_supported)
+static uint8_t dump_rrm_table(struct blob_attr *head, int len)
 {
-    struct blob_attr *tb[__CLIENT_MAX], *attr;
-    struct blobmsg_hdr *hdr;
-    int station_count = 0;
-
-    __blob_for_each_attr(attr, head, len) {
-        hdr = blob_data(attr);
-
-        blobmsg_parse(client_policy, __CLIENT_MAX, tb, blobmsg_data(attr), blobmsg_len(attr));
-
-        int tmp_int_mac[ETH_ALEN];
-        struct dawn_mac tmp_mac;
-        sscanf((char *) hdr->name, MACSTR, STR2MAC(tmp_int_mac));
-        for (int i = 0; i < ETH_ALEN; ++i) {
-            tmp_mac.u8[i] = (uint8_t) tmp_int_mac[i];
-        }
-
-        dump_client(tb, tmp_mac, bssid_addr, freq, ht_supported, vht_supported);
-        station_count++;
-    }
-
-    return station_count;
+    return dump_rrm_data(blobmsg_data(head), blobmsg_data_len(head), blob_id(head));
 }
 
-int handle_hostapd_clients_msg(struct blob_attr *msg, int do_kick, uint32_t id)
+static uint8_t dump_rrm_data(void *data, int len, int type)
 {
-    struct blob_attr *tb[__CLIENT_TABLE_MAX];
-    int ret = -1;
+    uint8_t ret = 0;
 
-    if (msg == NULL) {
-        goto exit;
+    switch (type) {
+    case BLOBMSG_TYPE_INT32:
+        ret = *((uint8_t *) data);
+        break;
+    default:
+        DAWN_LOG_ERROR("Wrong type of rrm array");
+        break;
     }
 
-    if (blob_data(msg) == NULL) {
-        goto exit;
-    }
-
-    if (blob_len(msg) <= 0) {
-        goto exit;
-    }
-
-    blobmsg_parse(client_table_policy, __CLIENT_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
-
-    if (!tb[CLIENT_TABLE] || !tb[CLIENT_TABLE_BSSID] || !tb[CLIENT_TABLE_FREQ]) {
-        goto exit;
-    }
-
-    int num_stations =
-            dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
-                              blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
-                              blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
-
-    ap *ap_entry = dawn_calloc(1, sizeof (struct ap_s));
-    if (ap_entry == NULL) {
-        fprintf(stderr, "Failed to allocate memory!");
-        goto exit;
-    }
-
-    hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid_addr.u8);
-    ap_entry->freq = blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]);
-
-    if (tb[CLIENT_TABLE_HT]) {
-        ap_entry->ht_support = blobmsg_get_u8(tb[CLIENT_TABLE_HT]);
-    }
-    if (tb[CLIENT_TABLE_VHT]) {
-        ap_entry->vht_support = blobmsg_get_u8(tb[CLIENT_TABLE_VHT]);
-    }
-
-    if (tb[CLIENT_TABLE_CHAN_UTIL]) {
-        ap_entry->channel_utilization = blobmsg_get_u32(tb[CLIENT_TABLE_CHAN_UTIL]);
-    }
-    else {
-        /* if this is not existing set to 0?
-        TODO: Consider setting to a value that will not mislead eval_probe_metric(), eg dawn_metric.chan_util_val? */
-        ap_entry->channel_utilization = 0;
-    }
-
-    if (tb[CLIENT_TABLE_SSID]) {
-        strcpy((char *) ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
-    }
-
-    if (tb[CLIENT_TABLE_COL_DOMAIN]) {
-        ap_entry->collision_domain = blobmsg_get_u32(tb[CLIENT_TABLE_COL_DOMAIN]);
-    }
-    else {
-        ap_entry->collision_domain = -1;
-    }
-
-    if (tb[CLIENT_TABLE_BANDWIDTH]) {
-        ap_entry->bandwidth = blobmsg_get_u32(tb[CLIENT_TABLE_BANDWIDTH]);
-    }
-    else {
-        ap_entry->bandwidth = -1;
-    }
-
-    ap_entry->station_count = num_stations;
-
-    if (tb[CLIENT_TABLE_WEIGHT]) {
-        ap_entry->ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_WEIGHT]);
-    }
-
-    if (tb[CLIENT_TABLE_NEIGHBOR]) {
-        strncpy(ap_entry->neighbor_report, blobmsg_get_string(tb[CLIENT_TABLE_NEIGHBOR]), NEIGHBOR_REPORT_LEN);
-    }
-
-    if (tb[CLIENT_TABLE_IFACE]) {
-        strncpy(ap_entry->iface, blobmsg_get_string(tb[CLIENT_TABLE_IFACE]), MAX_INTERFACE_NAME);
-    }
-
-    if (tb[CLIENT_TABLE_HOSTNAME]) {
-        strncpy(ap_entry->hostname, blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]), HOST_NAME_MAX);
-    }
-
-    insert_to_ap_array(ap_entry, time(NULL));
-
-    if (do_kick && metric_config.kicking) {
-        update_iw_info(ap_entry->bssid_addr);
-        kick_clients(ap_entry, id);
-    }
-
-    ret = 0;
-exit:
     return ret;
 }
 
@@ -662,13 +660,13 @@ static const struct blobmsg_policy uci_behaviour_policy[__UCI_BEHAVIOUR_MAX] = {
     [UCI_SCAN_CHANNEL] = {.name = "mode", .type = BLOBMSG_TYPE_INT32},
 };
 
-static int handle_uci_config(struct blob_attr *msg)
+static int handle_uci_config(struct blob_attr *message)
 {
     struct blob_attr *tb[__UCI_TABLE_MAX], *tb_intervals[__UCI_INTERVALS_MAX],
             *tb_metric[__UCI_METRIC_MAX], *tb_behaviour[__UCI_BEHAVIOUR_MAX];
     char cmd_buffer[1024];
 
-    blobmsg_parse(uci_table_policy, __UCI_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
+    blobmsg_parse(uci_table_policy, __UCI_TABLE_MAX, tb, blob_data(message), blob_len(message));
     blobmsg_parse(uci_intervals_policy, __UCI_INTERVALS_MAX, tb_intervals,
                   blobmsg_data(tb[UCI_TABLE_INTERVALS]), blobmsg_len(tb[UCI_TABLE_INTERVALS]));
     blobmsg_parse(uci_metric_policy, __UCI_METRIC_MAX, tb_metric,

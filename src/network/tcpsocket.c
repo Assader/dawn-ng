@@ -254,7 +254,7 @@ static void client_notify_read(struct ustream *stream, int bytes)
                 }
             }
 
-            handle_network_msg(client->str);
+            handle_network_message(client->str);
 
 cleanup:
             client->state = READ_STATUS_READY;

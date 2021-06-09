@@ -1,7 +1,8 @@
 #ifndef DAWN_MSGHANDLER_H
 #define DAWN_MSGHANDLER_H
 
-#include <libubox/blobmsg_json.h>
+#include <stdbool.h>
+#include <libubus.h>
 
 #include "datastorage.h"
 
@@ -11,7 +12,7 @@
  * @param prob_req
  * @return
  */
-probe_entry *handle_hostapd_probe_req(struct blob_attr *msg);
+probe_entry *handle_hostapd_probe_request(struct blob_attr *message);
 
 /**
  * Dump a client array into the database.
@@ -20,27 +21,15 @@ probe_entry *handle_hostapd_probe_req(struct blob_attr *msg);
  * @param id - ubus id.
  * @return
  */
-int handle_hostapd_clients_msg(struct blob_attr *msg, int do_kick, uint32_t id);
-
-/**
- * Parse to hostapd notify.
- * Notify are such notifications like:
- * + Disassociation
- * + Deauthentication
- * + ...
- * @param msg
- * @param notify_req
- * @return
- */
-bool handle_hostapd_notify(struct blob_attr *msg, hostapd_notify_entry *notify_req);
+bool handle_hostapd_clients_message(struct blob_attr *msg, int do_kick, uint32_t id);
 
 /**
  * Handle network messages.
  * @param msg
  * @return
  */
-int handle_network_msg(char *msg);
+bool handle_network_message(const char *message);
 
-int handle_deauth_req(struct blob_attr *msg);
+int handle_hostapd_deauth_request(struct blob_attr *msg);
 
 #endif /* DAWN_MSGHANDLER_H */

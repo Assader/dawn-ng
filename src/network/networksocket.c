@@ -103,6 +103,6 @@ _Noreturn static void *listener_thread(void *args)
             }
         }
 
-        handle_network_msg(msg);
+        handle_network_message(msg);
     }
 }
