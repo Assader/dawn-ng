@@ -22,6 +22,6 @@ double iee80211_calculate_expected_throughput_mbit(int exp_thr);
  * @param rcpi
  * @return
  */
-int rcpi_to_rssi(int rcpi);
+int ieee80211_rcpi_to_rssi(int rcpi);
 
 #endif /* DAWN_IEEE80211_UTILS_H */
