@@ -1,7 +1,7 @@
 #ifndef DAWN_MEMORY_UTILS_H
 #define DAWN_MEMORY_UTILS_H
 
-#include <memory.h>
+#include <stdlib.h>
 
 enum dawn_memop {
     DAWN_MALLOC,

@@ -573,7 +573,7 @@ static int send_blob_attr_via_network(struct blob_attr *msg, char *method)
     dawn_regmem(str);
 
     if (network_config.network_option == DAWN_SOCKET_TCP) {
-        send_tcp(str);
+        tcp_send(str);
     }
     else {
         send_string(str);
@@ -663,7 +663,7 @@ int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
 
     if (network_config.network_option == DAWN_SOCKET_TCP) {
         start_tcp_con_update();
-        if (run_server(network_config.tcp_port)) {
+        if (!tcp_run_server(network_config.tcp_port)) {
             uloop_timeout_set(&usock_timer, 1000);
         }
     }
@@ -818,7 +818,7 @@ static void update_clients(struct uloop_timeout *t)
 
 static void run_server_update(struct uloop_timeout *t)
 {
-    if (run_server(network_config.tcp_port)) {
+    if (!tcp_run_server(network_config.tcp_port)) {
         uloop_timeout_set(&usock_timer, 1000);
     }
 }
@@ -886,7 +886,7 @@ static void update_tcp_connections(struct uloop_timeout *t)
 {
     if (strcmp(network_config.server_ip, "")) {
         /* Nothing happens if tcp connection is already established */
-        add_tcp_conncection(network_config.server_ip, network_config.tcp_port);
+        tcp_add_conncection(network_config.server_ip, network_config.tcp_port);
     }
 
     /* mdns enabled? */
@@ -1019,7 +1019,7 @@ static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *
         printf("IPV4: %s\n", blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]));
         printf("Port: %d\n", blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
 
-        add_tcp_conncection(blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]), blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
+        tcp_add_conncection(blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]), blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
     }
 }
 
