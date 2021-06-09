@@ -21,11 +21,11 @@ struct __attribute__((__packed__)) dawn_mac {
 #define mac_is_null(addr) (memcmp(addr.u8, (uint8_t []) {0, 0, 0, 0, 0, 0}, ETH_ALEN) == 0)
 
 /* For byte arrays outside MAC structure */
-#define mac_is_equal(addr1, addr2) (memcmp(addr1, addr2, ETH_ALEN) == 0)
+#define macs_are_equal(addr1, addr2) (memcmp(addr1, addr2, ETH_ALEN) == 0)
 
 /* For byte arrays inside MAC structure */
-#define mac_compare_bb(addr1, addr2) memcmp((addr1).u8, (addr2).u8, ETH_ALEN)
-#define mac_is_equal_bb(addr1, addr2) (memcmp((addr1).u8, (addr2).u8, ETH_ALEN) == 0)
+#define macs_compare_bb(addr1, addr2) memcmp((addr1).u8, (addr2).u8, ETH_ALEN)
+#define macs_are_equal_bb(addr1, addr2) (memcmp((addr1).u8, (addr2).u8, ETH_ALEN) == 0)
 
 /**
  * Convert mac adress string to mac adress.

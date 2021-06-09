@@ -70,7 +70,7 @@ static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float
     for (int i = 0; i < len; i += sizeof (struct iwinfo_assoclist_entry)) {
         e = (struct iwinfo_assoclist_entry *) &buf[i];
 
-        if (mac_is_equal(client_addr.u8, e->mac)) {
+        if (macs_are_equal(client_addr.u8, e->mac)) {
             *rx_rate = e->rx_rate.rate / 1000;
             *tx_rate = e->tx_rate.rate / 1000;
             success = true;
@@ -143,7 +143,7 @@ static int get_rssi(const char *ifname, struct dawn_mac client_addr)
     for (int i = 0; i < len; i += sizeof (struct iwinfo_assoclist_entry)) {
         e = (struct iwinfo_assoclist_entry *) &buf[i];
 
-        if (mac_is_equal(client_addr.u8, e->mac)) {
+        if (macs_are_equal(client_addr.u8, e->mac)) {
             rssi = e->signal;
             break;
         }
@@ -214,7 +214,7 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
     for (int i = 0; i < len; i += sizeof (struct iwinfo_assoclist_entry)) {
         e = (struct iwinfo_assoclist_entry *) &buf[i];
 
-        if (mac_is_equal(client_addr.u8, e->mac)) {
+        if (macs_are_equal(client_addr.u8, e->mac)) {
             throughput = e->thr;
             break;
         }

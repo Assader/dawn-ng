@@ -1503,7 +1503,7 @@ static int build_hearing_map_sort_client(struct blob_buf *b)
                 client_list = blobmsg_open_table(b, client_mac_buf);
                 probe_entry *k;
                 for (k = i;
-                     k != NULL && mac_is_equal_bb(k->client_addr, i->client_addr);
+                     k != NULL && macs_are_equal_bb(k->client_addr, i->client_addr);
                      k = k->next_probe) {
 
                     ap *ap_k = ap_array_get_ap(k->bssid_addr);
@@ -1577,7 +1577,7 @@ static int build_network_overview(struct blob_buf *b)
 
         bool local_ap = false;
         list_for_each_entry(sub, &hostapd_sock_list, list) {
-            if (mac_is_equal_bb(m->bssid_addr, sub->bssid_addr)) {
+            if (macs_are_equal_bb(m->bssid_addr, sub->bssid_addr)) {
                 local_ap = true;
             }
         }
@@ -1602,7 +1602,7 @@ static int build_network_overview(struct blob_buf *b)
         client *k = client_set_bc;
         while (k != NULL) {
 
-            if (mac_is_equal_bb(m->bssid_addr, k->bssid_addr)) {
+            if (macs_are_equal_bb(m->bssid_addr, k->bssid_addr)) {
                 sprintf(client_mac_buf, MACSTR, MAC2STR(k->client_addr.u8));
                 client_list = blobmsg_open_table(b, client_mac_buf);
 
@@ -1646,7 +1646,7 @@ static int ap_get_nr(struct blob_buf *b_local, struct dawn_mac own_bssid_addr)
     void *nbs = blobmsg_open_array(b_local, "list");
 
     for (ap *i = ap_set; i != NULL; i = i->next_ap) {
-        if (mac_is_equal_bb(own_bssid_addr, i->bssid_addr)) {
+        if (macs_are_equal_bb(own_bssid_addr, i->bssid_addr)) {
             continue; /* TODO: Skip own entry?! */
         }
 

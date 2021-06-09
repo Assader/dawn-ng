@@ -92,10 +92,10 @@ static char **find_first_entry(char **entry,
                                bool check_mac1, intptr_t next_offset)
 {
     for (; *entry != NULL; entry = (char **) (*entry + next_offset)) {
-        bool found = mac_is_equal(*entry + mac0_offset, mac0);
+        bool found = macs_are_equal(*entry + mac0_offset, mac0);
 
         if (found && check_mac1) {
-            found = mac_is_equal(*entry + mac1_offset, mac1);
+            found = macs_are_equal(*entry + mac1_offset, mac1);
         }
 
         if (found) {
@@ -166,10 +166,10 @@ static probe_entry **probe_array_find_first_entry(struct dawn_mac client_mac, st
     probe_entry **lo_ptr = &probe_set;
 
     while (*lo_skip_ptr != NULL) {
-        int this_cmp = mac_compare_bb(((*lo_skip_ptr))->client_addr, client_mac);
+        int this_cmp = macs_compare_bb(((*lo_skip_ptr))->client_addr, client_mac);
 
         if (this_cmp == 0 && do_bssid) {
-            this_cmp = mac_compare_bb(((*lo_skip_ptr))->bssid_addr, bssid_mac);
+            this_cmp = macs_compare_bb(((*lo_skip_ptr))->bssid_addr, bssid_mac);
         }
 
         if (this_cmp >= 0) {
@@ -181,10 +181,10 @@ static probe_entry **probe_array_find_first_entry(struct dawn_mac client_mac, st
     }
 
     while (*lo_ptr != NULL) {
-        int this_cmp = mac_compare_bb((*lo_ptr)->client_addr, client_mac);
+        int this_cmp = macs_compare_bb((*lo_ptr)->client_addr, client_mac);
 
         if (this_cmp == 0 && do_bssid) {
-            this_cmp = mac_compare_bb((*lo_ptr)->bssid_addr, bssid_mac);
+            this_cmp = macs_compare_bb((*lo_ptr)->bssid_addr, bssid_mac);
         }
 
         if (this_cmp >= 0) {
@@ -203,10 +203,10 @@ static client **client_find_first_bc_entry(struct dawn_mac bssid_mac, struct daw
     client **lo_ptr = &client_set_bc;
 
     while (*lo_skip_ptr != NULL) {
-        int this_cmp = mac_compare_bb(((*lo_skip_ptr))->bssid_addr, bssid_mac);
+        int this_cmp = macs_compare_bb(((*lo_skip_ptr))->bssid_addr, bssid_mac);
 
         if (this_cmp == 0 && do_client) {
-            this_cmp = mac_compare_bb(((*lo_skip_ptr))->client_addr, client_mac);
+            this_cmp = macs_compare_bb(((*lo_skip_ptr))->client_addr, client_mac);
         }
 
         if (this_cmp >= 0) {
@@ -218,10 +218,10 @@ static client **client_find_first_bc_entry(struct dawn_mac bssid_mac, struct daw
     }
 
     while (*lo_ptr != NULL) {
-        int this_cmp = mac_compare_bb((*lo_ptr)->bssid_addr, bssid_mac);
+        int this_cmp = macs_compare_bb((*lo_ptr)->bssid_addr, bssid_mac);
 
         if (this_cmp == 0 && do_client) {
-            this_cmp = mac_compare_bb((*lo_ptr)->client_addr, client_mac);
+            this_cmp = macs_compare_bb((*lo_ptr)->client_addr, client_mac);
         }
 
         if (this_cmp >= 0) {
@@ -242,7 +242,7 @@ void send_beacon_reports(struct dawn_mac bssid, int id)
     client *i = *client_find_first_bc_entry(bssid, dawn_mac_null, false);
 
     /* Go through clients */
-    for (; i != NULL && mac_is_equal(i->bssid_addr.u8, bssid.u8); i = i->next_entry_bc) {
+    for (; i != NULL && macs_are_equal(i->bssid_addr.u8, bssid.u8); i = i->next_entry_bc) {
         if (i->rrm_enabled_capa & (WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE |
                                    WLAN_RRM_CAPS_BEACON_REPORT_ACTIVE |
                                    WLAN_RRM_CAPS_BEACON_REPORT_TABLE)) {
@@ -330,7 +330,7 @@ int better_ap_available(ap *kicking_ap, struct dawn_mac client_mac, char *neighb
     probe_entry *i = *probe_array_find_first_entry(client_mac, dawn_mac_null, false);
 
     for (; i != NULL; i = i->next_probe) {
-        if (!mac_is_equal(i->client_addr.u8, client_mac.u8)) {
+        if (!macs_are_equal(i->client_addr.u8, client_mac.u8)) {
             continue;
         }
 
@@ -403,7 +403,7 @@ int kick_clients(ap *kicking_ap, uint32_t id)
     client *j = *client_find_first_bc_entry(kicking_ap->bssid_addr, dawn_mac_null, false);
     /* Go through clients */
     for (; j != NULL; j = j->next_entry_bc) {
-        if (mac_is_equal(j->bssid_addr.u8, kicking_ap->bssid_addr.u8)) {
+        if (macs_are_equal(j->bssid_addr.u8, kicking_ap->bssid_addr.u8)) {
             continue;
         }
 
@@ -471,7 +471,7 @@ void update_iw_info(struct dawn_mac bssid)
     client *j = *client_find_first_bc_entry(bssid, dawn_mac_null, false);
     /* Go through clients */
     for (; j != NULL; j = j->next_entry_bc) {
-        if (!mac_is_equal(j->bssid_addr.u8, bssid.u8)) {
+        if (!macs_are_equal(j->bssid_addr.u8, bssid.u8)) {
             continue;
         }
 
@@ -609,7 +609,7 @@ bool probe_array_set_all_probe_count(struct dawn_mac client_addr, uint32_t probe
     pthread_mutex_lock(&probe_array_mutex);
 
     for (probe_entry *i = probe_set; i != NULL; i = i->next_probe) {
-        if (mac_is_equal_bb(client_addr, i->client_addr)) {
+        if (macs_are_equal_bb(client_addr, i->client_addr)) {
             printf("Setting probecount for given mac!\n");
             i->counter = probe_count;
             updated = true;
@@ -808,7 +808,7 @@ void ap_array_insert(ap *entry)
         /* TODO: Not sure these tests are right way around to ensure SSID / MAC ordering */
         /* TODO: Do we do any SSID checks elsewhere? */
         int sc = strcmp((char *) entry->ssid, (char *) (*i)->ssid);
-        if ((sc < 0) || (sc == 0 && mac_compare_bb(entry->bssid_addr, (*i)->bssid_addr) < 0)) {
+        if ((sc < 0) || (sc == 0 && macs_compare_bb(entry->bssid_addr, (*i)->bssid_addr) < 0)) {
             break;
         }
     }
@@ -1019,7 +1019,7 @@ int insert_to_maclist(struct dawn_mac mac)
     int ret = 0;
     struct mac_entry_s **i = mac_find_first_entry(mac);
 
-    if (*i != NULL && mac_is_equal_bb((*i)->mac, mac)) {
+    if (*i != NULL && macs_are_equal_bb((*i)->mac, mac)) {
         ret = -1;
     }
     else {
