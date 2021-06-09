@@ -26,6 +26,6 @@ bool dawn_init_network(const char *ip, uint16_t port, int sock_type);
  */
 int send_string(const char *msg);
 
-void close_socket(void);
+void dawn_deinit_network(void);
 
 #endif /* DAWN_NETWORKSOCKET_H */

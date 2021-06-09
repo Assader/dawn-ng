@@ -21,9 +21,9 @@ static int sock;
 static struct sockaddr_in addr;
 static char recv_buff[MAX_RECV_LENGTH];
 static pthread_mutex_t send_mutex;
-static pthread_t sniffer_thread;
+static pthread_t listener_thread_handler;
 
-static void *receive_msg(void *args);
+_Noreturn static void *listener_thread(void *args);
 
 bool dawn_init_network(const char *ip, uint16_t port, int sock_type)
 {
@@ -33,7 +33,7 @@ bool dawn_init_network(const char *ip, uint16_t port, int sock_type)
         return false;
     }
 
-    if (pthread_create(&sniffer_thread, NULL, receive_msg, NULL) != 0) {
+    if (pthread_create(&listener_thread_handler, NULL, listener_thread, NULL) != 0) {
         DAWN_LOG_ERROR("Failed to create receiving thread");
         close(sock);
         return false;
@@ -66,7 +66,7 @@ int send_string(const char *msg)
 
     err = sendto(sock, msg, msglen, 0, (struct sockaddr *) &addr, sizeof (addr));
     if (err == -1) {
-        DAWN_LOG_ERROR("Failed to send network message: %d", strerror(errno));
+        DAWN_LOG_ERROR("Failed to send network message: %s", strerror(errno));
     }
 
     pthread_mutex_unlock(&send_mutex);
@@ -81,19 +81,19 @@ exit:
 
 void dawn_deinit_network(void)
 {
-    pthread_cancel(sniffer_thread);
-    pthread_join(sniffer_thread, NULL);
+    pthread_cancel(listener_thread_handler);
+    pthread_join(listener_thread_handler, NULL);
     close(sock);
 }
 
-_Noreturn static void *receive_msg(void *args)
+_Noreturn static void *listener_thread(void *args)
 {
     while (true) {
         char *msg = recv_buff;
 
         int rcv_len = recvfrom(sock, msg, MAX_RECV_LENGTH, 0, NULL, 0);
         if (rcv_len == -1) {
-            DAWN_LOG_ERROR("Failed to receive message");
+            DAWN_LOG_ERROR("Failed to receive message: %s", strerror(errno));
             continue;
         }
 
