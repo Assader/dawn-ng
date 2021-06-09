@@ -3,12 +3,14 @@
 
 #include "datastorage.h"
 #include "dawn_iwinfo.h"
+#include "dawn_log.h"
 #include "memory_utils.h"
 
 char *hostapd_dir;
 
-static int get_rssi(const char *ifname, struct dawn_mac client_addr);
 static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
+static int get_rssi(const char *ifname, struct dawn_mac client_addr);
+static int get_expected_throughput(const char *ifname, struct dawn_mac client_addr);
 
 bool iwinfo_get_bandwidth(struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
 {
@@ -18,7 +20,7 @@ bool iwinfo_get_bandwidth(struct dawn_mac client_addr, float *rx_rate, float *tx
 
     dirp = opendir(hostapd_dir);
     if (dirp == NULL) {
-        fprintf(stderr, "[BANDWIDTH INFO] Failed to open %s\n", hostapd_dir);
+        DAWN_LOG_ERROR("Failed to open %s", hostapd_dir);
         goto exit;
     }
 
@@ -53,17 +55,17 @@ static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float
 
     buf = dawn_malloc(IWINFO_BUFSIZE);
     if (buf == NULL) {
-        fprintf(stderr, "Failed to allocate memory!\n");
+        DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;
     }
 
     if (iw->assoclist(ifname, buf, &len)) {
-        printf("No information available\n");
+        DAWN_LOG_WARNING("No information available");
         goto exit;
     }
 
     if (len <= 0) {
-        printf("No station connected\n");
+        DAWN_LOG_WARNING("No station connected");
         goto exit;
     }
 
@@ -92,7 +94,7 @@ int iwinfo_get_rssi(struct dawn_mac client_addr)
 
     dirp = opendir(hostapd_dir);
     if (dirp == NULL) {
-        fprintf(stderr, "[RSSI INFO] No hostapd sockets!\n");
+        DAWN_LOG_ERROR("Failed to open %s", hostapd_dir);
         goto exit;
     }
 
@@ -126,17 +128,17 @@ static int get_rssi(const char *ifname, struct dawn_mac client_addr)
 
     buf = dawn_malloc(IWINFO_BUFSIZE);
     if (buf == NULL) {
-        fprintf(stderr, "Failed to allocate memory!\n");
+        DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;
     }
 
     if (iw->assoclist(ifname, buf, &len)) {
-        fprintf(stdout, "No information available\n");
+        DAWN_LOG_WARNING("No information available");
         goto exit;
     }
 
     if (len <= 0) {
-        fprintf(stdout, "No station connected\n");
+        DAWN_LOG_WARNING("No station connected");
         goto exit;
     }
 
@@ -163,7 +165,7 @@ int iwinfo_get_expected_throughput(struct dawn_mac client_addr)
 
     dirp = opendir(hostapd_dir);
     if (dirp == NULL) {
-        fprintf(stderr, "[RSSI INFO] Failed to open dir:%s\n", hostapd_dir);
+        DAWN_LOG_ERROR("Failed to open %s", hostapd_dir);
         goto exit;
     }
 
@@ -182,7 +184,7 @@ exit:
     return exp_thr;
 }
 
-int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
+static int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
 {
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
@@ -197,17 +199,17 @@ int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
 
     buf = dawn_malloc(IWINFO_BUFSIZE);
     if (buf == NULL) {
-        fprintf(stderr, "Failed to allocate memory!\n");
+        DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;
     }
 
     if (iw->assoclist(ifname, buf, &len)) {
-        fprintf(stdout, "No information available\n");
+        DAWN_LOG_WARNING("No information available");
         goto exit;
     }
 
     if (len <= 0) {
-        fprintf(stdout, "No station connected\n");
+        DAWN_LOG_WARNING("No station connected");
         goto exit;
     }
 
@@ -285,17 +287,17 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
 
     buf = dawn_malloc(IWINFO_BUFSIZE);
     if (buf == NULL) {
-        fprintf(stderr, "Failed to allocate memory!\n");
+        DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;
     }
 
     if (iw->survey(ifname, buf, &len)) {
-        printf("Survey not possible!\n");
+        DAWN_LOG_WARNING("Survey not possible");
         goto exit;
     }
 
     if (len <= 0) {
-        printf("No survey results\n");
+        DAWN_LOG_WARNING("No survey results");
         goto exit;
     }
 
@@ -335,7 +337,7 @@ bool iwinfo_ht_supported(const char *ifname)
     iw = iwinfo_backend(ifname);
 
     if (iw->htmodelist(ifname, &modes)) {
-        printf("No HT mode information available\n");
+        DAWN_LOG_WARNING("No HT mode information available");
     }
 
     iwinfo_finish();
@@ -356,7 +358,7 @@ bool iwinfo_vht_supported(const char *ifname)
     iw = iwinfo_backend(ifname);
 
     if (iw->htmodelist(ifname, &modes)) {
-        printf("No VHT mode information available\n");
+        DAWN_LOG_WARNING("No VHT mode information available");
     }
 
     iwinfo_finish();
