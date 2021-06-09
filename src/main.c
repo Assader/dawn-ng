@@ -21,15 +21,17 @@ int main(int argc, char **argv)
 {
     connect_signals();
 
-    uci_init();
-    uci_get_dawn_network(&network_config);
-    uci_get_dawn_intervals(&timeout_config);
-    uci_get_dawn_hostapd_dir();
+    if (!dawn_uci_init()) {
+        exit(EXIT_FAILURE);
+    }
+    dawn_uci_get_general(&general_config);
+    dawn_uci_get_intervals(&time_intervals_config);
+    dawn_uci_get_behaviour(&behaviour_config);
 
-    if (network_config.use_symm_enc) {
+    if (general_config.use_encryption) {
         char key[MAX_KEY_LENGTH + 1] = {0}, iv[MAX_KEY_LENGTH + 1] = {0};
 
-        uci_get_dawn_crypto(key, iv);
+        dawn_uci_get_crypto(key, iv);
 
         if (!gcrypt_init(key, iv)) {
             exit(EXIT_FAILURE);
@@ -40,18 +42,18 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (network_config.network_option == DAWN_SOCKET_BROADCAST ||
-        network_config.network_option == DAWN_SOCKET_MULTICAST) {
-        if (!dawn_init_network(network_config.broadcast_ip,
-                                 network_config.broadcast_port,
-                                 network_config.network_option)) {
+    if (general_config.network_proto == DAWN_SOCKET_BROADCAST ||
+        general_config.network_proto == DAWN_SOCKET_MULTICAST) {
+        if (!dawn_network_init(general_config.network_ip,
+                               general_config.network_port,
+                               general_config.network_proto)) {
             exit(EXIT_FAILURE);
         }
     }
 
     insert_macs_from_file();
 
-    dawn_run_uloop(NULL, hostapd_dir);
+    dawn_run_uloop(NULL, general_config.hostapd_dir);
 
     return 0;
 }
@@ -88,9 +90,8 @@ static void signal_handler(int sig)
 
 static void dawn_shutdown(void)
 {
-    /* kill threads */
-    dawn_deinit_network();
-    uci_clear();
+    dawn_network_deinit();
+    dawn_uci_deinit();
     uloop_end();
     destroy_mutex();
 }

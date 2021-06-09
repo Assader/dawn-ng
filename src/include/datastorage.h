@@ -23,71 +23,71 @@ int insert_to_maclist(struct dawn_mac mac);
 bool mac_in_maclist(struct dawn_mac mac);
 struct mac_entry_s *insert_to_mac_array(struct mac_entry_s *entry);
 
-struct probe_metric_s {
-    int ap_weight;         /* TODO: Never evaluated? */
-    int ht_support;        /* eval_probe_metric()() */
-    int vht_support;       /* eval_probe_metric()() */
-    int no_ht_support;     /* eval_probe_metric()() */
-    int no_vht_support;    /* eval_probe_metric()() */
-    int rssi;              /* eval_probe_metric()() */
-    int low_rssi;          /* eval_probe_metric()() */
-    int freq;              /* eval_probe_metric()() */
-    int chan_util;         /* eval_probe_metric()() */
-    int max_chan_util;     /* eval_probe_metric()() */
-    int rssi_val;          /* eval_probe_metric()() */
-    int low_rssi_val;      /* eval_probe_metric()() */
-    int chan_util_val;     /* eval_probe_metric()() */
-    int max_chan_util_val; /* eval_probe_metric()() */
+typedef struct {
+    int ap_weight;
+    int ht_support;
+    int vht_support;
+    int chan_util_val;
+    int chan_util;
+    int max_chan_util_val;
+    int max_chan_util;
+    int freq;
+    int rssi_val;
+    int rssi;
+    int low_rssi_val;
+    int low_rssi;
+} metric_config_t;
+
+typedef struct {
+    int kicking;
+    int min_kick_count;
+    int bandwidth_threshold;
+    int use_station_count;
+    int max_station_diff;
     int min_probe_count;
-    int bandwidth_threshold; /* kick_clients() */
-    int use_station_count;   /* better_ap_available() */
-    int max_station_diff;    /* compare_station_count() <- better_ap_available() */
     int eval_probe_req;
     int eval_auth_req;
     int eval_assoc_req;
     int deny_auth_reason;
     int deny_assoc_reason;
     int use_driver_recog;
-    int min_kick_count; /* kick_clients() */
     int chan_util_avg_period;
     int set_hostapd_nr;
-    int kicking;
     int op_class;
     int duration;
     int mode;
     int scan_channel;
-};
+} behaviour_config_t;
 
-struct time_config_s {
-    time_t update_client;
-    time_t remove_client;
-    time_t remove_probe;
-    time_t remove_ap;
-    time_t update_hostapd;
-    time_t update_tcp_con;
-    time_t denied_req_threshold;
-    time_t update_chan_util;
-    time_t update_beacon_reports;
-};
+typedef struct {
+    uint32_t update_client;
+    uint32_t update_hostapd;
+    uint32_t update_tcp_con;
+    uint32_t update_chan_util;
+    uint32_t update_beacon_reports;
+    uint32_t remove_probe;
+    uint32_t remove_ap;
+    uint32_t denied_req_threshold;
+} time_intervals_config_t;
 
 enum {
     MAX_IP_LENGTH = 46,
 };
 
-struct network_config_s {
-    char broadcast_ip[MAX_IP_LENGTH];
-    int broadcast_port;
+typedef struct {
+    uint16_t network_port;
+    char network_ip[MAX_IP_LENGTH];
     char server_ip[MAX_IP_LENGTH];
-    int tcp_port;
-    int network_option;
-    int use_symm_enc;
-    int collision_domain;
+    int network_proto;
+    int use_encryption;
     int log_level;
-};
+    char hostapd_dir[64];
+} general_config_t;
 
-extern struct network_config_s network_config;
-extern struct time_config_s timeout_config;
-extern struct probe_metric_s dawn_metric;
+extern general_config_t general_config;
+extern time_intervals_config_t time_intervals_config;
+extern metric_config_t metric_config;
+extern behaviour_config_t behaviour_config;
 
 /*** Core DAWN data structures for tracking network devices and status ***/
 /* Define this to remove printing / reporing of fields, and hence observe

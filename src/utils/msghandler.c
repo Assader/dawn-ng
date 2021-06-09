@@ -240,7 +240,7 @@ static int handle_set_probe(struct blob_attr *msg)
 
     handle_hostapd_notify(msg, &notify_req);
 
-    probe_array_set_all_probe_count(notify_req.client_addr, dawn_metric.min_probe_count);
+    probe_array_set_all_probe_count(notify_req.client_addr, metric_config.min_probe_count);
 
     return 0;
 }
@@ -544,7 +544,7 @@ int handle_hostapd_clients_msg(struct blob_attr *msg, int do_kick, uint32_t id)
 
     insert_to_ap_array(ap_entry, time(NULL));
 
-    if (do_kick && dawn_metric.kicking) {
+    if (do_kick && metric_config.kicking) {
         update_iw_info(ap_entry->bssid_addr);
         kick_clients(ap_entry, id);
     }
@@ -555,89 +555,105 @@ exit:
 }
 
 enum {
-    UCI_TABLE_METRIC,
     UCI_TABLE_INTERVALS,
+    UCI_TABLE_METRIC,
+    UCI_TABLE_BEHAVIOUR,
     __UCI_TABLE_MAX
+};
+
+enum {
+    UCI_UPDATE_CLIENT,
+    UCI_UPDATE_HOSTAPD,
+    UCI_UPDATE_TCP_CON,
+    UCI_UPDATE_CHAN_UTIL,
+    UCI_UPDATE_BEACON_REPORTS,
+    UCI_REMOVE_PROBE,
+    UCI_REMOVE_AP,
+    UCI_DENIED_REQ_THRESHOLD,
+    __UCI_INTERVALS_MAX,
 };
 
 enum {
     UCI_HT_SUPPORT,
     UCI_VHT_SUPPORT,
-    UCI_NO_HT_SUPPORT,
-    UCI_NO_VHT_SUPPORT,
-    UCI_RSSI,
-    UCI_LOW_RSSI,
-    UCI_FREQ,
-    UCI_CHAN_UTIL,
-    UCI_MAX_CHAN_UTIL,
-    UCI_RSSI_VAL,
-    UCI_LOW_RSSI_VAL,
     UCI_CHAN_UTIL_VAL,
+    UCI_CHAN_UTIL,
     UCI_MAX_CHAN_UTIL_VAL,
-    UCI_MIN_PROBE_COUNT,
+    UCI_MAX_CHAN_UTIL,
+    UCI_FREQ,
+    UCI_RSSI_VAL,
+    UCI_RSSI,
+    UCI_LOW_RSSI_VAL,
+    UCI_LOW_RSSI,
+    __UCI_METRIC_MAX
+};
+
+enum {
+    UCI_KICKING,
+    UCI_MIN_KICK_COUNT,
     UCI_BANDWIDTH_THRESHOLD,
     UCI_USE_STATION_COUNT,
     UCI_MAX_STATION_DIFF,
+    UCI_MIN_PROBE_COUNT,
     UCI_EVAL_PROBE_REQ,
     UCI_EVAL_AUTH_REQ,
     UCI_EVAL_ASSOC_REQ,
-    UCI_KICKING,
     UCI_DENY_AUTH_REASON,
     UCI_DENY_ASSOC_REASON,
     UCI_USE_DRIVER_RECOG,
-    UCI_MIN_NUMBER_TO_KICK,
     UCI_CHAN_UTIL_AVG_PERIOD,
     UCI_SET_HOSTAPD_NR,
     UCI_OP_CLASS,
     UCI_DURATION,
     UCI_MODE,
     UCI_SCAN_CHANNEL,
-    __UCI_METIC_MAX
-};
-
-enum {
-    UCI_UPDATE_CLIENT,
-    UCI_DENIED_REQ_THRESHOLD,
-    UCI_REMOVE_CLIENT,
-    UCI_REMOVE_PROBE,
-    UCI_REMOVE_AP,
-    UCI_UPDATE_HOSTAPD,
-    UCI_UPDATE_TCP_CON,
-    UCI_UPDATE_CHAN_UTIL,
-    UCI_UPDATE_BEACON_REPORTS,
-    __UCI_INTERVALS_MAX,
+    __UCI_BEHAVIOUR_MAX
 };
 
 static const struct blobmsg_policy uci_table_policy[__UCI_TABLE_MAX] = {
+    [UCI_TABLE_INTERVALS] = {.name = "intervals", .type = BLOBMSG_TYPE_TABLE},
     [UCI_TABLE_METRIC] = {.name = "metric", .type = BLOBMSG_TYPE_TABLE},
-    [UCI_TABLE_INTERVALS] = {.name = "intervals", .type = BLOBMSG_TYPE_TABLE}};
+    [UCI_TABLE_BEHAVIOUR] = {.name = "behaviour", .type = BLOBMSG_TYPE_TABLE},
+};
 
-static const struct blobmsg_policy uci_metric_policy[__UCI_METIC_MAX] = {
+static const struct blobmsg_policy uci_intervals_policy[__UCI_INTERVALS_MAX] = {
+    [UCI_UPDATE_CLIENT] = {.name = "update_client", .type = BLOBMSG_TYPE_INT32},
+    [UCI_UPDATE_HOSTAPD] = {.name = "update_hostapd", .type = BLOBMSG_TYPE_INT32},
+    [UCI_UPDATE_TCP_CON] = {.name = "update_tcp_con", .type = BLOBMSG_TYPE_INT32},
+    [UCI_UPDATE_CHAN_UTIL] = {.name = "update_chan_util", .type = BLOBMSG_TYPE_INT32},
+    [UCI_UPDATE_BEACON_REPORTS] = {.name = "update_beacon_reports", .type = BLOBMSG_TYPE_INT32},
+    [UCI_REMOVE_PROBE] = {.name = "remove_probe", .type = BLOBMSG_TYPE_INT32},
+    [UCI_REMOVE_AP] = {.name = "remove_ap", .type = BLOBMSG_TYPE_INT32},
+    [UCI_DENIED_REQ_THRESHOLD] = {.name = "denied_req_threshold", .type = BLOBMSG_TYPE_INT32},
+};
+
+static const struct blobmsg_policy uci_metric_policy[__UCI_METRIC_MAX] = {
     [UCI_HT_SUPPORT] = {.name = "ht_support", .type = BLOBMSG_TYPE_INT32},
     [UCI_VHT_SUPPORT] = {.name = "vht_support", .type = BLOBMSG_TYPE_INT32},
-    [UCI_NO_HT_SUPPORT] = {.name = "no_ht_support", .type = BLOBMSG_TYPE_INT32},
-    [UCI_NO_VHT_SUPPORT] = {.name = "no_vht_support", .type = BLOBMSG_TYPE_INT32},
-    [UCI_RSSI] = {.name = "rssi", .type = BLOBMSG_TYPE_INT32},
-    [UCI_LOW_RSSI] = {.name = "low_rssi", .type = BLOBMSG_TYPE_INT32},
-    [UCI_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
-    [UCI_CHAN_UTIL] = {.name = "chan_util", .type = BLOBMSG_TYPE_INT32},
-    [UCI_MAX_CHAN_UTIL] = {.name = "max_chan_util", .type = BLOBMSG_TYPE_INT32},
-    [UCI_RSSI_VAL] = {.name = "rssi_val", .type = BLOBMSG_TYPE_INT32},
-    [UCI_LOW_RSSI_VAL] = {.name = "low_rssi_val", .type = BLOBMSG_TYPE_INT32},
     [UCI_CHAN_UTIL_VAL] = {.name = "chan_util_val", .type = BLOBMSG_TYPE_INT32},
+    [UCI_CHAN_UTIL] = {.name = "chan_util", .type = BLOBMSG_TYPE_INT32},
     [UCI_MAX_CHAN_UTIL_VAL] = {.name = "max_chan_util_val", .type = BLOBMSG_TYPE_INT32},
-    [UCI_MIN_PROBE_COUNT] = {.name = "min_probe_count", .type = BLOBMSG_TYPE_INT32},
+    [UCI_MAX_CHAN_UTIL] = {.name = "max_chan_util", .type = BLOBMSG_TYPE_INT32},
+    [UCI_FREQ] = {.name = "freq", .type = BLOBMSG_TYPE_INT32},
+    [UCI_RSSI_VAL] = {.name = "rssi_val", .type = BLOBMSG_TYPE_INT32},
+    [UCI_RSSI] = {.name = "rssi", .type = BLOBMSG_TYPE_INT32},
+    [UCI_LOW_RSSI_VAL] = {.name = "low_rssi_val", .type = BLOBMSG_TYPE_INT32},
+    [UCI_LOW_RSSI] = {.name = "low_rssi", .type = BLOBMSG_TYPE_INT32},
+};
+
+static const struct blobmsg_policy uci_behaviour_policy[__UCI_BEHAVIOUR_MAX] = {
+    [UCI_KICKING] = {.name = "kicking", .type = BLOBMSG_TYPE_INT32},
+    [UCI_MIN_KICK_COUNT] = {.name = "min_kick_count", .type = BLOBMSG_TYPE_INT32},
     [UCI_BANDWIDTH_THRESHOLD] = {.name = "bandwidth_threshold", .type = BLOBMSG_TYPE_INT32},
     [UCI_USE_STATION_COUNT] = {.name = "use_station_count", .type = BLOBMSG_TYPE_INT32},
     [UCI_MAX_STATION_DIFF] = {.name = "max_station_diff", .type = BLOBMSG_TYPE_INT32},
+    [UCI_MIN_PROBE_COUNT] = {.name = "min_probe_count", .type = BLOBMSG_TYPE_INT32},
     [UCI_EVAL_PROBE_REQ] = {.name = "eval_probe_req", .type = BLOBMSG_TYPE_INT32},
     [UCI_EVAL_AUTH_REQ] = {.name = "eval_auth_req", .type = BLOBMSG_TYPE_INT32},
     [UCI_EVAL_ASSOC_REQ] = {.name = "eval_assoc_req", .type = BLOBMSG_TYPE_INT32},
-    [UCI_KICKING] = {.name = "kicking", .type = BLOBMSG_TYPE_INT32},
     [UCI_DENY_AUTH_REASON] = {.name = "deny_auth_reason", .type = BLOBMSG_TYPE_INT32},
     [UCI_DENY_ASSOC_REASON] = {.name = "deny_assoc_reason", .type = BLOBMSG_TYPE_INT32},
     [UCI_USE_DRIVER_RECOG] = {.name = "use_driver_recog", .type = BLOBMSG_TYPE_INT32},
-    [UCI_MIN_NUMBER_TO_KICK] = {.name = "min_number_to_kick", .type = BLOBMSG_TYPE_INT32},
     [UCI_CHAN_UTIL_AVG_PERIOD] = {.name = "chan_util_avg_period", .type = BLOBMSG_TYPE_INT32},
     [UCI_SET_HOSTAPD_NR] = {.name = "set_hostapd_nr", .type = BLOBMSG_TYPE_INT32},
     [UCI_OP_CLASS] = {.name = "op_class", .type = BLOBMSG_TYPE_INT32},
@@ -646,61 +662,75 @@ static const struct blobmsg_policy uci_metric_policy[__UCI_METIC_MAX] = {
     [UCI_SCAN_CHANNEL] = {.name = "mode", .type = BLOBMSG_TYPE_INT32},
 };
 
-static const struct blobmsg_policy uci_intervals_policy[__UCI_INTERVALS_MAX] = {
-    [UCI_UPDATE_CLIENT] = {.name = "update_client", .type = BLOBMSG_TYPE_INT32},
-    [UCI_DENIED_REQ_THRESHOLD] = {.name = "denied_req_threshold", .type = BLOBMSG_TYPE_INT32},
-    [UCI_REMOVE_CLIENT] = {.name = "remove_client", .type = BLOBMSG_TYPE_INT32},
-    [UCI_REMOVE_PROBE] = {.name = "remove_probe", .type = BLOBMSG_TYPE_INT32},
-    [UCI_REMOVE_AP] = {.name = "remove_ap", .type = BLOBMSG_TYPE_INT32},
-    [UCI_UPDATE_HOSTAPD] = {.name = "update_hostapd", .type = BLOBMSG_TYPE_INT32},
-    [UCI_UPDATE_TCP_CON] = {.name = "update_tcp_con", .type = BLOBMSG_TYPE_INT32},
-    [UCI_UPDATE_CHAN_UTIL] = {.name = "update_chan_util", .type = BLOBMSG_TYPE_INT32},
-    [UCI_UPDATE_BEACON_REPORTS] = {.name = "update_beacon_reports", .type = BLOBMSG_TYPE_INT32},
-};
-
 static int handle_uci_config(struct blob_attr *msg)
 {
-    struct blob_attr *tb[__UCI_TABLE_MAX], *tb_metric[__UCI_METIC_MAX], *tb_intervals[__UCI_INTERVALS_MAX];
+    struct blob_attr *tb[__UCI_TABLE_MAX], *tb_intervals[__UCI_INTERVALS_MAX],
+            *tb_metric[__UCI_METRIC_MAX], *tb_behaviour[__UCI_BEHAVIOUR_MAX];
     char cmd_buffer[1024];
 
     blobmsg_parse(uci_table_policy, __UCI_TABLE_MAX, tb, blob_data(msg), blob_len(msg));
-    blobmsg_parse(uci_metric_policy, __UCI_METIC_MAX, tb_metric, blobmsg_data(tb[UCI_TABLE_METRIC]), blobmsg_len(tb[UCI_TABLE_METRIC]));
-    blobmsg_parse(uci_intervals_policy, __UCI_INTERVALS_MAX, tb_intervals, blobmsg_data(tb[UCI_TABLE_INTERVALS]), blobmsg_len(tb[UCI_TABLE_INTERVALS]));
+    blobmsg_parse(uci_intervals_policy, __UCI_INTERVALS_MAX, tb_intervals,
+                  blobmsg_data(tb[UCI_TABLE_INTERVALS]), blobmsg_len(tb[UCI_TABLE_INTERVALS]));
+    blobmsg_parse(uci_metric_policy, __UCI_METRIC_MAX, tb_metric,
+                  blobmsg_data(tb[UCI_TABLE_METRIC]), blobmsg_len(tb[UCI_TABLE_METRIC]));
+    blobmsg_parse(uci_behaviour_policy, __UCI_BEHAVIOUR_MAX, tb_behaviour,
+                  blobmsg_data(tb[UCI_TABLE_BEHAVIOUR]), blobmsg_len(tb[UCI_TABLE_BEHAVIOUR]));
 
     struct {
         const char *config_option;
         struct blob_attr **tb;
         int tb_idx;
-    } option_array[] = {{"@metric[0].ht_support", tb_metric, UCI_HT_SUPPORT}, {"@metric[0].vht_support", tb_metric, UCI_VHT_SUPPORT},
-    {"@metric[0].no_ht_support", tb_metric, UCI_NO_HT_SUPPORT}, {"@metric[0].no_vht_support", tb_metric, UCI_NO_VHT_SUPPORT},
-    {"@metric[0].rssi", tb_metric, UCI_RSSI}, {"@metric[0].low_rssi", tb_metric, UCI_LOW_RSSI}, {"@metric[0].freq", tb_metric, UCI_FREQ},
-    {"@metric[0].chan_util", tb_metric, UCI_CHAN_UTIL}, {"@metric[0].rssi_val", tb_metric, UCI_RSSI_VAL},
-    {"@metric[0].low_rssi_val", tb_metric, UCI_LOW_RSSI_VAL}, {"@metric[0].scan_channel", tb_metric, UCI_SCAN_CHANNEL},
-    {"@metric[0].chan_util_val", tb_metric, UCI_CHAN_UTIL_VAL}, {"@metric[0].max_chan_util", tb_metric, UCI_MAX_CHAN_UTIL},
-    {"@metric[0].max_chan_util_val", tb_metric, UCI_MAX_CHAN_UTIL_VAL}, {"@metric[0].min_probe_count", tb_metric, UCI_MIN_PROBE_COUNT},
-    {"@metric[0].bandwidth_threshold", tb_metric, UCI_BANDWIDTH_THRESHOLD}, {"@metric[0].use_station_count", tb_metric, UCI_USE_STATION_COUNT},
-    {"@metric[0].max_station_diff", tb_metric, UCI_MAX_STATION_DIFF}, {"@metric[0].eval_probe_req", tb_metric, UCI_EVAL_PROBE_REQ},
-    {"@metric[0].eval_auth_req", tb_metric, UCI_EVAL_AUTH_REQ}, {"@metric[0].evalcd_assoc_req", tb_metric, UCI_EVAL_ASSOC_REQ},
-    {"@metric[0].kicking", tb_metric, UCI_KICKING}, {"@metric[0].deny_auth_reason", tb_metric, UCI_DENY_AUTH_REASON},
-    {"@metric[0].deny_assoc_reason", tb_metric, UCI_DENY_ASSOC_REASON}, {"@metric[0].use_driver_recog", tb_metric, UCI_USE_DRIVER_RECOG},
-    {"@metric[0].min_number_to_kick", tb_metric, UCI_MIN_NUMBER_TO_KICK}, {"@metric[0].chan_util_avg_period", tb_metric, UCI_CHAN_UTIL_AVG_PERIOD},
-    {"@metric[0].set_hostapd_nr", tb_metric, UCI_SET_HOSTAPD_NR}, {"@metric[0].op_class", tb_metric, UCI_OP_CLASS},
-    {"@metric[0].duration", tb_metric, UCI_DURATION}, {"@metric[0].mode", tb_metric, UCI_MODE},
-    {"@intervals[0].update_client", tb_intervals, UCI_UPDATE_CLIENT}, {"@intervals[0].denied_req_threshold", tb_intervals, UCI_DENIED_REQ_THRESHOLD},
-    {"@intervals[0].remove_client", tb_intervals, UCI_REMOVE_CLIENT}, {"@intervals[0].remove_probe", tb_intervals, UCI_REMOVE_PROBE},
-    {"@intervals[0].remove_ap", tb_intervals, UCI_REMOVE_AP}, {"@intervals[0].update_hostapd", tb_intervals, UCI_UPDATE_HOSTAPD},
-    {"@intervals[0].update_tcp_con", tb_intervals, UCI_UPDATE_TCP_CON}, {"@intervals[0].update_chan_util", tb_intervals, UCI_UPDATE_CHAN_UTIL},
-    {"@intervals[0].update_beacon_reports", tb_intervals, UCI_UPDATE_BEACON_REPORTS}};
+    } option_array[] = {
+    {"@intervals[0].update_client", tb_intervals, UCI_UPDATE_CLIENT},
+    {"@intervals[0].update_hostapd", tb_intervals, UCI_UPDATE_HOSTAPD},
+    {"@intervals[0].update_tcp_con", tb_intervals, UCI_UPDATE_TCP_CON},
+    {"@intervals[0].update_chan_util", tb_intervals, UCI_UPDATE_CHAN_UTIL},
+    {"@intervals[0].update_beacon_reports", tb_intervals, UCI_UPDATE_BEACON_REPORTS},
+    {"@intervals[0].remove_probe", tb_intervals, UCI_REMOVE_PROBE},
+    {"@intervals[0].remove_ap", tb_intervals, UCI_REMOVE_AP},
+    {"@intervals[0].denied_req_threshold", tb_intervals, UCI_DENIED_REQ_THRESHOLD},
+    {"@metric[0].ht_support", tb_metric, UCI_HT_SUPPORT},
+    {"@metric[0].vht_support", tb_metric, UCI_VHT_SUPPORT},
+    {"@metric[0].chan_util_val", tb_metric, UCI_CHAN_UTIL_VAL},
+    {"@metric[0].chan_util", tb_metric, UCI_CHAN_UTIL},
+    {"@metric[0].max_chan_util_val", tb_metric, UCI_MAX_CHAN_UTIL_VAL},
+    {"@metric[0].max_chan_util", tb_metric, UCI_MAX_CHAN_UTIL},
+    {"@metric[0].freq", tb_metric, UCI_FREQ},
+    {"@metric[0].rssi_val", tb_metric, UCI_RSSI_VAL},
+    {"@metric[0].rssi", tb_metric, UCI_RSSI},
+    {"@metric[0].low_rssi_val", tb_metric, UCI_LOW_RSSI_VAL},
+    {"@metric[0].low_rssi", tb_metric, UCI_LOW_RSSI},
+    {"@behaviour[0].kicking", tb_behaviour, UCI_KICKING},
+    {"@behaviour[0].min_kick_count", tb_behaviour, UCI_MIN_KICK_COUNT},
+    {"@behaviour[0].bandwidth_threshold", tb_behaviour, UCI_BANDWIDTH_THRESHOLD},
+    {"@behaviour[0].use_station_count", tb_behaviour, UCI_USE_STATION_COUNT},
+    {"@behaviour[0].max_station_diff", tb_behaviour, UCI_MAX_STATION_DIFF},
+    {"@behaviour[0].min_probe_count", tb_behaviour, UCI_MIN_PROBE_COUNT},
+    {"@behaviour[0].eval_probe_req", tb_behaviour, UCI_EVAL_PROBE_REQ},
+    {"@behaviour[0].eval_auth_req", tb_behaviour, UCI_EVAL_AUTH_REQ},
+    {"@behaviour[0].eval_assoc_req", tb_behaviour, UCI_EVAL_ASSOC_REQ},
+    {"@behaviour[0].deny_auth_reason", tb_behaviour, UCI_DENY_AUTH_REASON},
+    {"@behaviour[0].deny_assoc_reason", tb_behaviour, UCI_DENY_ASSOC_REASON},
+    {"@behaviour[0].use_driver_recog", tb_behaviour, UCI_USE_DRIVER_RECOG},
+    {"@behaviour[0].chan_util_avg_period", tb_behaviour, UCI_CHAN_UTIL_AVG_PERIOD},
+    {"@behaviour[0].set_hostapd_nr", tb_behaviour, UCI_SET_HOSTAPD_NR},
+    {"@behaviour[0].op_class", tb_behaviour, UCI_OP_CLASS},
+    {"@behaviour[0].duration", tb_behaviour, UCI_DURATION},
+    {"@behaviour[0].mode", tb_behaviour, UCI_MODE},
+    {"@behaviour[0].scan_channel", tb_behaviour, UCI_SCAN_CHANNEL},
+    };
 
     for (size_t i = 0; i < ARRAY_SIZE(option_array); ++i) {
         sprintf(cmd_buffer, "dawn.%s=%d", option_array[i].config_option,
                 blobmsg_get_u32(option_array[i].tb[option_array[i].tb_idx]));
-        uci_set_network(cmd_buffer);
+        dawn_uci_set_config(cmd_buffer);
     }
 
-    uci_reset();
-    uci_get_dawn_metric(&dawn_metric);
-    uci_get_dawn_intervals(&timeout_config);
+    dawn_uci_commit_config();
+    dawn_uci_reset();
+    dawn_uci_get_metric(&metric_config);
+    dawn_uci_get_intervals(&time_intervals_config);
+    dawn_uci_get_behaviour(&behaviour_config);
 
     return 0;
 }

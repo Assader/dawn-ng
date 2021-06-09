@@ -13,9 +13,10 @@
 #define BIT(x) (1u << (x))
 #endif
 
-struct probe_metric_s dawn_metric;
-struct network_config_s network_config;
-struct time_config_s timeout_config;
+general_config_t general_config;
+time_intervals_config_t time_intervals_config;
+metric_config_t metric_config;
+behaviour_config_t behaviour_config;
 
 enum {
     WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE = BIT(4),
@@ -263,20 +264,18 @@ int eval_probe_metric(struct probe_entry_s *probe_entry, ap *ap_entry)
     if (ap_entry != NULL) {
         score += ap_entry->ap_weight;
 
-        score += (probe_entry->ht_capabilities && ap_entry->ht_support)? dawn_metric.ht_support : 0;
-        score += (!probe_entry->ht_capabilities && !ap_entry->ht_support)? dawn_metric.no_ht_support : 0;
-        score += (probe_entry->vht_capabilities && ap_entry->vht_support)? dawn_metric.vht_support : 0;
-        score += (!probe_entry->vht_capabilities && !ap_entry->vht_support)? dawn_metric.no_vht_support : 0;
+        score += (probe_entry->ht_capabilities && ap_entry->ht_support)? metric_config.ht_support : 0;
+        score += (probe_entry->vht_capabilities && ap_entry->vht_support)? metric_config.vht_support : 0;
 
-        score += (ap_entry->channel_utilization <= dawn_metric.chan_util_val)? dawn_metric.chan_util : 0;
-        score += (ap_entry->channel_utilization > dawn_metric.max_chan_util_val)? dawn_metric.max_chan_util : 0;
+        score += (ap_entry->channel_utilization <= metric_config.chan_util_val)? metric_config.chan_util : 0;
+        score += (ap_entry->channel_utilization > metric_config.max_chan_util_val)? metric_config.max_chan_util : 0;
     }
 
-    score += (probe_entry->freq > 5000)? dawn_metric.freq : 0;
+    score += (probe_entry->freq > 5000)? metric_config.freq : 0;
 
     /* TODO: Should RCPI be used here as well? */
-    score += (probe_entry->signal >= dawn_metric.rssi_val)? dawn_metric.rssi : 0;
-    score += (probe_entry->signal <= dawn_metric.low_rssi_val)? dawn_metric.low_rssi : 0;
+    score += (probe_entry->signal >= metric_config.rssi_val)? metric_config.rssi : 0;
+    score += (probe_entry->signal <= metric_config.low_rssi_val)? metric_config.low_rssi : 0;
 
     /* TODO: This magic value never checked by caller.  What does it achieve? */
     if (score < 0) {
@@ -308,7 +307,7 @@ static bool compare_station_count(ap *ap_entry_own, ap *ap_entry_to_compare, str
 
     printf("Comparing own station count %d to %d\n", sta_count, sta_count_to_compare);
 
-    return (sta_count - sta_count_to_compare) > dawn_metric.max_station_diff;
+    return (sta_count - sta_count_to_compare) > behaviour_config.max_station_diff;
 }
 
 int better_ap_available(ap *kicking_ap, struct dawn_mac client_mac, char *neighbor_report)
@@ -362,7 +361,7 @@ int better_ap_available(ap *kicking_ap, struct dawn_mac client_mac, char *neighb
 
             max_score = score_to_compare;
         }
-        else if (score_to_compare == max_score && dawn_metric.use_station_count) {
+        else if (score_to_compare == max_score && behaviour_config.use_station_count) {
             if (compare_station_count(kicking_ap, candidate_ap, client_mac)) {
                 kick = true;
 
@@ -420,8 +419,8 @@ int kick_clients(ap *kicking_ap, uint32_t id)
              * + ping pong behavior of clients will be reduced */
             j->kick_count++;
             printf("Comparing kick count! kickcount: %d to min_kick_count: %d!\n", j->kick_count,
-                   dawn_metric.min_kick_count);
-            if (j->kick_count >= dawn_metric.min_kick_count) {
+                   behaviour_config.min_kick_count);
+            if (j->kick_count >= behaviour_config.min_kick_count) {
                 printf("Better AP available. Kicking client:\n");
                 print_client_entry(j);
                 printf("Check if client is active receiving!\n");
@@ -431,7 +430,7 @@ int kick_clients(ap *kicking_ap, uint32_t id)
                     /* Only use rx_rate for indicating if transmission is going on
                      * <= 6MBits <- probably no transmission
                      * tx_rate has always some weird value so don't use ist */
-                    if (rx_rate > dawn_metric.bandwidth_threshold) {
+                    if (rx_rate > behaviour_config.bandwidth_threshold) {
                         printf("Client is probably in active transmisison. Don't kick! RxRate is: %f\n", rx_rate);
                     }
                     else {

@@ -6,8 +6,6 @@
 #include "dawn_log.h"
 #include "memory_utils.h"
 
-char *hostapd_dir;
-
 static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
 static int get_rssi(const char *ifname, struct dawn_mac client_addr);
 static int get_expected_throughput(const char *ifname, struct dawn_mac client_addr);
@@ -18,9 +16,9 @@ bool iwinfo_get_bandwidth(struct dawn_mac client_addr, float *rx_rate, float *tx
     struct dirent *entry;
     DIR *dirp;
 
-    dirp = opendir(hostapd_dir);
+    dirp = opendir(general_config.hostapd_dir);
     if (dirp == NULL) {
-        DAWN_LOG_ERROR("Failed to open %s", hostapd_dir);
+        DAWN_LOG_ERROR("Failed to open %s", general_config.hostapd_dir);
         goto exit;
     }
 
@@ -92,9 +90,9 @@ int iwinfo_get_rssi(struct dawn_mac client_addr)
     int rssi = INT_MIN;
     DIR *dirp;
 
-    dirp = opendir(hostapd_dir);
+    dirp = opendir(general_config.hostapd_dir);
     if (dirp == NULL) {
-        DAWN_LOG_ERROR("Failed to open %s", hostapd_dir);
+        DAWN_LOG_ERROR("Failed to open %s", general_config.hostapd_dir);
         goto exit;
     }
 
@@ -163,9 +161,9 @@ int iwinfo_get_expected_throughput(struct dawn_mac client_addr)
     struct dirent *entry;
     DIR *dirp;
 
-    dirp = opendir(hostapd_dir);
+    dirp = opendir(general_config.hostapd_dir);
     if (dirp == NULL) {
-        DAWN_LOG_ERROR("Failed to open %s", hostapd_dir);
+        DAWN_LOG_ERROR("Failed to open %s", general_config.hostapd_dir);
         goto exit;
     }
 

@@ -129,7 +129,7 @@ void tcp_send(const char *message)
 
     print_tcp_array();
 
-    if (network_config.use_symm_enc) {
+    if (general_config.use_encryption) {
         int enc_length;
         char *enc;
 
@@ -160,7 +160,7 @@ void tcp_send(const char *message)
         }
     }
 
-    if (network_config.use_symm_enc) {
+    if (general_config.use_encryption) {
         dawn_free((void *) message);
     }
 }
@@ -248,7 +248,7 @@ static void client_notify_read(struct ustream *stream, int bytes)
         if (client->state == READ_STATUS_COMPLETE) {
             DAWN_LOG_DEBUG("Processing message...");
 
-            if (network_config.use_symm_enc) {
+            if (general_config.use_encryption) {
                 if (!gcrypt_decrypt_msg(client->str, client->final_len)) {
                     goto cleanup;
                 }

@@ -17,7 +17,7 @@ enum {
  * @param sock_type
  * @return true if init was successfull, false otherwise.
  */
-bool dawn_init_network(const char *ip, uint16_t port, int sock_type);
+bool dawn_network_init(const char *ip, uint16_t port, int sock_type);
 
 /**
  * @brief send_string
@@ -26,6 +26,6 @@ bool dawn_init_network(const char *ip, uint16_t port, int sock_type);
  */
 int send_string(const char *msg);
 
-void dawn_deinit_network(void);
+void dawn_network_deinit(void);
 
 #endif /* DAWN_NETWORKSOCKET_H */

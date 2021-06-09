@@ -267,19 +267,19 @@ static int decide_function(probe_entry *prob_req, int req_type)
         return 1;
     }
 
-    if (prob_req->counter < dawn_metric.min_probe_count) {
+    if (prob_req->counter < behaviour_config.min_probe_count) {
         return 0;
     }
 
-    if (req_type == REQ_TYPE_PROBE && dawn_metric.eval_probe_req <= 0) {
+    if (req_type == REQ_TYPE_PROBE && behaviour_config.eval_probe_req <= 0) {
         return 1;
     }
 
-    if (req_type == REQ_TYPE_AUTH && dawn_metric.eval_auth_req <= 0) {
+    if (req_type == REQ_TYPE_AUTH && behaviour_config.eval_auth_req <= 0) {
         return 1;
     }
 
-    if (req_type == REQ_TYPE_ASSOC && dawn_metric.eval_assoc_req <= 0) {
+    if (req_type == REQ_TYPE_ASSOC && behaviour_config.eval_assoc_req <= 0) {
         return 1;
     }
 
@@ -376,7 +376,7 @@ static int parse_to_beacon_rep(struct blob_attr *msg)
         beacon_rep->next_probe = NULL;
         beacon_rep->bssid_addr = msg_bssid;
         beacon_rep->client_addr = msg_client;
-        beacon_rep->counter = dawn_metric.min_probe_count;
+        beacon_rep->counter = behaviour_config.min_probe_count;
         hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), beacon_rep->target_addr.u8); /* TODO: What is this for? */
         beacon_rep->signal = 0;
         beacon_rep->freq = ap_entry_rep->freq;
@@ -437,12 +437,12 @@ static int handle_auth_req(struct blob_attr *msg)
                 printf("Entry found\nDeny authentication!\n");
             }
 
-            if (dawn_metric.use_driver_recog) {
+            if (behaviour_config.use_driver_recog) {
                 if (auth_req == insert_to_denied_req_array(auth_req, 1, time(NULL))) {
                     discard_entry = false;
                 }
             }
-            ret = dawn_metric.deny_auth_reason;
+            ret = behaviour_config.deny_auth_reason;
         }
         else {
             /* Maybe send here that the client is connected? */
@@ -493,12 +493,12 @@ static int handle_assoc_req(struct blob_attr *msg)
             }
 
             printf("Deny associtation!\n");
-            if (dawn_metric.use_driver_recog) {
+            if (behaviour_config.use_driver_recog) {
                 if (auth_req == insert_to_denied_req_array(auth_req, 1, time(NULL))) {
                     discard_entry = false;
                 }
             }
-            return dawn_metric.deny_assoc_reason;
+            return behaviour_config.deny_assoc_reason;
         }
         else {
             printf("Allow association!\n");
@@ -572,7 +572,7 @@ static int send_blob_attr_via_network(struct blob_attr *msg, char *method)
     str = blobmsg_format_json(b_send_network.head, true);
     dawn_regmem(str);
 
-    if (network_config.network_option == DAWN_SOCKET_TCP) {
+    if (general_config.network_proto == DAWN_SOCKET_TCP) {
         tcp_send(str);
     }
     else {
@@ -646,7 +646,7 @@ int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
     ubus_add_uloop(ctx);
 
     /* Set dawn metric */
-    uci_get_dawn_metric(&dawn_metric);
+    dawn_uci_get_metric(&metric_config);
 
     /* Set up callbacks to remove aged data */
     uloop_add_data_cbs();
@@ -655,15 +655,15 @@ int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
     uloop_timeout_add(&channel_utilization_timer);
     uloop_timeout_add(&hostapd_timer);
     /* Request beacon reports. Allow setting timeout to 0 */
-    if (timeout_config.update_beacon_reports) {
+    if (time_intervals_config.update_beacon_reports != 0) {
         uloop_timeout_add(&beacon_reports_timer);
     }
 
     ubus_add_obj();
 
-    if (network_config.network_option == DAWN_SOCKET_TCP) {
+    if (general_config.network_proto == DAWN_SOCKET_TCP) {
         start_tcp_con_update();
-        if (!tcp_run_server(network_config.tcp_port)) {
+        if (!tcp_run_server(general_config.network_port)) {
             uloop_timeout_set(&usock_timer, 1000);
         }
     }
@@ -672,7 +672,7 @@ int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
 
     uloop_run();
 
-    dawn_deinit_network();
+    dawn_network_deinit();
     ubus_free(ctx);
     dawn_unregmem(ctx);
     uloop_done();
@@ -694,7 +694,6 @@ static void ubus_get_clients_cb(struct ubus_request *req, int type, struct blob_
 
     blob_buf_init(&b_domain, 0);
     blobmsg_add_json_from_string(&b_domain, data_str);
-    blobmsg_add_u32(&b_domain, "collision_domain", network_config.collision_domain);
 
     list_for_each_entry(sub, &hostapd_sock_list, list) {
         if (sub->id == req->peer) {
@@ -719,7 +718,7 @@ static void ubus_get_clients_cb(struct ubus_request *req, int type, struct blob_
     blobmsg_add_u8(&b_domain, "ht_supported", entry->ht_support);
     blobmsg_add_u8(&b_domain, "vht_supported", entry->vht_support);
 
-    blobmsg_add_u32(&b_domain, "ap_weight", dawn_metric.ap_weight);
+    blobmsg_add_u32(&b_domain, "ap_weight", metric_config.ap_weight);
 
     /* int channel_util = get_channel_utilization(entry->iface_name, &entry->last_channel_time, &entry->last_channel_time_busy); */
     blobmsg_add_u32(&b_domain, "channel_utilization", entry->chan_util_average);
@@ -809,16 +808,16 @@ static int ubus_get_rrm(void)
 static void update_clients(struct uloop_timeout *t)
 {
     ubus_get_clients();
-    if (dawn_metric.set_hostapd_nr) {
+    if (behaviour_config.set_hostapd_nr) {
         ubus_set_nr();
     }
     /* maybe to much?! don't set timer again... */
-    uloop_timeout_set(&client_timer, timeout_config.update_client * 1000);
+    uloop_timeout_set(&client_timer, time_intervals_config.update_client * 1000);
 }
 
 static void run_server_update(struct uloop_timeout *t)
 {
-    if (!tcp_run_server(network_config.tcp_port)) {
+    if (!tcp_run_server(general_config.network_port)) {
         uloop_timeout_set(&usock_timer, 1000);
     }
 }
@@ -834,7 +833,7 @@ static void update_channel_utilization(struct uloop_timeout *t)
                                             &sub->last_channel_time_busy);
             sub->chan_util_num_sample_periods++;
 
-            if (sub->chan_util_num_sample_periods > dawn_metric.chan_util_avg_period) {
+            if (sub->chan_util_num_sample_periods > behaviour_config.chan_util_avg_period) {
                 sub->chan_util_average = sub->chan_util_samples_sum / sub->chan_util_num_sample_periods;
                 sub->chan_util_samples_sum = 0;
                 sub->chan_util_num_sample_periods = 0;
@@ -842,7 +841,7 @@ static void update_channel_utilization(struct uloop_timeout *t)
         }
     }
 
-    uloop_timeout_set(&channel_utilization_timer, timeout_config.update_chan_util * 1000);
+    uloop_timeout_set(&channel_utilization_timer, time_intervals_config.update_chan_util * 1000);
 }
 
 void ubus_send_beacon_report(struct dawn_mac client, int id)
@@ -851,10 +850,11 @@ void ubus_send_beacon_report(struct dawn_mac client, int id)
 
     blob_buf_init(&b_beacon, 0);
     blobmsg_add_macaddr(&b_beacon, "addr", client);
-    blobmsg_add_u32(&b_beacon, "op_class", dawn_metric.op_class);
-    blobmsg_add_u32(&b_beacon, "channel", dawn_metric.scan_channel);
-    blobmsg_add_u32(&b_beacon, "duration", dawn_metric.duration);
-    blobmsg_add_u32(&b_beacon, "mode", dawn_metric.mode);
+    blobmsg_add_u32(&b_beacon, "op_class", behaviour_config.op_class);
+    blobmsg_add_u32(&b_beacon, "duration", behaviour_config.duration);
+    blobmsg_add_u32(&b_beacon, "mode", behaviour_config.mode);
+    blobmsg_add_u32(&b_beacon, "channel", behaviour_config.scan_channel);
+
     printf("Adding string\n");
     blobmsg_add_string(&b_beacon, "ssid", "");
 
@@ -866,7 +866,7 @@ static void update_beacon_reports(struct uloop_timeout *t)
 {
     struct hostapd_sock_entry *sub;
 
-    if (timeout_config.update_beacon_reports == 0) {
+    if (time_intervals_config.update_beacon_reports == 0) {
         return;
     }
 
@@ -879,22 +879,22 @@ static void update_beacon_reports(struct uloop_timeout *t)
         }
     }
 
-    uloop_timeout_set(&beacon_reports_timer, timeout_config.update_beacon_reports * 1000);
+    uloop_timeout_set(&beacon_reports_timer, time_intervals_config.update_beacon_reports * 1000);
 }
 
 static void update_tcp_connections(struct uloop_timeout *t)
 {
-    if (strcmp(network_config.server_ip, "")) {
+    if (strcmp(general_config.server_ip, "")) {
         /* Nothing happens if tcp connection is already established */
-        tcp_add_conncection(network_config.server_ip, network_config.tcp_port);
+        tcp_add_conncection(general_config.server_ip, general_config.network_port);
     }
 
     /* mdns enabled? */
-    if (network_config.network_option == DAWN_SOCKET_TCP) {
+    if (general_config.network_proto == DAWN_SOCKET_TCP) {
         ubus_call_umdns();
     }
 
-    uloop_timeout_set(&tcp_con_timer, timeout_config.update_tcp_con * 1000);
+    uloop_timeout_set(&tcp_con_timer, time_intervals_config.update_tcp_con * 1000);
 }
 
 static void start_tcp_con_update(void)
@@ -905,8 +905,8 @@ static void start_tcp_con_update(void)
 
 static void update_hostapd_sockets(struct uloop_timeout *t)
 {
-    subscribe_to_new_interfaces(hostapd_dir);
-    uloop_timeout_set(&hostapd_timer, timeout_config.update_hostapd * 1000);
+    subscribe_to_new_interfaces(general_config.hostapd_dir);
+    uloop_timeout_set(&hostapd_timer, time_intervals_config.update_hostapd * 1000);
 }
 
 static void ubus_set_nr(void)
@@ -1155,13 +1155,13 @@ static int add_mac(struct ubus_context *ctx, struct ubus_object *obj,
 
 void dawn_reload_config(void)
 {
-    uci_reset();
-    uci_get_dawn_metric(&dawn_metric);
-    uci_get_dawn_intervals(&timeout_config);
-    uci_get_dawn_hostapd_dir();
+    dawn_uci_reset();
+    dawn_uci_get_metric(&metric_config);
+    dawn_uci_get_intervals(&time_intervals_config);
+    dawn_uci_get_behaviour(&behaviour_config);
 
     /* Allow setting timeout to 0 */
-    if (timeout_config.update_beacon_reports) {
+    if (time_intervals_config.update_beacon_reports != 0) {
         uloop_timeout_add(&beacon_reports_timer);
     }
 
@@ -1353,7 +1353,7 @@ static bool subscriber_to_interface(const char *ifname)
     hostapd_entry = dawn_calloc(1, sizeof (struct hostapd_sock_entry));
     strcpy(hostapd_entry->iface_name, ifname);
 
-    uci_get_hostname(hostapd_entry->hostname);
+    dawn_uci_get_hostname(hostapd_entry->hostname);
 
     hostapd_entry->subscriber.cb = hostapd_notify;
     hostapd_entry->subscriber.remove_cb = hostapd_handle_remove;
@@ -1415,55 +1415,54 @@ static void subscribe_to_new_interfaces(const char *hostapd_sock_path)
 
 static int uci_send_via_network(void)
 {
-    void *metric, *intervals;
+    void *metric, *intervals, *behaviour;
 
     blob_buf_init(&b, 0);
-    metric = blobmsg_open_table(&b, "metric");
-    blobmsg_add_u32(&b, "ht_support", dawn_metric.ht_support);
-    blobmsg_add_u32(&b, "vht_support", dawn_metric.vht_support);
-    blobmsg_add_u32(&b, "no_ht_support", dawn_metric.no_ht_support);
-    blobmsg_add_u32(&b, "no_vht_support", dawn_metric.no_vht_support);
-    blobmsg_add_u32(&b, "rssi", dawn_metric.rssi);
-    blobmsg_add_u32(&b, "low_rssi", dawn_metric.low_rssi);
-    blobmsg_add_u32(&b, "freq", dawn_metric.freq);
-    blobmsg_add_u32(&b, "chan_util", dawn_metric.chan_util);
+    intervals = blobmsg_open_table(&b, "intervals");
+    blobmsg_add_u32(&b, "update_client", time_intervals_config.update_client);
+    blobmsg_add_u32(&b, "update_hostapd", time_intervals_config.update_hostapd);
+    blobmsg_add_u32(&b, "update_tcp_con", time_intervals_config.update_tcp_con);
+    blobmsg_add_u32(&b, "update_chan_util", time_intervals_config.update_chan_util);
+    blobmsg_add_u32(&b, "update_beacon_reports", time_intervals_config.update_beacon_reports);
+    blobmsg_add_u32(&b, "remove_probe", time_intervals_config.remove_probe);
+    blobmsg_add_u32(&b, "remove_ap", time_intervals_config.remove_ap);
+    blobmsg_add_u32(&b, "denied_req_threshold", time_intervals_config.denied_req_threshold);
+    blobmsg_close_table(&b, intervals);
 
-    blobmsg_add_u32(&b, "max_chan_util", dawn_metric.max_chan_util);
-    blobmsg_add_u32(&b, "rssi_val", dawn_metric.rssi_val);
-    blobmsg_add_u32(&b, "low_rssi_val", dawn_metric.low_rssi_val);
-    blobmsg_add_u32(&b, "chan_util_val", dawn_metric.chan_util_val);
-    blobmsg_add_u32(&b, "max_chan_util_val", dawn_metric.max_chan_util_val);
-    blobmsg_add_u32(&b, "min_probe_count", dawn_metric.min_probe_count);
-    blobmsg_add_u32(&b, "bandwidth_threshold", dawn_metric.bandwidth_threshold);
-    blobmsg_add_u32(&b, "use_station_count", dawn_metric.use_station_count);
-    blobmsg_add_u32(&b, "max_station_diff", dawn_metric.max_station_diff);
-    blobmsg_add_u32(&b, "eval_probe_req", dawn_metric.eval_probe_req);
-    blobmsg_add_u32(&b, "eval_auth_req", dawn_metric.eval_auth_req);
-    blobmsg_add_u32(&b, "eval_assoc_req", dawn_metric.eval_assoc_req);
-    blobmsg_add_u32(&b, "kicking", dawn_metric.kicking);
-    blobmsg_add_u32(&b, "deny_auth_reason", dawn_metric.deny_auth_reason);
-    blobmsg_add_u32(&b, "deny_assoc_reason", dawn_metric.deny_assoc_reason);
-    blobmsg_add_u32(&b, "use_driver_recog", dawn_metric.use_driver_recog);
-    blobmsg_add_u32(&b, "min_number_to_kick", dawn_metric.min_kick_count);
-    blobmsg_add_u32(&b, "chan_util_avg_period", dawn_metric.chan_util_avg_period);
-    blobmsg_add_u32(&b, "set_hostapd_nr", dawn_metric.set_hostapd_nr);
-    blobmsg_add_u32(&b, "op_class", dawn_metric.op_class);
-    blobmsg_add_u32(&b, "duration", dawn_metric.duration);
-    blobmsg_add_u32(&b, "mode", dawn_metric.mode);
-    blobmsg_add_u32(&b, "scan_channel", dawn_metric.scan_channel);
+    metric = blobmsg_open_table(&b, "metric");
+    blobmsg_add_u32(&b, "ht_support", metric_config.ht_support);
+    blobmsg_add_u32(&b, "vht_support", metric_config.vht_support);
+    blobmsg_add_u32(&b, "chan_util_val", metric_config.chan_util_val);
+    blobmsg_add_u32(&b, "chan_util", metric_config.chan_util);
+    blobmsg_add_u32(&b, "max_chan_util_val", metric_config.max_chan_util_val);
+    blobmsg_add_u32(&b, "max_chan_util", metric_config.max_chan_util);
+    blobmsg_add_u32(&b, "freq", metric_config.freq);
+    blobmsg_add_u32(&b, "rssi_val", metric_config.rssi_val);
+    blobmsg_add_u32(&b, "rssi", metric_config.rssi);
+    blobmsg_add_u32(&b, "low_rssi_val", metric_config.low_rssi_val);
+    blobmsg_add_u32(&b, "low_rssi", metric_config.low_rssi);
     blobmsg_close_table(&b, metric);
 
-    intervals = blobmsg_open_table(&b, "intervals");
-    blobmsg_add_u32(&b, "update_client", timeout_config.update_client);
-    blobmsg_add_u32(&b, "denied_req_threshold", timeout_config.denied_req_threshold);
-    blobmsg_add_u32(&b, "remove_client", timeout_config.remove_client);
-    blobmsg_add_u32(&b, "remove_probe", timeout_config.remove_probe);
-    blobmsg_add_u32(&b, "remove_ap", timeout_config.remove_ap);
-    blobmsg_add_u32(&b, "update_hostapd", timeout_config.update_hostapd);
-    blobmsg_add_u32(&b, "update_tcp_con", timeout_config.update_tcp_con);
-    blobmsg_add_u32(&b, "update_chan_util", timeout_config.update_chan_util);
-    blobmsg_add_u32(&b, "update_beacon_reports", timeout_config.update_beacon_reports);
-    blobmsg_close_table(&b, intervals);
+    behaviour = blobmsg_open_table(&b, "behaviour");
+    blobmsg_add_u32(&b, "kicking", behaviour_config.kicking);
+    blobmsg_add_u32(&b, "min_kick_count", behaviour_config.min_kick_count);
+    blobmsg_add_u32(&b, "bandwidth_threshold", behaviour_config.bandwidth_threshold);
+    blobmsg_add_u32(&b, "use_station_count", behaviour_config.use_station_count);
+    blobmsg_add_u32(&b, "max_station_diff", behaviour_config.max_station_diff);
+    blobmsg_add_u32(&b, "min_probe_count", behaviour_config.min_probe_count);
+    blobmsg_add_u32(&b, "eval_probe_req", behaviour_config.eval_probe_req);
+    blobmsg_add_u32(&b, "eval_auth_req", behaviour_config.eval_auth_req);
+    blobmsg_add_u32(&b, "eval_assoc_req", behaviour_config.eval_assoc_req);
+    blobmsg_add_u32(&b, "deny_auth_reason", behaviour_config.deny_auth_reason);
+    blobmsg_add_u32(&b, "deny_assoc_reason", behaviour_config.deny_assoc_reason);
+    blobmsg_add_u32(&b, "use_driver_recog", behaviour_config.use_driver_recog);
+    blobmsg_add_u32(&b, "chan_util_avg_period", behaviour_config.chan_util_avg_period);
+    blobmsg_add_u32(&b, "set_hostapd_nr", behaviour_config.set_hostapd_nr);
+    blobmsg_add_u32(&b, "op_class", behaviour_config.op_class);
+    blobmsg_add_u32(&b, "duration", behaviour_config.duration);
+    blobmsg_add_u32(&b, "mode", behaviour_config.mode);
+    blobmsg_add_u32(&b, "scan_channel", behaviour_config.scan_channel);
+    blobmsg_close_table(&b, behaviour);
 
     send_blob_attr_via_network(b.head, "uci");
 
@@ -1673,7 +1672,7 @@ static void uloop_add_data_cbs(void)
     uloop_timeout_add(&probe_timeout);
     uloop_timeout_add(&client_timeout);
     uloop_timeout_add(&ap_timeout);
-    if (dawn_metric.use_driver_recog) {
+    if (behaviour_config.use_driver_recog) {
         uloop_timeout_add(&denied_req_timeout);
     }
 }
@@ -1684,11 +1683,11 @@ static void remove_probe_array_cb(struct uloop_timeout *t)
 {
     pthread_mutex_lock(&probe_array_mutex);
     printf("[Thread] : Removing old probe entries!\n");
-    remove_old_probe_entries(time(NULL), timeout_config.remove_probe);
+    remove_old_probe_entries(time(NULL), time_intervals_config.remove_probe);
     printf("[Thread] : Removing old entries finished!\n");
     pthread_mutex_unlock(&probe_array_mutex);
 
-    uloop_timeout_set(&probe_timeout, timeout_config.remove_probe * 1000);
+    uloop_timeout_set(&probe_timeout, time_intervals_config.remove_probe * 1000);
 }
 
 /* TODO: Move mutex handling to remove_??? function to make test harness simpler?
@@ -1697,10 +1696,10 @@ static void remove_client_array_cb(struct uloop_timeout *t)
 {
     pthread_mutex_lock(&client_array_mutex);
     printf("[Thread] : Removing old client entries!\n");
-    remove_old_client_entries(time(NULL), timeout_config.update_client);
+    remove_old_client_entries(time(NULL), time_intervals_config.update_client);
     pthread_mutex_unlock(&client_array_mutex);
 
-    uloop_timeout_set(&client_timeout, timeout_config.update_client * 1000);
+    uloop_timeout_set(&client_timeout, time_intervals_config.update_client * 1000);
 }
 
 /* TODO: Move mutex handling to remove_??? function to make test harness simpler?
@@ -1709,10 +1708,10 @@ static void remove_ap_array_cb(struct uloop_timeout *t)
 {
     pthread_mutex_lock(&ap_array_mutex);
     printf("[ULOOP] : Removing old ap entries!\n");
-    remove_old_ap_entries(time(NULL), timeout_config.remove_ap);
+    remove_old_ap_entries(time(NULL), time_intervals_config.remove_ap);
     pthread_mutex_unlock(&ap_array_mutex);
 
-    uloop_timeout_set(&ap_timeout, timeout_config.remove_ap * 1000);
+    uloop_timeout_set(&ap_timeout, time_intervals_config.remove_ap * 1000);
 }
 
 /* TODO: Move mutex handling to (new) remove_??? function to make test harness simpler?
@@ -1721,10 +1720,10 @@ static void denied_req_array_cb(struct uloop_timeout *t)
 {
     pthread_mutex_lock(&denied_array_mutex);
     printf("[ULOOP] : Processing denied authentication!\n");
-    remove_old_denied_req_entries(time(NULL), timeout_config.denied_req_threshold, true);
+    remove_old_denied_req_entries(time(NULL), time_intervals_config.denied_req_threshold, true);
     pthread_mutex_unlock(&denied_array_mutex);
 
-    uloop_timeout_set(&denied_req_timeout, timeout_config.denied_req_threshold * 1000);
+    uloop_timeout_set(&denied_req_timeout, time_intervals_config.denied_req_threshold * 1000);
 }
 
 int send_add_mac(struct dawn_mac client_addr)

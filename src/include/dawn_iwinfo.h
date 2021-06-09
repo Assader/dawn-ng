@@ -7,8 +7,6 @@
 
 #include "mac_utils.h"
 
-extern char *hostapd_dir;
-
 /**
  * Get RSSI using the mac adress of the client.
  * Function uses libiwinfo and searches through all interfaces that are existing.

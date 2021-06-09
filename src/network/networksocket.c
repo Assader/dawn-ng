@@ -25,7 +25,7 @@ static pthread_t listener_thread_handler;
 
 _Noreturn static void *listener_thread(void *args);
 
-bool dawn_init_network(const char *ip, uint16_t port, int sock_type)
+bool dawn_network_init(const char *ip, uint16_t port, int sock_type)
 {
     sock = ((sock_type == DAWN_SOCKET_MULTICAST)?
                 dawn_setup_multicast_socket : dawn_setup_broadcast_socket)(ip, port, &addr);
@@ -49,7 +49,7 @@ int send_string(const char *msg)
     size_t msglen = strlen(msg) + 1;
     int err = -1;
 
-    if (network_config.use_symm_enc) {
+    if (general_config.use_encryption) {
         int enc_length;
         char *enc;
 
@@ -71,7 +71,7 @@ int send_string(const char *msg)
 
     pthread_mutex_unlock(&send_mutex);
 
-    if (network_config.use_symm_enc) {
+    if (general_config.use_encryption) {
         dawn_free((void *) msg);
     }
 
@@ -79,7 +79,7 @@ exit:
     return err;
 }
 
-void dawn_deinit_network(void)
+void dawn_network_deinit(void)
 {
     pthread_cancel(listener_thread_handler);
     pthread_join(listener_thread_handler, NULL);
@@ -97,7 +97,7 @@ _Noreturn static void *listener_thread(void *args)
             continue;
         }
 
-        if (network_config.use_symm_enc) {
+        if (general_config.use_encryption) {
             if (!gcrypt_decrypt_msg(msg, rcv_len)) {
                 continue;
             }
