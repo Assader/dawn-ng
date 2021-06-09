@@ -9,7 +9,7 @@ enum {
     DAWN_LOG_LEVEL_DEBUG   = 4,
 };
 
-#ifdef DEBUG
+#ifdef DAWN_VERBOSE_LOGS
 #define DAWN_LOG_ERROR(...)     dawn_log(DAWN_LOG_LEVEL_ERROR, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #define DAWN_LOG_WARNING(...)   dawn_log(DAWN_LOG_LEVEL_WARNING, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #define DAWN_LOG_INFO(...)      dawn_log(DAWN_LOG_LEVEL_INFO, __FILE__, __func__, __LINE__, __VA_ARGS__)

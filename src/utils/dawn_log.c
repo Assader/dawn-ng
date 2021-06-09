@@ -8,7 +8,7 @@
 
 static int dawn_log_level = DAWN_LOG_LEVEL_WARNING;
 
-#ifdef DEBUG
+#ifdef DAWN_VERBOSE_LOGS
 void dawn_log(int log_level, const char *file, const char *function, int line, const char *format, ...)
 {
     char *message;

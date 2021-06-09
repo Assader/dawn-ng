@@ -3,7 +3,6 @@
 
 #include "datastorage.h"
 #include "dawn_iwinfo.h"
-#include "mac_utils.h"
 #include "memory_utils.h"
 
 char *hostapd_dir;
