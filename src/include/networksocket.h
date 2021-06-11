@@ -24,7 +24,7 @@ bool dawn_network_init(const char *ip, uint16_t port, int sock_type);
  * @param msg
  * @return the number of bytes sent or -1 in case if en error occurred.
  */
-int send_string(const char *msg);
+int dawn_network_send(const char *msg);
 
 void dawn_network_deinit(void);
 

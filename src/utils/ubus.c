@@ -1,10 +1,9 @@
 #include <dirent.h>
-#include <libubus.h>
+#include <libubox/blobmsg_json.h>
 
-#include "datastorage.h"
 #include "dawn_iwinfo.h"
+#include "dawn_log.h"
 #include "dawn_uci.h"
-#include "mac_utils.h"
 #include "memory_utils.h"
 #include "msghandler.h"
 #include "networksocket.h"
@@ -31,10 +30,6 @@ enum {
     REQ_TYPE_ASSOC = 2,
 };
 
-enum {
-    MAX_HOSTAPD_SOCKETS = 10
-};
-
 static struct ubus_context *ctx;
 static struct blob_buf b;
 static struct blob_buf b_send_network;
@@ -49,9 +44,8 @@ static struct blob_buf b_nr;
 static LIST_HEAD(hostapd_sock_list);
 
 static void update_clients(struct uloop_timeout *t);
-static void update_tcp_connections(struct uloop_timeout *t);
+static void discover_new_dawn_instances(struct uloop_timeout *t);
 static void update_channel_utilization(struct uloop_timeout *t);
-static void run_server_update(struct uloop_timeout *t);
 static void update_beacon_reports(struct uloop_timeout *t);
 static void update_hostapd_sockets(struct uloop_timeout *t);
 static void remove_ap_array_cb(struct uloop_timeout *t);
@@ -63,14 +57,10 @@ static struct uloop_timeout client_timer = {
     .cb = update_clients
 };
 static struct uloop_timeout tcp_con_timer = {
-    .cb = update_tcp_connections
+    .cb = discover_new_dawn_instances
 };
 static struct uloop_timeout channel_utilization_timer = {
     .cb = update_channel_utilization
-};
-/* TODO: Never scheduled? */
-static struct uloop_timeout usock_timer = {
-    .cb = run_server_update
 };
 static struct uloop_timeout beacon_reports_timer = {
     .cb = update_beacon_reports
@@ -193,660 +183,137 @@ static const struct blobmsg_policy rrm_array_policy[__RRM_MAX] = {
     [RRM_ARRAY] = {.name = "value", .type = BLOBMSG_TYPE_ARRAY},
 };
 
-static int hostapd_notify(struct ubus_context *ctx, struct ubus_object *obj,
-                          struct ubus_request_data *req, const char *method,
-                          struct blob_attr *msg);
+static int add_mac(struct ubus_context *context, struct ubus_object *object,
+                   struct ubus_request_data *request, const char *method,
+                   struct blob_attr *message);
+static int get_hearing_map(struct ubus_context *context, struct ubus_object *object,
+                           struct ubus_request_data *request, const char *method,
+                           struct blob_attr *message);
+static int get_network(struct ubus_context *context, struct ubus_object *object,
+                       struct ubus_request_data *request, const char *method,
+                       struct blob_attr *message);
+static int reload_config(struct ubus_context *context, struct ubus_object *object,
+                         struct ubus_request_data *request, const char *method,
+                         struct blob_attr *message);
 
-static int ubus_get_clients(void);
+enum {
+    MAC_ADDR,
+    __ADD_DEL_MAC_MAX
+};
 
-static int add_mac(struct ubus_context *ctx, struct ubus_object *obj,
-                   struct ubus_request_data *req, const char *method,
-                   struct blob_attr *msg);
+static const struct blobmsg_policy add_del_policy[__ADD_DEL_MAC_MAX] = {
+    [MAC_ADDR] = {"addrs", BLOBMSG_TYPE_ARRAY},
+};
 
-static int reload_config(struct ubus_context *ctx, struct ubus_object *obj,
-                         struct ubus_request_data *req, const char *method,
-                         struct blob_attr *msg);
+static const struct ubus_method dawn_methods[] = {
+    UBUS_METHOD("add_mac", add_mac, add_del_policy),
+    UBUS_METHOD_NOARG("get_hearing_map", get_hearing_map),
+    UBUS_METHOD_NOARG("get_network", get_network),
+    UBUS_METHOD_NOARG("reload_config", reload_config)};
 
-static int get_hearing_map(struct ubus_context *ctx, struct ubus_object *obj,
-                           struct ubus_request_data *req, const char *method,
-                           struct blob_attr *msg);
+static struct ubus_object_type dawn_object_type =
+    UBUS_OBJECT_TYPE("dawn", dawn_methods);
 
-static int get_network(struct ubus_context *ctx, struct ubus_object *obj,
-                       struct ubus_request_data *req, const char *method,
-                       struct blob_attr *msg);
+static struct ubus_object dawn_object = {
+    .name = "dawn",
+    .type = &dawn_object_type,
+    .methods = dawn_methods,
+    .n_methods = ARRAY_SIZE(dawn_methods),
+};
 
-static void ubus_add_obj(void);
+static int uci_send_via_network(void);
 
-static void respond_to_notify(uint32_t id);
+
+static void uloop_add_data_callbacks(void);
 static void subscribe_to_new_interfaces(const char *hostapd_sock_path);
 static bool subscriber_to_interface(const char *ifname);
+static int hostapd_notify(struct ubus_context *context, struct ubus_object *object,
+                          struct ubus_request_data *request, const char *method,
+                          struct blob_attr *message);
+static void hostapd_handle_remove(struct ubus_context *ctx,
+                                  struct ubus_subscriber *s, uint32_t id);
+static void wait_cb(struct ubus_context *context, struct ubus_event_handler *event_handler,
+                    const char *type, struct blob_attr *message);
+static int subscription_wait(struct ubus_event_handler *handler);
 static bool subscribe(struct hostapd_sock_entry *hostapd_entry);
-static int parse_to_beacon_rep(struct blob_attr *msg);
-static void ubus_set_nr(void);
-static void add_client_update_timer(time_t time);
-static int parse_to_assoc_req(struct blob_attr *msg, assoc_entry *assoc_req);
-static bool parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req);
-static int decide_function(probe_entry *prob_req, int req_type);
-static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr);
-static int handle_auth_req(struct blob_attr *msg);
-static int send_blob_attr_via_network(struct blob_attr *msg, char *method);
-static void start_tcp_con_update(void);
-static void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
-static void del_client_interface(uint32_t id, const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
-static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *msg);
+static int handle_probe_request(struct blob_attr *message);
+static int handle_auth_request(struct blob_attr *message);
+static int handle_assoc_request(struct blob_attr *message);
+static int handle_beacon_report(struct blob_attr *message);
+static bool proceed_operation(probe_entry *prob_req, int req_type);
+static void enable_bss_management(uint32_t id);
+static void ubus_get_own_neighbor_report(void);
+static void ubus_get_own_neighbor_report_cb(struct ubus_request *request, int type, struct blob_attr *message);
+static int parse_to_beacon_rep(struct blob_attr *message);
+static bool parse_to_assoc_req(struct blob_attr *message, assoc_entry *assoc_request);
+static bool parse_to_auth_req(struct blob_attr *message, auth_entry *auth_request);
+static int ubus_get_clients(void);
+static void ubus_get_clients_cb(struct ubus_request *request, int type, struct blob_attr *message);
+static void ubus_set_neighbor_report(void);
+static int create_neighbor_report(struct blob_buf *b, struct dawn_mac own_bssid_addr);
 static int ubus_call_umdns(void);
-static int uci_send_via_network(void);
+static void ubus_umdns_cb(struct ubus_request *request, int type, struct blob_attr *message);
 static int build_hearing_map_sort_client(struct blob_buf *b);
 static int build_network_overview(struct blob_buf *b);
-static int ap_get_nr(struct blob_buf *b, struct dawn_mac own_bssid_addr);
-static void uloop_add_data_cbs(void);
+static void respond_to_notify(uint32_t id);
+static int send_blob_attr_via_network(struct blob_attr *msg, char *method);
+static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr);
 
-static void __attribute__((__unused__)) add_client_update_timer(time_t time)
-{
-    uloop_timeout_set(&client_timer, time);
-}
+static void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
+static void del_client_interface(uint32_t id, const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
 
-static int subscription_wait(struct ubus_event_handler *handler)
-{
-    return ubus_register_event_handler(ctx, handler, "ubus.object.add");
-}
-
-static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr)
-{
-    char *s;
-
-    s = blobmsg_alloc_string_buffer(buf, name, 20);
-    sprintf(s, MACSTR, MAC2STR(addr.u8));
-    blobmsg_add_string_buffer(buf);
-}
-
-/* TODO: Is it worth having this function?  Just inline the right bits at each caller? */
-static int decide_function(probe_entry *prob_req, int req_type)
-{
-    if (mac_in_maclist(prob_req->client_addr)) {
-        return 1;
-    }
-
-    if (prob_req->counter < behaviour_config.min_probe_count) {
-        return 0;
-    }
-
-    if (req_type == REQ_TYPE_PROBE && behaviour_config.eval_probe_req <= 0) {
-        return 1;
-    }
-
-    if (req_type == REQ_TYPE_AUTH && behaviour_config.eval_auth_req <= 0) {
-        return 1;
-    }
-
-    if (req_type == REQ_TYPE_ASSOC && behaviour_config.eval_assoc_req <= 0) {
-        return 1;
-    }
-
-    /* TODO: Bug?  This results in copious "Neigbor-Report is NULL" messages!
-    find own probe entry and calculate score */
-    ap *this_ap = ap_array_get_ap(prob_req->bssid_addr);
-    if (this_ap != NULL && better_ap_available(this_ap, prob_req->client_addr, NULL)) {
-        return 0;
-    }
-
-    return 1;
-}
-
-static bool parse_to_auth_req(struct blob_attr *msg, auth_entry *auth_req)
-{
-    struct blob_attr *tb[__AUTH_MAX];
-    int err = EINVAL;
-
-    blobmsg_parse(auth_policy, __AUTH_MAX, tb, blob_data(msg), blob_len(msg));
-
-    if (!tb[AUTH_BSSID_ADDR] || !tb[AUTH_CLIENT_ADDR] || !tb[AUTH_TARGET_ADDR]) {
-        goto exit;
-    }
-
-    err = hwaddr_aton(blobmsg_data(tb[AUTH_BSSID_ADDR]), auth_req->bssid_addr.u8);
-    err |= hwaddr_aton(blobmsg_data(tb[AUTH_CLIENT_ADDR]), auth_req->client_addr.u8);
-    err |= hwaddr_aton(blobmsg_data(tb[AUTH_TARGET_ADDR]), auth_req->target_addr.u8);
-
-    if (tb[AUTH_SIGNAL]) {
-        auth_req->signal = blobmsg_get_u32(tb[AUTH_SIGNAL]);
-    }
-
-    if (tb[AUTH_FREQ]) {
-        auth_req->freq = blobmsg_get_u32(tb[AUTH_FREQ]);
-    }
-
-exit:
-    return !!err;
-}
-
-static int parse_to_assoc_req(struct blob_attr *msg, assoc_entry *assoc_req)
-{
-    return parse_to_auth_req(msg, assoc_req);
-}
-
-static int parse_to_beacon_rep(struct blob_attr *msg)
-{
-    struct blob_attr *tb[__BEACON_REP_MAX];
-    struct dawn_mac msg_bssid;
-    struct dawn_mac msg_client;
-
-    blobmsg_parse(beacon_rep_policy, __BEACON_REP_MAX, tb, blob_data(msg), blob_len(msg));
-
-    if (!tb[BEACON_REP_BSSID] || !tb[BEACON_REP_ADDR]) {
-        return -1;
-    }
-
-    if (hwaddr_aton(blobmsg_data(tb[BEACON_REP_BSSID]), msg_bssid.u8)) {
-        return UBUS_STATUS_INVALID_ARGUMENT;
-    }
-
-    if (mac_is_null(msg_bssid)) {
-        fprintf(stderr, "Received NULL MAC! Client is strange!\n");
-        return -1;
-    }
-
-    ap *ap_entry_rep = ap_array_get_ap(msg_bssid);
-
-    /* No client from network! */
-    if (ap_entry_rep == NULL) {
-        return -1; /* TODO: Check this */
-    }
-
-    if (hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), msg_client.u8)) {
-        return UBUS_STATUS_INVALID_ARGUMENT;
-    }
-
-    int rcpi = blobmsg_get_u16(tb[BEACON_REP_RCPI]);
-    int rsni = blobmsg_get_u16(tb[BEACON_REP_RSNI]);
-
-    /* HACKY WORKAROUND! */
-    printf("Try update RCPI and RSNI for beacon report!\n");
-    if (!probe_array_update_rcpi_rsni(msg_bssid, msg_client, rcpi, rsni, true)) {
-        probe_entry *beacon_rep, *beacon_rep_updated = NULL;
-
-        printf("Beacon: No Probe Entry Existing!\n");
-
-        beacon_rep = dawn_malloc(sizeof (probe_entry));
-        if (beacon_rep == NULL) {
-            fprintf(stderr, "dawn_malloc of probe_entry failed!\n");
-            return -1;
-        }
-
-        beacon_rep->next_probe = NULL;
-        beacon_rep->bssid_addr = msg_bssid;
-        beacon_rep->client_addr = msg_client;
-        beacon_rep->counter = behaviour_config.min_probe_count;
-        hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), beacon_rep->target_addr.u8); /* TODO: What is this for? */
-        beacon_rep->signal = 0;
-        beacon_rep->freq = ap_entry_rep->freq;
-        beacon_rep->rcpi = rcpi;
-        beacon_rep->rsni = rsni;
-
-        beacon_rep->ht_capabilities = false;  /* that is very problematic!!! */
-        beacon_rep->vht_capabilities = false; /* that is very problematic!!! */
-        printf("Inserting to array!\n");
-
-        /* TODO: kept original code order here - send on network first to simplify? */
-        beacon_rep_updated = insert_to_array(beacon_rep, false, false, true, time(NULL));
-        /* use 802.11k values  // TODO: Change 0 to false? */
-        if (beacon_rep != beacon_rep_updated) {
-            /* Insert found an existing entry, rather than linking in our new one */
-            ubus_send_probe_via_network(beacon_rep_updated);
-            dawn_free(beacon_rep);
-        }
-        else {
-            ubus_send_probe_via_network(beacon_rep_updated);
-        }
-    }
-
-    return 0;
-}
-
-static int handle_auth_req(struct blob_attr *msg)
-{
-    int ret = WLAN_STATUS_SUCCESS;
-    bool discard_entry = true;
-
-    print_probe_array();
-
-    auth_entry *auth_req = dawn_malloc(sizeof (struct auth_entry_s));
-    if (auth_req == NULL) {
-        return -1;
-    }
-
-    if (!parse_to_auth_req(msg, auth_req)) {
-        fprintf(stderr, "Failed to parse authentication request message!\n");
-        dawn_free(auth_req);
-        return -1;
-    }
-
-    printf("Authentication entry: ");
-    print_auth_entry(auth_req);
-
-    if (!mac_in_maclist(auth_req->client_addr)) {
-        pthread_mutex_lock(&probe_array_mutex);
-
-        probe_entry *tmp = probe_array_get_entry(auth_req->bssid_addr, auth_req->client_addr);
-
-        pthread_mutex_unlock(&probe_array_mutex);
-
-        /* Block if entry was not already found in probe database */
-        if (tmp == NULL || !decide_function(tmp, REQ_TYPE_AUTH)) {
-            if (tmp != NULL) {
-                printf("Entry found\nDeny authentication!\n");
-            }
-
-            if (behaviour_config.use_driver_recog) {
-                if (auth_req == insert_to_denied_req_array(auth_req, 1, time(NULL))) {
-                    discard_entry = false;
-                }
-            }
-            ret = behaviour_config.deny_auth_reason;
-        }
-        else {
-            /* Maybe send here that the client is connected? */
-            printf("Allow authentication!\n");
-        }
-    }
-
-    if (discard_entry) {
-        dawn_free(auth_req);
-    }
-
-    return ret;
-}
-
-static int handle_assoc_req(struct blob_attr *msg)
-{
-    int ret = WLAN_STATUS_SUCCESS;
-    int discard_entry = true;
-
-    print_probe_array();
-
-    auth_entry *auth_req = dawn_malloc(sizeof(struct auth_entry_s));
-    if (auth_req == NULL) {
-        return -1;
-    }
-
-    if (!parse_to_assoc_req(msg, auth_req)) {
-        fprintf(stderr, "Failed to parse association request message!\n");
-        dawn_free(auth_req);
-        return -1;
-    }
-
-    printf("Association entry: ");
-    print_auth_entry(auth_req);
-
-    if (!mac_in_maclist(auth_req->client_addr)) {
-        pthread_mutex_lock(&probe_array_mutex);
-
-        probe_entry *tmp = probe_array_get_entry(auth_req->bssid_addr, auth_req->client_addr);
-
-        pthread_mutex_unlock(&probe_array_mutex);
-
-        /* Block if entry was not already found in probe database */
-        if (tmp == NULL || !decide_function(tmp, REQ_TYPE_ASSOC)) {
-            if (tmp != NULL) {
-                printf("Entry found\n");
-                print_probe_entry(tmp);
-            }
-
-            printf("Deny associtation!\n");
-            if (behaviour_config.use_driver_recog) {
-                if (auth_req == insert_to_denied_req_array(auth_req, 1, time(NULL))) {
-                    discard_entry = false;
-                }
-            }
-            return behaviour_config.deny_assoc_reason;
-        }
-        else {
-            printf("Allow association!\n");
-        }
-    }
-
-    if (discard_entry) {
-        dawn_free(auth_req);
-    }
-
-    return ret;
-}
-
-static int handle_probe_req(struct blob_attr *msg)
-{
-    /* MUSTDO: Untangle dawn_malloc() and linking of probe_entry */
-    probe_entry *probe_req = handle_hostapd_probe_request(msg),
-            *probe_req_updated = NULL;
-
-    if (probe_req != NULL) {
-        probe_req_updated = insert_to_array(probe_req, true, true, false, time(NULL));
-        if (probe_req != probe_req_updated) {
-            /* Insert found an existing entry, rather than linking in our new one
-             * send new probe req because we want to stay synced */
-            ubus_send_probe_via_network(probe_req_updated);
-            dawn_free(probe_req);
-        }
-        else {
-            /* probe_req and probe_req_updated should be equivalent */
-            ubus_send_probe_via_network(probe_req_updated);
-        }
-
-        /* send_blob_attr_via_network(msg, "probe"); */
-
-        if (!decide_function(probe_req, REQ_TYPE_PROBE)) {
-            /* no reason needed... */
-            return WLAN_STATUS_AP_UNABLE_TO_HANDLE_NEW_STA;
-        }
-    }
-
-    /* TODO: Retrun for dawn_malloc() failure? */
-    return WLAN_STATUS_SUCCESS;
-}
-
-static int handle_beacon_rep(struct blob_attr *msg)
-{
-    if (parse_to_beacon_rep(msg) == 0) {
-        printf("Inserting beacon Report!\n");
-        /* insert_to_array(beacon_rep, 1); */
-        printf("Sending via network!\n");
-        /* send_blob_attr_via_network(msg, "beacon-report"); */
-    }
-
-    return 0;
-}
-
-static int send_blob_attr_via_network(struct blob_attr *msg, char *method)
-{
-    char *data_str, *str;
-
-    if (msg == NULL) {
-        return -1;
-    }
-
-    data_str = blobmsg_format_json(msg, true);
-    dawn_regmem(data_str);
-    blob_buf_init(&b_send_network, 0);
-    blobmsg_add_string(&b_send_network, "method", method);
-    blobmsg_add_string(&b_send_network, "data", data_str);
-
-    str = blobmsg_format_json(b_send_network.head, true);
-    dawn_regmem(str);
-
-    if (general_config.network_proto == DAWN_SOCKET_TCP) {
-        tcp_send(str);
-    }
-    else {
-        send_string(str);
-    }
-
-    dawn_free(data_str);
-    dawn_free(str);
-
-    return 0;
-}
-
-static int hostapd_notify(struct ubus_context *ctx, struct ubus_object *obj,
-                          struct ubus_request_data *req, const char *method,
-                          struct blob_attr *msg)
-{
-    struct ubus_subscriber *subscriber;
-    struct hostapd_sock_entry *entry;
-    struct blob_attr *cur;
-    char *str;
-    int rem;
-
-    str = blobmsg_format_json(msg, true);
-    dawn_regmem(str);
-    printf("Method new: %s : %s\n", method, str);
-    dawn_free(str);
-
-    subscriber = container_of(obj, struct ubus_subscriber, obj);
-    entry = container_of(subscriber, struct hostapd_sock_entry, subscriber);
-
-    blob_buf_init(&b_notify, 0);
-    blobmsg_for_each_attr(cur, msg, rem) {
-        blobmsg_add_blob(&b_notify, cur);
-    }
-
-    blobmsg_add_macaddr(&b_notify, "bssid", entry->bssid_addr);
-    blobmsg_add_string(&b_notify, "ssid", entry->ssid);
-
-    if (strcmp(method, "probe") == 0) {
-        return handle_probe_req(b_notify.head);
-    }
-    else if (strcmp(method, "auth") == 0) {
-        return handle_auth_req(b_notify.head);
-    }
-    else if (strcmp(method, "assoc") == 0) {
-        return handle_assoc_req(b_notify.head);
-    }
-    else if (strcmp(method, "deauth") == 0) {
-        send_blob_attr_via_network(b_notify.head, "deauth");
-        return handle_hostapd_deauth_request(b_notify.head);
-    }
-    else if (strcmp(method, "beacon-report") == 0) {
-        return handle_beacon_rep(b_notify.head);
-    }
-
-    return 0;
-}
-
-int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir)
+int dawn_run_uloop(void)
 {
     uloop_init();
 
-    ctx = ubus_connect(ubus_socket);
+    ctx = ubus_connect(NULL);
     if (ctx == NULL) {
-        fprintf(stderr, "Failed to connect to ubus\n");
-        return -1;
+        DAWN_LOG_ERROR("Failed to connect to ubus");
+        goto exit;
     }
     dawn_regmem(ctx);
-    printf("Connected to ubus\n");
+    DAWN_LOG_DEBUG("Connected to ubus");
 
     ubus_add_uloop(ctx);
 
-    /* Set dawn metric */
-    dawn_uci_get_metric(&metric_config);
-
     /* Set up callbacks to remove aged data */
-    uloop_add_data_cbs();
-    /* Get clients */
-    uloop_timeout_add(&client_timer);
-    uloop_timeout_add(&channel_utilization_timer);
-    uloop_timeout_add(&hostapd_timer);
-    /* Request beacon reports. Allow setting timeout to 0 */
-    if (time_intervals_config.update_beacon_reports != 0) {
-        uloop_timeout_add(&beacon_reports_timer);
+    uloop_add_data_callbacks();
+
+    if (ubus_add_object(ctx, &dawn_object)) {
+        DAWN_LOG_ERROR("Failed to add ubus object");
+        goto free_context;
     }
 
-    ubus_add_obj();
-
-    if (general_config.network_proto == DAWN_SOCKET_TCP) {
-        start_tcp_con_update();
-        if (!tcp_run_server(general_config.network_port)) {
-            uloop_timeout_set(&usock_timer, 1000);
-        }
-    }
-
-    subscribe_to_new_interfaces(hostapd_dir);
+    subscribe_to_new_interfaces(general_config.hostapd_dir);
 
     uloop_run();
 
-    dawn_network_deinit();
+    uloop_done();
+free_context:
     ubus_free(ctx);
     dawn_unregmem(ctx);
-    uloop_done();
+exit:
 
     return 0;
 }
 
-static void ubus_get_clients_cb(struct ubus_request *req, int type, struct blob_attr *msg)
+void dawn_reload_config(void)
 {
-    struct hostapd_sock_entry *sub, *entry = NULL;
+    dawn_uci_reset();
+    dawn_uci_get_metric(&metric_config);
+    dawn_uci_get_intervals(&time_intervals_config);
+    dawn_uci_get_behaviour(&behaviour_config);
 
-    if (msg == NULL) {
-        return;
-    }
+    /* Allow setting timeout to 0 */
+    ((time_intervals_config.update_beacon_reports == 0)?
+        uloop_timeout_cancel : uloop_timeout_add)(&beacon_reports_timer);
 
-    /* braindead bullshit, replace with _add_blob */
-    char *data_str = blobmsg_format_json(msg, 1);
-    dawn_regmem(data_str);
-
-    blob_buf_init(&b_domain, 0);
-    blobmsg_add_json_from_string(&b_domain, data_str);
-
-    list_for_each_entry(sub, &hostapd_sock_list, list) {
-        if (sub->id == req->peer) {
-            entry = sub;
-        }
-    }
-
-    if (entry == NULL) {
-        fprintf(stderr, "Failed to find interface!\n");
-        dawn_free(data_str);
-        return;
-    }
-
-    if (!entry->subscribed) {
-        fprintf(stderr, "Interface %s is not subscribed!\n", entry->iface_name);
-        dawn_free(data_str);
-        return;
-    }
-
-    blobmsg_add_macaddr(&b_domain, "bssid", entry->bssid_addr);
-    blobmsg_add_string(&b_domain, "ssid", entry->ssid);
-    blobmsg_add_u8(&b_domain, "ht_supported", entry->ht_support);
-    blobmsg_add_u8(&b_domain, "vht_supported", entry->vht_support);
-
-    blobmsg_add_u32(&b_domain, "ap_weight", metric_config.ap_weight);
-
-    /* int channel_util = get_channel_utilization(entry->iface_name, &entry->last_channel_time, &entry->last_channel_time_busy); */
-    blobmsg_add_u32(&b_domain, "channel_utilization", entry->chan_util_average);
-
-    blobmsg_add_string(&b_domain, "neighbor_report", entry->neighbor_report);
-
-    blobmsg_add_string(&b_domain, "iface", entry->iface_name);
-    blobmsg_add_string(&b_domain, "hostname", entry->hostname);
-
-    send_blob_attr_via_network(b_domain.head, "clients");
-    /* TODO: Have we just bit-packed data to send to something locally to unpack it again?  Performance / scalability? */
-    handle_hostapd_clients_message(b_domain.head, 1, req->peer);
-
-    print_client_array();
-    print_ap_array();
-
-    dawn_free(data_str);
-}
-
-static int ubus_get_clients(void)
-{
-    struct hostapd_sock_entry *sub;
-
-    list_for_each_entry(sub, &hostapd_sock_list, list) {
-        if (sub->subscribed) {
-            blob_buf_init(&b_clients, 0);
-            ubus_invoke(ctx, sub->id, "get_clients", b_clients.head, ubus_get_clients_cb, NULL, 1000);
-        }
-    }
-
-    return 0;
-}
-
-static void ubus_get_rrm_cb(struct ubus_request *req, int type, struct blob_attr *msg)
-{
-    struct hostapd_sock_entry *sub, *entry = NULL;
-    struct blob_attr *tb[__RRM_MAX], *attr;
-    int i = 0;
-
-    if (msg == NULL) {
-        return;
-    }
-
-    list_for_each_entry(sub, &hostapd_sock_list, list) {
-        if (sub->id == req->peer) {
-            entry = sub;
-        }
-    }
-
-    blobmsg_parse(rrm_array_policy, __RRM_MAX, tb, blob_data(msg), blob_len(msg));
-
-    if (!tb[RRM_ARRAY]) {
-        return;
-    }
-
-    int len = blobmsg_data_len(tb[RRM_ARRAY]);
-
-    __blob_for_each_attr(attr, blobmsg_data(tb[RRM_ARRAY]), len) {
-        /* The content of `value' is like
-         * ["f8:f0:82:62:19:11",
-         * "SSID",
-         * "f8f082621911af0900005301070603010300"],
-         * so we count to 3 to get nr. I wounder if there is a better way?.. */
-        if (i == 2) {
-            char *neighborreport = blobmsg_get_string(attr);
-            strcpy(entry->neighbor_report, neighborreport);
-            printf("Copied Neighbor report: %s,\n", entry->neighbor_report);
-        }
-        i++;
-    }
-}
-
-static int ubus_get_rrm(void)
-{
-    struct hostapd_sock_entry *sub;
-
-    list_for_each_entry(sub, &hostapd_sock_list, list) {
-        if (sub->subscribed) {
-            blob_buf_init(&b, 0);
-            ubus_invoke(ctx, sub->id, "rrm_nr_get_own", b.head, ubus_get_rrm_cb, NULL, 1000);
-        }
-    }
-
-    return 0;
-}
-
-static void update_clients(struct uloop_timeout *t)
-{
-    ubus_get_clients();
-    if (behaviour_config.set_hostapd_nr) {
-        ubus_set_nr();
-    }
-    /* maybe to much?! don't set timer again... */
-    uloop_timeout_set(&client_timer, time_intervals_config.update_client * 1000);
-}
-
-static void run_server_update(struct uloop_timeout *t)
-{
-    if (!tcp_run_server(general_config.network_port)) {
-        uloop_timeout_set(&usock_timer, 1000);
-    }
-}
-
-static void update_channel_utilization(struct uloop_timeout *t)
-{
-    struct hostapd_sock_entry *sub;
-
-    list_for_each_entry(sub, &hostapd_sock_list, list){
-        if (sub->subscribed) {
-            sub->chan_util_samples_sum +=
-                    iwinfo_get_channel_utilization(sub->iface_name, &sub->last_channel_time,
-                                            &sub->last_channel_time_busy);
-            sub->chan_util_num_sample_periods++;
-
-            if (sub->chan_util_num_sample_periods > behaviour_config.chan_util_avg_period) {
-                sub->chan_util_average = sub->chan_util_samples_sum / sub->chan_util_num_sample_periods;
-                sub->chan_util_samples_sum = 0;
-                sub->chan_util_num_sample_periods = 0;
-            }
-        }
-    }
-
-    uloop_timeout_set(&channel_utilization_timer, time_intervals_config.update_chan_util * 1000);
+    uci_send_via_network();
 }
 
 void ubus_send_beacon_report(struct dawn_mac client, int id)
 {
-    printf("Crafting Beacon Report\n");
+    DAWN_LOG_DEBUG("Requesting beacon report");
 
     blob_buf_init(&b_beacon, 0);
     blobmsg_add_macaddr(&b_beacon, "addr", client);
@@ -854,110 +321,9 @@ void ubus_send_beacon_report(struct dawn_mac client, int id)
     blobmsg_add_u32(&b_beacon, "duration", behaviour_config.duration);
     blobmsg_add_u32(&b_beacon, "mode", behaviour_config.mode);
     blobmsg_add_u32(&b_beacon, "channel", behaviour_config.scan_channel);
-
-    printf("Adding string\n");
     blobmsg_add_string(&b_beacon, "ssid", "");
 
-    printf("Invoking beacon report!\n");
     ubus_invoke(ctx, id, "rrm_beacon_req", b_beacon.head, NULL, NULL, 1000);
-}
-
-static void update_beacon_reports(struct uloop_timeout *t)
-{
-    struct hostapd_sock_entry *sub;
-
-    if (time_intervals_config.update_beacon_reports == 0) {
-        return;
-    }
-
-    printf("Sending beacon report!\n");
-
-    list_for_each_entry(sub, &hostapd_sock_list, list) {
-        if (sub->subscribed) {
-            printf("Sending beacon report Sub!\n");
-            send_beacon_reports(sub->bssid_addr, sub->id);
-        }
-    }
-
-    uloop_timeout_set(&beacon_reports_timer, time_intervals_config.update_beacon_reports * 1000);
-}
-
-static void update_tcp_connections(struct uloop_timeout *t)
-{
-    if (strcmp(general_config.server_ip, "")) {
-        /* Nothing happens if tcp connection is already established */
-        tcp_add_conncection(general_config.server_ip, general_config.network_port);
-    }
-
-    /* mdns enabled? */
-    if (general_config.network_proto == DAWN_SOCKET_TCP) {
-        ubus_call_umdns();
-    }
-
-    uloop_timeout_set(&tcp_con_timer, time_intervals_config.update_tcp_con * 1000);
-}
-
-static void start_tcp_con_update(void)
-{
-    /* Update connections */
-    uloop_timeout_add(&tcp_con_timer);
-}
-
-static void update_hostapd_sockets(struct uloop_timeout *t)
-{
-    subscribe_to_new_interfaces(general_config.hostapd_dir);
-    uloop_timeout_set(&hostapd_timer, time_intervals_config.update_hostapd * 1000);
-}
-
-static void ubus_set_nr(void)
-{
-    struct hostapd_sock_entry *sub;
-
-    list_for_each_entry(sub, &hostapd_sock_list, list) {
-        if (sub->subscribed) {
-            blob_buf_init(&b_nr, 0);
-            ap_get_nr(&b_nr, sub->bssid_addr);
-            ubus_invoke(ctx, sub->id, "rrm_nr_set", b_nr.head, NULL, NULL, 1000);
-        }
-    }
-}
-
-static void __attribute__((__unused__)) del_client_all_interfaces(
-        const struct dawn_mac client_addr, uint32_t reason,
-        uint8_t deauth, uint32_t ban_time)
-{
-    struct hostapd_sock_entry *sub;
-
-    blob_buf_init(&b, 0);
-    blobmsg_add_macaddr(&b, "addr", client_addr);
-    blobmsg_add_u32(&b, "reason", reason);
-    blobmsg_add_u8(&b, "deauth", deauth);
-    blobmsg_add_u32(&b, "ban_time", ban_time);
-
-    list_for_each_entry(sub, &hostapd_sock_list, list) {
-        if (sub->subscribed) {
-            ubus_invoke(ctx, sub->id, "del_client", b.head, NULL, NULL, 1000);
-        }
-    }
-}
-
-static void __attribute__((__unused__)) del_client_interface(
-        uint32_t id, const struct dawn_mac client_addr, uint32_t reason,
-        uint8_t deauth, uint32_t ban_time)
-{
-    struct hostapd_sock_entry *sub;
-
-    blob_buf_init(&b, 0);
-    blobmsg_add_macaddr(&b, "addr", client_addr);
-    blobmsg_add_u32(&b, "reason", reason);
-    blobmsg_add_u8(&b, "deauth", deauth);
-    blobmsg_add_u32(&b, "ban_time", ban_time);
-
-    list_for_each_entry(sub, &hostapd_sock_list, list) {
-        if (sub->subscribed) {
-            ubus_invoke(ctx, id, "del_client", b.head, NULL, NULL, 1000);
-        }
-    }
 }
 
 int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *dest_ap, uint32_t duration)
@@ -967,15 +333,15 @@ int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *
     blob_buf_init(&b, 0);
     blobmsg_add_macaddr(&b, "addr", client_addr);
     blobmsg_add_u32(&b, "duration", duration);
-    blobmsg_add_u8(&b, "abridged", 1); /* Prefer aps in neighborlist */
+    /* Prefer aps in neighborlist */
+    blobmsg_add_u8(&b, "abridged", 1);
 
     /* TODO: maybe exchange to a list of aps */
-    void *nbs = blobmsg_open_array(&b, "neighbors");
+    void *neighbors = blobmsg_open_array(&b, "neighbors");
     if (dest_ap != NULL) {
         blobmsg_add_string(&b, NULL, dest_ap);
-        printf("BSS TRANSITION TO %s\n", dest_ap);
     }
-    blobmsg_close_array(&b, nbs);
+    blobmsg_close_array(&b, neighbors);
 
     list_for_each_entry(sub, &hostapd_sock_list, list) {
         if (sub->subscribed) {
@@ -983,58 +349,6 @@ int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *
             ubus_invoke(ctx, id, "wnm_disassoc_imminent", b.head, NULL, NULL, 1000);
         }
     }
-
-    return 0;
-}
-
-static void ubus_umdns_cb(struct ubus_request *req, int type, struct blob_attr *msg)
-{
-    struct blob_attr *tb[__DAWN_UMDNS_TABLE_MAX], *attr;
-
-    if (msg == NULL) {
-        return;
-    }
-
-    blobmsg_parse(dawn_umdns_table_policy, __DAWN_UMDNS_MAX, tb, blob_data(msg), blob_len(msg));
-
-    if (!tb[DAWN_UMDNS_TABLE]) {
-        return;
-    }
-
-    int len = blobmsg_data_len(tb[DAWN_UMDNS_TABLE]);
-
-    __blob_for_each_attr(attr, blobmsg_data(tb[DAWN_UMDNS_TABLE]), len) {
-        struct blob_attr *tb_dawn[__DAWN_UMDNS_MAX];
-        struct blobmsg_hdr *hdr;
-
-        hdr = blob_data(attr);
-
-        blobmsg_parse(dawn_umdns_policy, __DAWN_UMDNS_MAX, tb_dawn, blobmsg_data(attr), blobmsg_len(attr));
-
-        if (!tb_dawn[DAWN_UMDNS_IPV4] || !tb_dawn[DAWN_UMDNS_PORT]) {
-            continue;
-        }
-
-        printf("Hostname: %s\n", hdr->name);
-        printf("IPV4: %s\n", blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]));
-        printf("Port: %d\n", blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
-
-        tcp_add_conncection(blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]), blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
-    }
-}
-
-static int ubus_call_umdns(void)
-{
-    u_int32_t id;
-
-    if (ubus_lookup_id(ctx, "umdns", &id)) {
-        fprintf(stderr, "Failed to look up test object for umdns\n");
-        return -1;
-    }
-
-    blob_buf_init(&b_umdns, 0);
-    ubus_invoke(ctx, id, "update", b_umdns.head, NULL, NULL, 1000);
-    ubus_invoke(ctx, id, "browse", b_umdns.head, ubus_umdns_cb, NULL, 1000);
 
     return 0;
 }
@@ -1083,42 +397,24 @@ int send_set_probe(struct dawn_mac client_addr)
     return 0;
 }
 
-enum {
-    MAC_ADDR,
-    __ADD_DEL_MAC_MAX
-};
-
-static const struct blobmsg_policy add_del_policy[__ADD_DEL_MAC_MAX] = {
-    [MAC_ADDR] = {"addrs", BLOBMSG_TYPE_ARRAY},
-};
-
-static const struct ubus_method dawn_methods[] = {
-    UBUS_METHOD("add_mac", add_mac, add_del_policy),
-    UBUS_METHOD_NOARG("get_hearing_map", get_hearing_map),
-    UBUS_METHOD_NOARG("get_network", get_network),
-    UBUS_METHOD_NOARG("reload_config", reload_config)};
-
-static struct ubus_object_type dawn_object_type =
-    UBUS_OBJECT_TYPE("dawn", dawn_methods);
-
-static struct ubus_object dawn_object = {
-    .name = "dawn",
-    .type = &dawn_object_type,
-    .methods = dawn_methods,
-    .n_methods = ARRAY_SIZE(dawn_methods),
-};
-
-int parse_add_mac_to_file(struct blob_attr *msg)
+int send_add_mac(struct dawn_mac client_addr)
 {
-    struct blob_attr *tb[__ADD_DEL_MAC_MAX];
-    struct blob_attr *attr;
+    blob_buf_init(&b, 0);
+    blobmsg_add_macaddr(&b, "addr", client_addr);
+    send_blob_attr_via_network(b.head, "addmac");
 
-    printf("Parsing MAC!\n");
+    return 0;
+}
 
-    blobmsg_parse(add_del_policy, __ADD_DEL_MAC_MAX, tb, blob_data(msg), blob_len(msg));
+int parse_add_mac_to_file(struct blob_attr *message)
+{
+    struct blob_attr *tb[__ADD_DEL_MAC_MAX], *attr;
+
+    blobmsg_parse(add_del_policy, __ADD_DEL_MAC_MAX, tb, blob_data(message), blob_len(message));
 
     if (!tb[MAC_ADDR]) {
-        return UBUS_STATUS_INVALID_ARGUMENT;
+        DAWN_LOG_ERROR("Failed to parse request to add mac to file");
+        return -1;
     }
 
     int len = blobmsg_data_len(tb[MAC_ADDR]);
@@ -1141,234 +437,30 @@ int parse_add_mac_to_file(struct blob_attr *msg)
     return 0;
 }
 
-static int add_mac(struct ubus_context *ctx, struct ubus_object *obj,
-                   struct ubus_request_data *req, const char *method,
-                   struct blob_attr *msg)
+static void uloop_add_data_callbacks(void)
 {
-    parse_add_mac_to_file(msg);
-
-    /* Here we need to send it via the network! */
-    send_blob_attr_via_network(msg, "addmac");
-
-    return 0;
-}
-
-void dawn_reload_config(void)
-{
-    dawn_uci_reset();
-    dawn_uci_get_metric(&metric_config);
-    dawn_uci_get_intervals(&time_intervals_config);
-    dawn_uci_get_behaviour(&behaviour_config);
-
+    uloop_timeout_add(&client_timer);
+    uloop_timeout_add(&channel_utilization_timer);
     /* Allow setting timeout to 0 */
     if (time_intervals_config.update_beacon_reports != 0) {
         uloop_timeout_add(&beacon_reports_timer);
     }
-
-    uci_send_via_network();
-}
-
-static int reload_config(struct ubus_context *ctx, struct ubus_object *obj,
-                         struct ubus_request_data *req, const char *method,
-                         struct blob_attr *msg)
-{
-    int ret;
-
-    dawn_reload_config();
-
-    blob_buf_init(&b, 0);
-
-    ret = ubus_send_reply(ctx, req, b.head);
-    if (ret) {
-        fprintf(stderr, "Failed to send reply: %s\n", ubus_strerror(ret));
+    uloop_timeout_add(&hostapd_timer);
+    uloop_timeout_add(&ap_timeout);
+    if (behaviour_config.use_driver_recog) {
+        uloop_timeout_add(&denied_req_timeout);
     }
-
-    return 0;
-}
-
-static int get_hearing_map(struct ubus_context *ctx, struct ubus_object *obj,
-                           struct ubus_request_data *req, const char *method,
-                           struct blob_attr *msg)
-{
-    int ret;
-
-    build_hearing_map_sort_client(&b);
-    ret = ubus_send_reply(ctx, req, b.head);
-    if (ret) {
-        fprintf(stderr, "Failed to send reply: %s\n", ubus_strerror(ret));
-    }
-
-    return 0;
-}
-
-static int get_network(struct ubus_context *ctx, struct ubus_object *obj,
-                       struct ubus_request_data *req, const char *method,
-                       struct blob_attr *msg)
-{
-    int ret;
-
-    build_network_overview(&b);
-    ret = ubus_send_reply(ctx, req, b.head);
-    if (ret) {
-        fprintf(stderr, "Failed to send reply: %s\n", ubus_strerror(ret));
-    }
-
-    return 0;
-}
-
-static void ubus_add_obj(void)
-{
-    int ret;
-
-    ret = ubus_add_object(ctx, &dawn_object);
-    if (ret) {
-        fprintf(stderr, "Failed to add object: %s\n", ubus_strerror(ret));
+    uloop_timeout_add(&client_timeout);
+    uloop_timeout_add(&probe_timeout);
+    if (general_config.network_proto == DAWN_SOCKET_TCP) {
+        uloop_timeout_add(&tcp_con_timer);
     }
 }
 
-/* This is needed to respond to the ubus notify ...
- * Maybe we need to disable on shutdown...
- * But it is not possible when we disable the notify that other daemons are running that relay on this notify... */
-static void respond_to_notify(uint32_t id)
+static void update_hostapd_sockets(struct uloop_timeout *t)
 {
-    int ret;
-
-    blob_buf_init(&b, 0);
-    blobmsg_add_u32(&b, "notify_response", 1);
-
-    ret = ubus_invoke(ctx, id, "notify_response", b.head, NULL, NULL, 1000);
-    if (ret) {
-        fprintf(stderr, "Failed to invoke: %s\n", ubus_strerror(ret));
-    }
-}
-
-static void enable_rrm(uint32_t id)
-{
-    int ret;
-
-    blob_buf_init(&b, 0);
-    blobmsg_add_u8(&b, "neighbor_report", 1);
-    blobmsg_add_u8(&b, "beacon_report", 1);
-    blobmsg_add_u8(&b, "bss_transition", 1);
-
-    ret = ubus_invoke(ctx, id, "bss_mgmt_enable", b.head, NULL, NULL, 1000);
-    if (ret) {
-        fprintf(stderr, "Failed to invoke: %s\n", ubus_strerror(ret));
-    }
-}
-
-static void hostapd_handle_remove(struct ubus_context *ctx,
-                                  struct ubus_subscriber *s, uint32_t id)
-{
-
-    struct hostapd_sock_entry *hostapd_sock =
-            container_of(s, struct hostapd_sock_entry, subscriber);
-
-    fprintf(stdout, "Object %08x went away\n", id);
-
-    if (hostapd_sock->id != id) {
-        printf("ID is not the same!\n");
-        return;
-    }
-
-    hostapd_sock->subscribed = false;
-    subscription_wait(&hostapd_sock->wait_handler);
-}
-
-static bool subscribe(struct hostapd_sock_entry *hostapd_entry)
-{
-    char subscribe_name[sizeof ("hostapd.") + MAX_INTERFACE_NAME];
-
-    if (hostapd_entry->subscribed) {
-        return false;
-    }
-
-    sprintf(subscribe_name, "hostapd.%s", hostapd_entry->iface_name);
-
-    if (ubus_lookup_id(ctx, subscribe_name, &hostapd_entry->id)) {
-        fprintf(stdout, "Failed to lookup ID!");
-        subscription_wait(&hostapd_entry->wait_handler);
-        return false;
-    }
-
-    if (ubus_subscribe(ctx, &hostapd_entry->subscriber, hostapd_entry->id)) {
-        fprintf(stdout, "Failed to register subscriber!");
-        subscription_wait(&hostapd_entry->wait_handler);
-        return false;
-    }
-
-    hostapd_entry->subscribed = true;
-
-    iwinfo_get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid_addr.u8);
-    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, SSID_MAX_LEN);
-
-    hostapd_entry->ht_support = (uint8_t) iwinfo_ht_supported(hostapd_entry->iface_name);
-    hostapd_entry->vht_support = (uint8_t) iwinfo_vht_supported(hostapd_entry->iface_name);
-
-    respond_to_notify(hostapd_entry->id);
-    enable_rrm(hostapd_entry->id);
-    ubus_get_rrm();
-
-    printf("Subscribed to: %s\n", hostapd_entry->iface_name);
-
-    return true;
-}
-
-static void wait_cb(struct ubus_context *ctx, struct ubus_event_handler *ev_handler,
-                    const char *type, struct blob_attr *msg)
-{
-    static const struct blobmsg_policy wait_policy = {"path", BLOBMSG_TYPE_STRING};
-    struct hostapd_sock_entry *sub =
-            container_of(ev_handler, struct hostapd_sock_entry, wait_handler);
-    struct blob_attr *attr;
-    const char *path;
-
-    if (strcmp(type, "ubus.object.add") != 0) {
-        return;
-    }
-
-    blobmsg_parse(&wait_policy, 1, &attr, blob_data(msg), blob_len(msg));
-    if (!attr) {
-        return;
-    }
-
-    path = blobmsg_data(attr);
-
-    path = strchr(path, '.');
-    if (path == NULL) {
-        return;
-    }
-
-    if (strcmp(sub->iface_name, path + 1) != 0) {
-        return;
-    }
-
-    subscribe(sub);
-}
-
-static bool subscriber_to_interface(const char *ifname)
-{
-    struct hostapd_sock_entry *hostapd_entry;
-
-    hostapd_entry = dawn_calloc(1, sizeof (struct hostapd_sock_entry));
-    strcpy(hostapd_entry->iface_name, ifname);
-
-    dawn_uci_get_hostname(hostapd_entry->hostname);
-
-    hostapd_entry->subscriber.cb = hostapd_notify;
-    hostapd_entry->subscriber.remove_cb = hostapd_handle_remove;
-    hostapd_entry->wait_handler.cb = wait_cb;
-
-    hostapd_entry->subscribed = false;
-
-    if (ubus_register_subscriber(ctx, &hostapd_entry->subscriber)) {
-        fprintf(stderr, "Failed to register subscriber!");
-        return false;
-    }
-
-    list_add(&hostapd_entry->list, &hostapd_sock_list);
-
-    return subscribe(hostapd_entry);
+    subscribe_to_new_interfaces(general_config.hostapd_dir);
+    uloop_timeout_set(t, time_intervals_config.update_hostapd * 1000);
 }
 
 static void subscribe_to_new_interfaces(const char *hostapd_sock_path)
@@ -1377,13 +469,9 @@ static void subscribe_to_new_interfaces(const char *hostapd_sock_path)
     struct dirent *entry;
     DIR *dirp;
 
-    if (ctx == NULL) {
-        return;
-    }
-
     dirp = opendir(hostapd_sock_path);
     if (dirp == NULL) {
-        fprintf(stderr, "[SUBSCRIBING] No hostapd sockets!\n");
+        DAWN_LOG_ERROR("Failed to open hostapd directory");
         return;
     }
 
@@ -1413,60 +501,795 @@ static void subscribe_to_new_interfaces(const char *hostapd_sock_path)
     return;
 }
 
-static int uci_send_via_network(void)
+static bool subscriber_to_interface(const char *ifname)
 {
-    void *metric, *intervals, *behaviour;
+    struct hostapd_sock_entry *hostapd_entry;
 
-    blob_buf_init(&b, 0);
-    intervals = blobmsg_open_table(&b, "intervals");
-    blobmsg_add_u32(&b, "update_client", time_intervals_config.update_client);
-    blobmsg_add_u32(&b, "update_hostapd", time_intervals_config.update_hostapd);
-    blobmsg_add_u32(&b, "update_tcp_con", time_intervals_config.update_tcp_con);
-    blobmsg_add_u32(&b, "update_chan_util", time_intervals_config.update_chan_util);
-    blobmsg_add_u32(&b, "update_beacon_reports", time_intervals_config.update_beacon_reports);
-    blobmsg_add_u32(&b, "remove_probe", time_intervals_config.remove_probe);
-    blobmsg_add_u32(&b, "remove_ap", time_intervals_config.remove_ap);
-    blobmsg_add_u32(&b, "denied_req_threshold", time_intervals_config.denied_req_threshold);
-    blobmsg_close_table(&b, intervals);
+    hostapd_entry = dawn_calloc(1, sizeof (struct hostapd_sock_entry));
+    if (hostapd_entry == NULL) {
+        DAWN_LOG_ERROR("Failed to allocate memory");
+        return false;
+    }
 
-    metric = blobmsg_open_table(&b, "metric");
-    blobmsg_add_u32(&b, "ht_support", metric_config.ht_support);
-    blobmsg_add_u32(&b, "vht_support", metric_config.vht_support);
-    blobmsg_add_u32(&b, "chan_util_val", metric_config.chan_util_val);
-    blobmsg_add_u32(&b, "chan_util", metric_config.chan_util);
-    blobmsg_add_u32(&b, "max_chan_util_val", metric_config.max_chan_util_val);
-    blobmsg_add_u32(&b, "max_chan_util", metric_config.max_chan_util);
-    blobmsg_add_u32(&b, "freq", metric_config.freq);
-    blobmsg_add_u32(&b, "rssi_val", metric_config.rssi_val);
-    blobmsg_add_u32(&b, "rssi", metric_config.rssi);
-    blobmsg_add_u32(&b, "low_rssi_val", metric_config.low_rssi_val);
-    blobmsg_add_u32(&b, "low_rssi", metric_config.low_rssi);
-    blobmsg_close_table(&b, metric);
+    strcpy(hostapd_entry->iface_name, ifname);
+    /* TODO: use one more global variable */
+    dawn_uci_get_hostname(hostapd_entry->hostname);
 
-    behaviour = blobmsg_open_table(&b, "behaviour");
-    blobmsg_add_u32(&b, "kicking", behaviour_config.kicking);
-    blobmsg_add_u32(&b, "min_kick_count", behaviour_config.min_kick_count);
-    blobmsg_add_u32(&b, "bandwidth_threshold", behaviour_config.bandwidth_threshold);
-    blobmsg_add_u32(&b, "use_station_count", behaviour_config.use_station_count);
-    blobmsg_add_u32(&b, "max_station_diff", behaviour_config.max_station_diff);
-    blobmsg_add_u32(&b, "min_probe_count", behaviour_config.min_probe_count);
-    blobmsg_add_u32(&b, "eval_probe_req", behaviour_config.eval_probe_req);
-    blobmsg_add_u32(&b, "eval_auth_req", behaviour_config.eval_auth_req);
-    blobmsg_add_u32(&b, "eval_assoc_req", behaviour_config.eval_assoc_req);
-    blobmsg_add_u32(&b, "deny_auth_reason", behaviour_config.deny_auth_reason);
-    blobmsg_add_u32(&b, "deny_assoc_reason", behaviour_config.deny_assoc_reason);
-    blobmsg_add_u32(&b, "use_driver_recog", behaviour_config.use_driver_recog);
-    blobmsg_add_u32(&b, "chan_util_avg_period", behaviour_config.chan_util_avg_period);
-    blobmsg_add_u32(&b, "set_hostapd_nr", behaviour_config.set_hostapd_nr);
-    blobmsg_add_u32(&b, "op_class", behaviour_config.op_class);
-    blobmsg_add_u32(&b, "duration", behaviour_config.duration);
-    blobmsg_add_u32(&b, "mode", behaviour_config.mode);
-    blobmsg_add_u32(&b, "scan_channel", behaviour_config.scan_channel);
-    blobmsg_close_table(&b, behaviour);
+    hostapd_entry->subscriber.cb = hostapd_notify;
+    hostapd_entry->subscriber.remove_cb = hostapd_handle_remove;
+    hostapd_entry->wait_handler.cb = wait_cb;
 
-    send_blob_attr_via_network(b.head, "uci");
+    hostapd_entry->subscribed = false;
+
+    if (ubus_register_subscriber(ctx, &hostapd_entry->subscriber)) {
+        DAWN_LOG_ERROR("Failed to register subscriber");
+        free(hostapd_entry);
+        return false;
+    }
+
+    list_add(&hostapd_entry->list, &hostapd_sock_list);
+
+    return subscribe(hostapd_entry);
+}
+
+static int hostapd_notify(struct ubus_context *context, struct ubus_object *object,
+                          struct ubus_request_data *request, const char *method,
+                          struct blob_attr *message)
+{
+    struct ubus_subscriber *subscriber;
+    struct hostapd_sock_entry *entry;
+    struct blob_attr *cur;
+    char *str;
+    int rem;
+
+    str = blobmsg_format_json(message, true);
+    dawn_regmem(str);
+    DAWN_LOG_DEBUG("Method new: %s : %s", method, str);
+    dawn_free(str);
+
+    subscriber = container_of(object, struct ubus_subscriber, obj);
+    entry = container_of(subscriber, struct hostapd_sock_entry, subscriber);
+
+    blob_buf_init(&b_notify, 0);
+    blobmsg_for_each_attr(cur, message, rem) {
+        blobmsg_add_blob(&b_notify, cur);
+    }
+
+    blobmsg_add_macaddr(&b_notify, "bssid", entry->bssid_addr);
+    blobmsg_add_string(&b_notify, "ssid", entry->ssid);
+
+    if (strcmp(method, "probe") == 0) {
+        return handle_probe_request(b_notify.head);
+    }
+    else if (strcmp(method, "auth") == 0) {
+        return handle_auth_request(b_notify.head);
+    }
+    else if (strcmp(method, "assoc") == 0) {
+        return handle_assoc_request(b_notify.head);
+    }
+    else if (strcmp(method, "deauth") == 0) {
+        send_blob_attr_via_network(b_notify.head, "deauth");
+        return handle_hostapd_deauth_request(b_notify.head);
+    }
+    else if (strcmp(method, "beacon-report") == 0) {
+        return handle_beacon_report(b_notify.head);
+    }
 
     return 0;
+}
+
+static void hostapd_handle_remove(struct ubus_context *ctx,
+                                  struct ubus_subscriber *s, uint32_t id)
+{
+
+    struct hostapd_sock_entry *hostapd_sock =
+            container_of(s, struct hostapd_sock_entry, subscriber);
+
+    if (hostapd_sock->id != id) {
+        printf("ID is not the same!\n");
+        return;
+    }
+
+    DAWN_LOG_INFO("Hostapd socket for the interface `%s' is removed", hostapd_sock->iface_name);
+
+    hostapd_sock->subscribed = false;
+    subscription_wait(&hostapd_sock->wait_handler);
+}
+
+static void wait_cb(struct ubus_context *context, struct ubus_event_handler *event_handler,
+                    const char *type, struct blob_attr *message)
+{
+    static const struct blobmsg_policy wait_policy = {"path", BLOBMSG_TYPE_STRING};
+    struct hostapd_sock_entry *sub =
+            container_of(event_handler, struct hostapd_sock_entry, wait_handler);
+    struct blob_attr *attr;
+    const char *path;
+
+    if (strcmp(type, "ubus.object.add") != 0) {
+        return;
+    }
+
+    blobmsg_parse(&wait_policy, 1, &attr, blob_data(message), blob_len(message));
+    if (!attr) {
+        return;
+    }
+
+    path = blobmsg_data(attr);
+
+    path = strchr(path, '.');
+    if (path == NULL) {
+        return;
+    }
+
+    if (strcmp(sub->iface_name, path + 1) != 0) {
+        return;
+    }
+
+    subscribe(sub);
+}
+
+static int subscription_wait(struct ubus_event_handler *handler)
+{
+    return ubus_register_event_handler(ctx, handler, "ubus.object.add");
+}
+
+static bool subscribe(struct hostapd_sock_entry *hostapd_entry)
+{
+    char subscribe_name[sizeof ("hostapd.") + MAX_INTERFACE_NAME];
+
+    if (hostapd_entry->subscribed) {
+        return false;
+    }
+
+    sprintf(subscribe_name, "hostapd.%s", hostapd_entry->iface_name);
+
+    if (ubus_lookup_id(ctx, subscribe_name, &hostapd_entry->id)) {
+        DAWN_LOG_ERROR("Failed to lookup ID");
+        subscription_wait(&hostapd_entry->wait_handler);
+        return false;
+    }
+
+    if (ubus_subscribe(ctx, &hostapd_entry->subscriber, hostapd_entry->id)) {
+        DAWN_LOG_ERROR("Failed to register subscriber");
+        subscription_wait(&hostapd_entry->wait_handler);
+        return false;
+    }
+
+    hostapd_entry->subscribed = true;
+
+    iwinfo_get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid_addr.u8);
+    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, SSID_MAX_LEN);
+
+    hostapd_entry->ht_support = (uint8_t) iwinfo_ht_supported(hostapd_entry->iface_name);
+    hostapd_entry->vht_support = (uint8_t) iwinfo_vht_supported(hostapd_entry->iface_name);
+
+    respond_to_notify(hostapd_entry->id);
+    enable_bss_management(hostapd_entry->id);
+    ubus_get_own_neighbor_report();
+
+    DAWN_LOG_INFO("Subscribed to %s", hostapd_entry->iface_name);
+
+    return true;
+}
+
+static int handle_probe_request(struct blob_attr *message)
+{
+    /* MUSTDO: Untangle dawn_malloc() and linking of probe_entry */
+    probe_entry *probe_req = handle_hostapd_probe_request(message),
+            *probe_req_updated = NULL;
+
+    if (probe_req != NULL) {
+        probe_req_updated = insert_to_array(probe_req, true, true, false, time(NULL));
+        if (probe_req != probe_req_updated) {
+            /* Insert found an existing entry, rather than linking in our new one
+             * send new probe req because we want to stay synced */
+            dawn_free(probe_req);
+        }
+
+        ubus_send_probe_via_network(probe_req_updated);
+
+        if (!proceed_operation(probe_req, REQ_TYPE_PROBE)) {
+            /* No reason needed... */
+            return WLAN_STATUS_AP_UNABLE_TO_HANDLE_NEW_STA;
+        }
+    }
+
+    return WLAN_STATUS_SUCCESS;
+}
+
+static int handle_auth_request(struct blob_attr *message)
+{
+    int ret = WLAN_STATUS_SUCCESS;
+    bool discard_entry = true;
+
+    print_probe_array();
+
+    auth_entry *auth_req = dawn_malloc(sizeof (struct auth_entry_s));
+    if (auth_req == NULL) {
+        DAWN_LOG_ERROR("Failed to allocate memory");
+        return -1;
+    }
+
+    if (!parse_to_auth_req(message, auth_req)) {
+        DAWN_LOG_ERROR("Failed to parse authentication request message");
+        dawn_free(auth_req);
+        return -1;
+    }
+
+    print_auth_entry("Authentication entry:", auth_req);
+
+    if (!mac_in_maclist(auth_req->client_addr)) {
+        pthread_mutex_lock(&probe_array_mutex);
+
+        probe_entry *tmp = probe_array_get_entry(auth_req->bssid_addr, auth_req->client_addr);
+
+        pthread_mutex_unlock(&probe_array_mutex);
+
+        /* Block if entry was not already found in probe database */
+        if (tmp == NULL || !proceed_operation(tmp, REQ_TYPE_AUTH)) {
+            if (tmp == NULL) {
+                DAWN_LOG_WARNING("Client made an attempt to authenticate but sent no probe request first");
+            }
+
+            if (behaviour_config.use_driver_recog) {
+                if (auth_req == insert_to_denied_req_array(auth_req, 1, time(NULL))) {
+                    discard_entry = false;
+                }
+            }
+
+            ret = behaviour_config.deny_auth_reason;
+        }
+        else {
+            /* Maybe send here that the client is connected? */
+            DAWN_LOG_DEBUG("Allow authentication");
+        }
+    }
+
+    if (discard_entry) {
+        dawn_free(auth_req);
+    }
+
+    return ret;
+}
+
+static int handle_assoc_request(struct blob_attr *message)
+{
+    int ret = WLAN_STATUS_SUCCESS;
+    int discard_entry = true;
+
+    print_probe_array();
+
+    auth_entry *auth_req = dawn_malloc(sizeof(struct auth_entry_s));
+    if (auth_req == NULL) {
+        DAWN_LOG_ERROR("Failed to allocate memory");
+        return -1;
+    }
+
+    if (!parse_to_assoc_req(message, auth_req)) {
+        DAWN_LOG_ERROR("Failed to parse association request message");
+        dawn_free(auth_req);
+        return -1;
+    }
+
+    print_auth_entry("Association entry:", auth_req);
+
+    if (!mac_in_maclist(auth_req->client_addr)) {
+        pthread_mutex_lock(&probe_array_mutex);
+
+        probe_entry *tmp = probe_array_get_entry(auth_req->bssid_addr, auth_req->client_addr);
+
+        pthread_mutex_unlock(&probe_array_mutex);
+
+        /* Block if entry was not already found in probe database */
+        if (tmp == NULL || !proceed_operation(tmp, REQ_TYPE_ASSOC)) {
+            if (tmp == NULL) {
+                DAWN_LOG_WARNING("Client made an attempt to associate but sent no probe request first");
+            }
+
+            if (behaviour_config.use_driver_recog) {
+                if (auth_req == insert_to_denied_req_array(auth_req, 1, time(NULL))) {
+                    discard_entry = false;
+                }
+            }
+
+            ret = behaviour_config.deny_assoc_reason;
+        }
+        else {
+            DAWN_LOG_DEBUG("Allow association");
+        }
+    }
+
+    if (discard_entry) {
+        dawn_free(auth_req);
+    }
+
+    return ret;
+}
+
+static int handle_beacon_report(struct blob_attr *message)
+{
+    if (parse_to_beacon_rep(message) == 0) {
+        /* insert_to_array(beacon_rep, 1); */
+        /* send_blob_attr_via_network(msg, "beacon-report"); */
+    }
+
+    return 0;
+}
+
+static bool proceed_operation(probe_entry *prob_request, int req_type)
+{
+    if (mac_in_maclist(prob_request->client_addr)) {
+        return true;
+    }
+
+    if (prob_request->counter < behaviour_config.min_probe_count) {
+        return false;
+    }
+
+    if (req_type == REQ_TYPE_PROBE && !behaviour_config.eval_probe_req) {
+        return true;
+    }
+
+    if (req_type == REQ_TYPE_AUTH && !behaviour_config.eval_auth_req) {
+        return true;
+    }
+
+    if (req_type == REQ_TYPE_ASSOC && !behaviour_config.eval_assoc_req) {
+        return true;
+    }
+
+    ap *this_ap = ap_array_get_ap(prob_request->bssid_addr);
+    if (this_ap != NULL && better_ap_available(this_ap, prob_request->client_addr, NULL)) {
+        return 0;
+    }
+
+    return true;
+}
+
+static void enable_bss_management(uint32_t id)
+{
+    int err;
+
+    blob_buf_init(&b, 0);
+    blobmsg_add_u8(&b, "neighbor_report", 1);
+    blobmsg_add_u8(&b, "beacon_report", 1);
+    blobmsg_add_u8(&b, "bss_transition", 1);
+
+    err = ubus_invoke(ctx, id, "bss_mgmt_enable", b.head, NULL, NULL, 1000);
+    if (err != 0) {
+        DAWN_LOG_ERROR("Failed to enable bss management: %s", ubus_strerror(err));
+    }
+}
+
+static void ubus_get_own_neighbor_report(void)
+{
+    struct hostapd_sock_entry *sub;
+    int err;
+
+    list_for_each_entry(sub, &hostapd_sock_list, list) {
+        if (sub->subscribed) {
+            blob_buf_init(&b, 0);
+            err = ubus_invoke(ctx, sub->id, "rrm_nr_get_own", b.head, ubus_get_own_neighbor_report_cb, NULL, 1000);
+            if (err != 0) {
+                DAWN_LOG_ERROR("Failed to get own neighbor report: %s", ubus_strerror(err));
+            }
+        }
+    }
+}
+
+static void ubus_get_own_neighbor_report_cb(struct ubus_request *request, int type, struct blob_attr *message)
+{
+    struct hostapd_sock_entry *sub, *entry = NULL;
+    struct blob_attr *tb[__RRM_MAX], *attr;
+    int i = 0;
+
+    if (message == NULL) {
+        return;
+    }
+
+    list_for_each_entry(sub, &hostapd_sock_list, list) {
+        if (sub->id == request->peer) {
+            entry = sub;
+        }
+    }
+
+    blobmsg_parse(rrm_array_policy, __RRM_MAX, tb, blob_data(message), blob_len(message));
+
+    if (!tb[RRM_ARRAY]) {
+        return;
+    }
+
+    int len = blobmsg_data_len(tb[RRM_ARRAY]);
+
+    __blob_for_each_attr(attr, blobmsg_data(tb[RRM_ARRAY]), len) {
+        /* The content of `value' is like
+         * ["f8:f0:82:62:19:11",
+         * "SSID",
+         * "f8f082621911af0900005301070603010300"],
+         * so we count to 3 to get nr. I wounder if there is a better way?.. */
+        if (++i == 3) {
+            char *neighbor_report = blobmsg_get_string(attr);
+            strcpy(entry->neighbor_report, neighbor_report);
+            DAWN_LOG_DEBUG("Got own neighbor report: %s", entry->neighbor_report);
+        }
+    }
+}
+
+static int parse_to_beacon_rep(struct blob_attr *message)
+{
+    struct blob_attr *tb[__BEACON_REP_MAX];
+    struct dawn_mac msg_bssid, msg_client;
+
+    blobmsg_parse(beacon_rep_policy, __BEACON_REP_MAX, tb, blob_data(message), blob_len(message));
+
+    if (!tb[BEACON_REP_BSSID] || !tb[BEACON_REP_ADDR] ||
+            !tb[BEACON_REP_RCPI] || !tb[BEACON_REP_RSNI]) {
+        DAWN_LOG_WARNING("Beacon report is missing some essential data");
+        return -1;
+    }
+
+    hwaddr_aton(blobmsg_data(tb[BEACON_REP_BSSID]), msg_bssid.u8);
+    hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), msg_client.u8);
+
+    ap *ap_entry_rep = ap_array_get_ap(msg_bssid);
+    if (ap_entry_rep == NULL) {
+        DAWN_LOG_INFO("Beacon report does not belong to our network, ignoring");
+        return -1;
+    }
+
+    int rcpi = blobmsg_get_u16(tb[BEACON_REP_RCPI]);
+    int rsni = blobmsg_get_u16(tb[BEACON_REP_RSNI]);
+
+    DAWN_LOG_DEBUG("Trying to update RCPI and RSNI for beacon report");
+    if (!probe_array_update_rcpi_rsni(msg_bssid, msg_client, rcpi, rsni, true)) {
+        probe_entry *beacon_rep, *beacon_rep_updated = NULL;
+
+        DAWN_LOG_DEBUG("Creating new probe entry");
+
+        beacon_rep = dawn_malloc(sizeof (probe_entry));
+        if (beacon_rep == NULL) {
+            DAWN_LOG_ERROR("Failed to allocate memory");
+            return -1;
+        }
+
+        beacon_rep->next_probe = NULL;
+        beacon_rep->bssid_addr = msg_bssid;
+        beacon_rep->client_addr = msg_client;
+        beacon_rep->counter = behaviour_config.min_probe_count;
+        beacon_rep->target_addr = msg_client;
+        beacon_rep->signal = 0;
+        beacon_rep->freq = ap_entry_rep->freq;
+        beacon_rep->rcpi = rcpi;
+        beacon_rep->rsni = rsni;
+
+        beacon_rep->ht_capabilities = false;  /* that is very problematic!!! */
+        beacon_rep->vht_capabilities = false; /* that is very problematic!!! */
+
+        /* use 802.11k values */
+        beacon_rep_updated = insert_to_array(beacon_rep, false, false, true, time(NULL));
+        if (beacon_rep != beacon_rep_updated) {
+            dawn_free(beacon_rep);
+        }
+
+        ubus_send_probe_via_network(beacon_rep_updated);
+    }
+
+    return 0;
+}
+
+static bool parse_to_assoc_req(struct blob_attr *message, assoc_entry *assoc_request)
+{
+    return parse_to_auth_req(message, assoc_request);
+}
+
+static bool parse_to_auth_req(struct blob_attr *message, auth_entry *auth_request)
+{
+    struct blob_attr *tb[__AUTH_MAX];
+    int err = EINVAL;
+
+    blobmsg_parse(auth_policy, __AUTH_MAX, tb, blob_data(message), blob_len(message));
+
+    if (!tb[AUTH_BSSID_ADDR] || !tb[AUTH_CLIENT_ADDR] || !tb[AUTH_TARGET_ADDR]) {
+        goto exit;
+    }
+
+    err = hwaddr_aton(blobmsg_data(tb[AUTH_BSSID_ADDR]), auth_request->bssid_addr.u8);
+    err |= hwaddr_aton(blobmsg_data(tb[AUTH_CLIENT_ADDR]), auth_request->client_addr.u8);
+    err |= hwaddr_aton(blobmsg_data(tb[AUTH_TARGET_ADDR]), auth_request->target_addr.u8);
+
+    if (tb[AUTH_SIGNAL]) {
+        auth_request->signal = blobmsg_get_u32(tb[AUTH_SIGNAL]);
+    }
+
+    if (tb[AUTH_FREQ]) {
+        auth_request->freq = blobmsg_get_u32(tb[AUTH_FREQ]);
+    }
+
+exit:
+    return !!err;
+}
+
+static void update_clients(struct uloop_timeout *t)
+{
+    ubus_get_clients();
+    if (behaviour_config.set_hostapd_nr) {
+        ubus_set_neighbor_report();
+    }
+    /* Maybe too much?! Don't set timer again... */
+    uloop_timeout_set(t, time_intervals_config.update_client * 1000);
+}
+
+static int ubus_get_clients(void)
+{
+    struct hostapd_sock_entry *sub;
+
+    list_for_each_entry(sub, &hostapd_sock_list, list) {
+        if (sub->subscribed) {
+            blob_buf_init(&b_clients, 0);
+            ubus_invoke(ctx, sub->id, "get_clients", b_clients.head, ubus_get_clients_cb, NULL, 1000);
+        }
+    }
+
+    return 0;
+}
+
+static void ubus_get_clients_cb(struct ubus_request *request, int type, struct blob_attr *message)
+{
+    struct hostapd_sock_entry *sub, *entry = NULL;
+
+    if (message == NULL) {
+        return;
+    }
+
+    list_for_each_entry(sub, &hostapd_sock_list, list) {
+        if (sub->id == request->peer) {
+            entry = sub;
+        }
+    }
+
+    if (entry == NULL || !entry->subscribed) {
+        DAWN_LOG_ERROR("Failed to find interface");
+        return;
+    }
+
+    /* braindead bullshit, replace with _add_blob */
+    char *data_str = blobmsg_format_json(message, 1);
+    dawn_regmem(data_str);
+
+    blob_buf_init(&b_domain, 0);
+    blobmsg_add_json_from_string(&b_domain, data_str);
+    dawn_free(data_str);
+
+    blobmsg_add_macaddr(&b_domain, "bssid", entry->bssid_addr);
+    blobmsg_add_string(&b_domain, "ssid", entry->ssid);
+    blobmsg_add_u8(&b_domain, "ht_supported", entry->ht_support);
+    blobmsg_add_u8(&b_domain, "vht_supported", entry->vht_support);
+    blobmsg_add_u32(&b_domain, "ap_weight", metric_config.ap_weight);
+    /* int channel_util = get_channel_utilization(entry->iface_name, &entry->last_channel_time, &entry->last_channel_time_busy); */
+    blobmsg_add_u32(&b_domain, "channel_utilization", entry->chan_util_average);
+    blobmsg_add_string(&b_domain, "neighbor_report", entry->neighbor_report);
+    blobmsg_add_string(&b_domain, "iface", entry->iface_name);
+    blobmsg_add_string(&b_domain, "hostname", entry->hostname);
+
+    send_blob_attr_via_network(b_domain.head, "clients");
+    handle_hostapd_clients_message(b_domain.head, 1, request->peer);
+
+    print_client_array();
+    print_ap_array();
+}
+
+static void ubus_set_neighbor_report(void)
+{
+    struct hostapd_sock_entry *sub;
+    int err;
+
+    list_for_each_entry(sub, &hostapd_sock_list, list) {
+        if (sub->subscribed) {
+            blob_buf_init(&b_nr, 0);
+            create_neighbor_report(&b_nr, sub->bssid_addr);
+            err = ubus_invoke(ctx, sub->id, "rrm_nr_set", b_nr.head, NULL, NULL, 1000);
+            if (err != 0) {
+                DAWN_LOG_ERROR("Failed to set neighbor report");
+            }
+        }
+    }
+}
+
+/* TODO: Does all APs constitute neighbor report? How about using list of AP connected
+ * clients can also see (from probe_set) to give more (physically) local set? */
+static int create_neighbor_report(struct blob_buf *b_local, struct dawn_mac own_bssid_addr)
+{
+    pthread_mutex_lock(&ap_array_mutex);
+
+    void *neighbors = blobmsg_open_array(b_local, "list");
+
+    for (ap *i = ap_set; i != NULL; i = i->next_ap) {
+        if (macs_are_equal_bb(own_bssid_addr, i->bssid_addr)) {
+            continue; /* TODO: Skip own entry?! */
+        }
+
+        char mac_buf[20];
+        sprintf(mac_buf, MACSTRLOWER, MAC2STR(i->bssid_addr.u8));
+
+        void *neighbor = blobmsg_open_array(b_local, NULL);
+        blobmsg_add_string(b_local, NULL, mac_buf);
+        blobmsg_add_string(b_local, NULL, (char *) i->ssid);
+        blobmsg_add_string(b_local, NULL, i->neighbor_report);
+        blobmsg_close_array(b_local, neighbor);
+    }
+
+    blobmsg_close_array(b_local, neighbors);
+
+    pthread_mutex_unlock(&ap_array_mutex);
+
+    return 0;
+}
+
+static void update_channel_utilization(struct uloop_timeout *t)
+{
+    struct hostapd_sock_entry *sub;
+
+    list_for_each_entry(sub, &hostapd_sock_list, list){
+        if (sub->subscribed) {
+            sub->chan_util_samples_sum +=
+                    iwinfo_get_channel_utilization(sub->iface_name, &sub->last_channel_time,
+                                            &sub->last_channel_time_busy);
+            ++sub->chan_util_num_sample_periods;
+
+            if (sub->chan_util_num_sample_periods > behaviour_config.chan_util_avg_period) {
+                sub->chan_util_average = sub->chan_util_samples_sum / sub->chan_util_num_sample_periods;
+                sub->chan_util_samples_sum = 0;
+                sub->chan_util_num_sample_periods = 0;
+            }
+        }
+    }
+
+    uloop_timeout_set(t, time_intervals_config.update_chan_util * 1000);
+}
+
+static void update_beacon_reports(struct uloop_timeout *t)
+{
+    struct hostapd_sock_entry *sub;
+
+    list_for_each_entry(sub, &hostapd_sock_list, list) {
+        if (sub->subscribed) {
+            send_beacon_reports(sub->bssid_addr, sub->id);
+        }
+    }
+
+    uloop_timeout_set(&beacon_reports_timer, time_intervals_config.update_beacon_reports * 1000);
+}
+
+static void __attribute__((__unused__)) del_client_all_interfaces(
+        const struct dawn_mac client_addr, uint32_t reason,
+        uint8_t deauth, uint32_t ban_time)
+{
+    struct hostapd_sock_entry *sub;
+
+    blob_buf_init(&b, 0);
+    blobmsg_add_macaddr(&b, "addr", client_addr);
+    blobmsg_add_u32(&b, "reason", reason);
+    blobmsg_add_u8(&b, "deauth", deauth);
+    blobmsg_add_u32(&b, "ban_time", ban_time);
+
+    list_for_each_entry(sub, &hostapd_sock_list, list) {
+        if (sub->subscribed) {
+            ubus_invoke(ctx, sub->id, "del_client", b.head, NULL, NULL, 1000);
+        }
+    }
+}
+
+static void __attribute__((__unused__)) del_client_interface(
+        uint32_t id, const struct dawn_mac client_addr, uint32_t reason,
+        uint8_t deauth, uint32_t ban_time)
+{
+    struct hostapd_sock_entry *sub;
+
+    blob_buf_init(&b, 0);
+    blobmsg_add_macaddr(&b, "addr", client_addr);
+    blobmsg_add_u32(&b, "reason", reason);
+    blobmsg_add_u8(&b, "deauth", deauth);
+    blobmsg_add_u32(&b, "ban_time", ban_time);
+
+    list_for_each_entry(sub, &hostapd_sock_list, list) {
+        if (sub->subscribed) {
+            ubus_invoke(ctx, id, "del_client", b.head, NULL, NULL, 1000);
+        }
+    }
+}
+
+static void discover_new_dawn_instances(struct uloop_timeout *t)
+{
+    ubus_call_umdns();
+    uloop_timeout_set(t, time_intervals_config.update_tcp_con * 1000);
+}
+
+static int ubus_call_umdns(void)
+{
+    u_int32_t id;
+    int err = -EINVAL;
+
+    if (ubus_lookup_id(ctx, "umdns", &id) != 0) {
+        DAWN_LOG_ERROR("Failed to lookup umdns id");
+        goto exit;
+    }
+
+    blob_buf_init(&b_umdns, 0);
+    err = ubus_invoke(ctx, id, "update", b_umdns.head, NULL, NULL, 1000);
+    if (err != 0) {
+        DAWN_LOG_ERROR("Failed to invoke umdns service list update");
+        goto exit;
+    }
+    err = ubus_invoke(ctx, id, "browse", b_umdns.head, ubus_umdns_cb, NULL, 1000);
+    if (err != 0) {
+        DAWN_LOG_ERROR("Failed to request umdns service list");
+    }
+
+exit:
+    return err;
+}
+
+static void ubus_umdns_cb(struct ubus_request *request, int type, struct blob_attr *message)
+{
+    struct blob_attr *tb[__DAWN_UMDNS_TABLE_MAX], *attr;
+
+    if (message == NULL) {
+        return;
+    }
+
+    blobmsg_parse(dawn_umdns_table_policy, __DAWN_UMDNS_TABLE_MAX, tb, blob_data(message), blob_len(message));
+
+    if (!tb[DAWN_UMDNS_TABLE]) {
+        return;
+    }
+
+    int len = blobmsg_data_len(tb[DAWN_UMDNS_TABLE]);
+
+    __blob_for_each_attr(attr, blobmsg_data(tb[DAWN_UMDNS_TABLE]), len) {
+        struct blob_attr *tb_dawn[__DAWN_UMDNS_MAX];
+        struct blobmsg_hdr *hdr;
+
+        hdr = blob_data(attr);
+
+        blobmsg_parse(dawn_umdns_policy, __DAWN_UMDNS_MAX, tb_dawn, blobmsg_data(attr), blobmsg_len(attr));
+
+        if (!tb_dawn[DAWN_UMDNS_IPV4] || !tb_dawn[DAWN_UMDNS_PORT]) {
+            continue;
+        }
+
+        DAWN_LOG_DEBUG("Found remote DAWN service %s:%d@%s", blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]),
+                       blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]), hdr->name);
+
+        tcp_add_conncection(blobmsg_get_string(tb_dawn[DAWN_UMDNS_IPV4]), blobmsg_get_u32(tb_dawn[DAWN_UMDNS_PORT]));
+    }
+}
+
+static int add_mac(struct ubus_context *context, struct ubus_object *object,
+                   struct ubus_request_data *request, const char *method,
+                   struct blob_attr *message)
+{
+    parse_add_mac_to_file(message);
+
+    /* Here we need to send it via the network! */
+    send_blob_attr_via_network(message, "addmac");
+
+    return 0;
+}
+
+static int get_hearing_map(struct ubus_context *context, struct ubus_object *object,
+                           struct ubus_request_data *request, const char *method,
+                           struct blob_attr *message)
+{
+    int err;
+
+    build_hearing_map_sort_client(&b);
+
+    err = ubus_send_reply(context, request, b.head);
+    if (err != 0) {
+        DAWN_LOG_ERROR("Failed to send reply: %s", ubus_strerror(err));
+    }
+
+    return err;
 }
 
 static int build_hearing_map_sort_client(struct blob_buf *b)
@@ -1550,6 +1373,22 @@ static int build_hearing_map_sort_client(struct blob_buf *b)
     return 0;
 }
 
+static int get_network(struct ubus_context *context, struct ubus_object *object,
+                       struct ubus_request_data *request, const char *method,
+                       struct blob_attr *message)
+{
+    int err;
+
+    build_network_overview(&b);
+
+    err = ubus_send_reply(context, request, b.head);
+    if (err != 0) {
+        DAWN_LOG_ERROR("Failed to send reply: %s", ubus_strerror(err));
+    }
+
+    return err;
+}
+
 static int build_network_overview(struct blob_buf *b)
 {
     void *client_list, *ap_list, *ssid_list;
@@ -1582,25 +1421,24 @@ static int build_network_overview(struct blob_buf *b)
         }
         blobmsg_add_u8(b, "local", local_ap);
 
-        char *nr;
-        nr = blobmsg_alloc_string_buffer(b, "neighbor_report", NEIGHBOR_REPORT_LEN);
-        sprintf(nr, "%s", m->neighbor_report); /* TODO: Why not strcpy() */
+        char *neighbor_report;
+        neighbor_report = blobmsg_alloc_string_buffer(b, "neighbor_report", NEIGHBOR_REPORT_LEN);
+        strncpy(neighbor_report, m->neighbor_report, NEIGHBOR_REPORT_LEN);
         blobmsg_add_string_buffer(b);
 
         char *iface;
         iface = blobmsg_alloc_string_buffer(b, "iface", MAX_INTERFACE_NAME);
-        sprintf(iface, "%s", m->iface);
+        strncpy(iface, m->iface, MAX_INTERFACE_NAME);
         blobmsg_add_string_buffer(b);
 
         char *hostname;
         hostname = blobmsg_alloc_string_buffer(b, "hostname", HOST_NAME_MAX);
-        sprintf(hostname, "%s", m->hostname);
+        strncpy(hostname, m->hostname, HOST_NAME_MAX);
         blobmsg_add_string_buffer(b);
 
         /* TODO: Could optimise this by exporting search func, but not a core process */
         client *k = client_set_bc;
         while (k != NULL) {
-
             if (macs_are_equal_bb(m->bssid_addr, k->bssid_addr)) {
                 sprintf(client_mac_buf, MACSTR, MAC2STR(k->client_addr.u8));
                 client_list = blobmsg_open_table(b, client_mac_buf);
@@ -1636,101 +1474,144 @@ static int build_network_overview(struct blob_buf *b)
     return 0;
 }
 
-/* TODO: Does all APs constitute neighbor report? How about using list of AP connected
- * clients can also see (from probe_set) to give more (physically) local set? */
-static int ap_get_nr(struct blob_buf *b_local, struct dawn_mac own_bssid_addr)
+static int reload_config(struct ubus_context *context, struct ubus_object *object,
+                         struct ubus_request_data *request, const char *method,
+                         struct blob_attr *message)
 {
-    pthread_mutex_lock(&ap_array_mutex);
-
-    void *nbs = blobmsg_open_array(b_local, "list");
-
-    for (ap *i = ap_set; i != NULL; i = i->next_ap) {
-        if (macs_are_equal_bb(own_bssid_addr, i->bssid_addr)) {
-            continue; /* TODO: Skip own entry?! */
-        }
-
-        void *nr_entry = blobmsg_open_array(b_local, NULL);
-
-        char mac_buf[20];
-        sprintf(mac_buf, MACSTRLOWER, MAC2STR(i->bssid_addr.u8));
-        blobmsg_add_string(b_local, NULL, mac_buf);
-
-        blobmsg_add_string(b_local, NULL, (char *) i->ssid);
-        blobmsg_add_string(b_local, NULL, i->neighbor_report);
-        blobmsg_close_array(b_local, nr_entry);
-    }
-
-    blobmsg_close_array(b_local, nbs);
-
-    pthread_mutex_unlock(&ap_array_mutex);
+    dawn_reload_config();
 
     return 0;
 }
 
-static void uloop_add_data_cbs(void)
+/* This is needed to respond to the ubus notify ...
+ * Maybe we need to disable on shutdown...
+ * But it is not possible when we disable the notify that other daemons are running that relay on this notify... */
+static void respond_to_notify(uint32_t id)
 {
-    uloop_timeout_add(&probe_timeout);
-    uloop_timeout_add(&client_timeout);
-    uloop_timeout_add(&ap_timeout);
-    if (behaviour_config.use_driver_recog) {
-        uloop_timeout_add(&denied_req_timeout);
+    int err;
+
+    blob_buf_init(&b, 0);
+    blobmsg_add_u32(&b, "notify_response", 1);
+
+    err = ubus_invoke(ctx, id, "notify_response", b.head, NULL, NULL, 1000);
+    if (err != 0) {
+        DAWN_LOG_ERROR("Failed to invoke: %s", ubus_strerror(err));
     }
 }
 
-/* TODO: Move mutex handling to remove_??? function to make test harness simpler?
- * Or not needed as test harness not threaded? */
+static int uci_send_via_network(void)
+{
+    void *metric, *intervals, *behaviour;
+
+    blob_buf_init(&b, 0);
+    intervals = blobmsg_open_table(&b, "intervals");
+    blobmsg_add_u32(&b, "update_client", time_intervals_config.update_client);
+    blobmsg_add_u32(&b, "update_hostapd", time_intervals_config.update_hostapd);
+    blobmsg_add_u32(&b, "update_tcp_con", time_intervals_config.update_tcp_con);
+    blobmsg_add_u32(&b, "update_chan_util", time_intervals_config.update_chan_util);
+    blobmsg_add_u32(&b, "update_beacon_reports", time_intervals_config.update_beacon_reports);
+    blobmsg_add_u32(&b, "remove_probe", time_intervals_config.remove_probe);
+    blobmsg_add_u32(&b, "remove_ap", time_intervals_config.remove_ap);
+    blobmsg_add_u32(&b, "denied_req_threshold", time_intervals_config.denied_req_threshold);
+    blobmsg_close_table(&b, intervals);
+
+    metric = blobmsg_open_table(&b, "metric");
+    blobmsg_add_u32(&b, "ht_support", metric_config.ht_support);
+    blobmsg_add_u32(&b, "vht_support", metric_config.vht_support);
+    blobmsg_add_u32(&b, "chan_util_val", metric_config.chan_util_val);
+    blobmsg_add_u32(&b, "chan_util", metric_config.chan_util);
+    blobmsg_add_u32(&b, "max_chan_util_val", metric_config.max_chan_util_val);
+    blobmsg_add_u32(&b, "max_chan_util", metric_config.max_chan_util);
+    blobmsg_add_u32(&b, "freq", metric_config.freq);
+    blobmsg_add_u32(&b, "rssi_val", metric_config.rssi_val);
+    blobmsg_add_u32(&b, "rssi", metric_config.rssi);
+    blobmsg_add_u32(&b, "low_rssi_val", metric_config.low_rssi_val);
+    blobmsg_add_u32(&b, "low_rssi", metric_config.low_rssi);
+    blobmsg_close_table(&b, metric);
+
+    behaviour = blobmsg_open_table(&b, "behaviour");
+    blobmsg_add_u32(&b, "kicking", behaviour_config.kicking);
+    blobmsg_add_u32(&b, "min_kick_count", behaviour_config.min_kick_count);
+    blobmsg_add_u32(&b, "bandwidth_threshold", behaviour_config.bandwidth_threshold);
+    blobmsg_add_u32(&b, "use_station_count", behaviour_config.use_station_count);
+    blobmsg_add_u32(&b, "max_station_diff", behaviour_config.max_station_diff);
+    blobmsg_add_u32(&b, "min_probe_count", behaviour_config.min_probe_count);
+    blobmsg_add_u32(&b, "eval_probe_req", behaviour_config.eval_probe_req);
+    blobmsg_add_u32(&b, "eval_auth_req", behaviour_config.eval_auth_req);
+    blobmsg_add_u32(&b, "eval_assoc_req", behaviour_config.eval_assoc_req);
+    blobmsg_add_u32(&b, "deny_auth_reason", behaviour_config.deny_auth_reason);
+    blobmsg_add_u32(&b, "deny_assoc_reason", behaviour_config.deny_assoc_reason);
+    blobmsg_add_u32(&b, "use_driver_recog", behaviour_config.use_driver_recog);
+    blobmsg_add_u32(&b, "chan_util_avg_period", behaviour_config.chan_util_avg_period);
+    blobmsg_add_u32(&b, "set_hostapd_nr", behaviour_config.set_hostapd_nr);
+    blobmsg_add_u32(&b, "op_class", behaviour_config.op_class);
+    blobmsg_add_u32(&b, "duration", behaviour_config.duration);
+    blobmsg_add_u32(&b, "mode", behaviour_config.mode);
+    blobmsg_add_u32(&b, "scan_channel", behaviour_config.scan_channel);
+    blobmsg_close_table(&b, behaviour);
+
+    return send_blob_attr_via_network(b.head, "uci");
+}
+
 static void remove_probe_array_cb(struct uloop_timeout *t)
 {
-    pthread_mutex_lock(&probe_array_mutex);
-    printf("[Thread] : Removing old probe entries!\n");
     remove_old_probe_entries(time(NULL), time_intervals_config.remove_probe);
-    printf("[Thread] : Removing old entries finished!\n");
-    pthread_mutex_unlock(&probe_array_mutex);
 
-    uloop_timeout_set(&probe_timeout, time_intervals_config.remove_probe * 1000);
+    uloop_timeout_set(t, time_intervals_config.remove_probe * 1000);
 }
 
-/* TODO: Move mutex handling to remove_??? function to make test harness simpler?
- * Or not needed as test harness not threaded? */
 static void remove_client_array_cb(struct uloop_timeout *t)
 {
-    pthread_mutex_lock(&client_array_mutex);
-    printf("[Thread] : Removing old client entries!\n");
     remove_old_client_entries(time(NULL), time_intervals_config.update_client);
-    pthread_mutex_unlock(&client_array_mutex);
 
-    uloop_timeout_set(&client_timeout, time_intervals_config.update_client * 1000);
+    uloop_timeout_set(t, time_intervals_config.update_client * 1000);
 }
 
-/* TODO: Move mutex handling to remove_??? function to make test harness simpler?
- * Or not needed as test harness not threaded? */
 static void remove_ap_array_cb(struct uloop_timeout *t)
 {
-    pthread_mutex_lock(&ap_array_mutex);
-    printf("[ULOOP] : Removing old ap entries!\n");
     remove_old_ap_entries(time(NULL), time_intervals_config.remove_ap);
-    pthread_mutex_unlock(&ap_array_mutex);
 
-    uloop_timeout_set(&ap_timeout, time_intervals_config.remove_ap * 1000);
+    uloop_timeout_set(t, time_intervals_config.remove_ap * 1000);
 }
-
-/* TODO: Move mutex handling to (new) remove_??? function to make test harness simpler?
- * Or not needed as test harness not threaded? */
 static void denied_req_array_cb(struct uloop_timeout *t)
 {
-    pthread_mutex_lock(&denied_array_mutex);
-    printf("[ULOOP] : Processing denied authentication!\n");
     remove_old_denied_req_entries(time(NULL), time_intervals_config.denied_req_threshold, true);
-    pthread_mutex_unlock(&denied_array_mutex);
 
-    uloop_timeout_set(&denied_req_timeout, time_intervals_config.denied_req_threshold * 1000);
+    uloop_timeout_set(t, time_intervals_config.denied_req_threshold * 1000);
 }
 
-int send_add_mac(struct dawn_mac client_addr)
+static int send_blob_attr_via_network(struct blob_attr *msg, char *method)
 {
-    blob_buf_init(&b, 0);
-    blobmsg_add_macaddr(&b, "addr", client_addr);
-    send_blob_attr_via_network(b.head, "addmac");
+    char *data_str, *str;
+    int err = -1;
 
-    return 0;
+    if (msg == NULL) {
+        goto exit;
+    }
+
+    data_str = blobmsg_format_json(msg, true);
+    dawn_regmem(data_str);
+    blob_buf_init(&b_send_network, 0);
+    blobmsg_add_string(&b_send_network, "method", method);
+    blobmsg_add_string(&b_send_network, "data", data_str);
+
+    str = blobmsg_format_json(b_send_network.head, true);
+    dawn_regmem(str);
+
+    err = dawn_network_send(str);
+
+    dawn_free(str);
+    dawn_free(data_str);
+
+exit:
+    return err;
+}
+
+static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr)
+{
+    char *s;
+
+    s = blobmsg_alloc_string_buffer(buf, name, 20);
+    sprintf(s, MACSTR, MAC2STR(addr.u8));
+    blobmsg_add_string_buffer(buf);
 }

@@ -12,6 +12,7 @@
 #include "msghandler.h"
 #include "multicastsocket.h"
 #include "networksocket.h"
+#include "tcpsocket.h"
 
 enum {
     MAX_RECV_LENGTH = 2048
@@ -23,56 +24,68 @@ static char recv_buff[MAX_RECV_LENGTH];
 static pthread_mutex_t send_mutex;
 static pthread_t listener_thread_handler;
 
+static int udp_send(const char *message, size_t msglen);
 _Noreturn static void *listener_thread(void *args);
 
 bool dawn_network_init(const char *ip, uint16_t port, int sock_type)
 {
-    sock = ((sock_type == DAWN_SOCKET_MULTICAST)?
-                dawn_setup_multicast_socket : dawn_setup_broadcast_socket)(ip, port, &addr);
-    if (sock == -1) {
-        return false;
+    bool success = false;
+
+    if (sock_type == DAWN_SOCKET_TCP) {
+        success = tcp_run_server(port);
+        /* TODO: eliminate server_ip */
+        if (success) {
+            success = tcp_add_conncection(general_config.server_ip, port);
+        }
+    }
+    else {
+        sock = ((sock_type == DAWN_SOCKET_MULTICAST)?
+                    dawn_setup_multicast_socket : dawn_setup_broadcast_socket)(ip, port, &addr);
+        if (sock == -1) {
+            goto exit;
+        }
+
+        if (pthread_create(&listener_thread_handler, NULL, listener_thread, NULL) != 0) {
+            DAWN_LOG_ERROR("Failed to create receiving thread");
+            close(sock);
+            goto exit;
+        }
+
+        DAWN_LOG_INFO("Network init done. Operating on %s:%d", ip, port);
     }
 
-    if (pthread_create(&listener_thread_handler, NULL, listener_thread, NULL) != 0) {
-        DAWN_LOG_ERROR("Failed to create receiving thread");
-        close(sock);
-        return false;
-    }
-
-    DAWN_LOG_INFO("Network init done. Operating on %s:%d", ip, port);
-
-    return true;
+    success = true;
+exit:
+    return success;
 }
 
-int send_string(const char *msg)
+int dawn_network_send(const char *message)
 {
-    size_t msglen = strlen(msg) + 1;
+    size_t msglen = strlen(message) + 1;
     int err = -1;
 
     if (general_config.use_encryption) {
         int enc_length;
         char *enc;
 
-        enc = gcrypt_encrypt_msg(msg, msglen, &enc_length);
+        enc = gcrypt_encrypt_msg(message, msglen, &enc_length);
         if (enc == NULL) {
             goto exit;
         }
 
         msglen = enc_length;
-        msg = enc;
+        message = enc;
     }
 
     pthread_mutex_lock(&send_mutex);
 
-    err = sendto(sock, msg, msglen, 0, (struct sockaddr *) &addr, sizeof (addr));
-    if (err == -1) {
-        DAWN_LOG_ERROR("Failed to send network message: %s", strerror(errno));
-    }
+    err = ((general_config.network_proto == DAWN_SOCKET_TCP)?
+               tcp_send : udp_send) (message, msglen);
 
     pthread_mutex_unlock(&send_mutex);
 
     if (general_config.use_encryption) {
-        dawn_free((void *) msg);
+        dawn_free((void *) message);
     }
 
 exit:
@@ -84,6 +97,16 @@ void dawn_network_deinit(void)
     pthread_cancel(listener_thread_handler);
     pthread_join(listener_thread_handler, NULL);
     close(sock);
+}
+
+static int udp_send(const char *message, size_t msglen)
+{
+    int err = sendto(sock, message, msglen, 0, (struct sockaddr *) &addr, sizeof (addr));
+    if (err == -1) {
+        DAWN_LOG_ERROR("Failed to send network message: %s", strerror(errno));
+    }
+
+    return err;
 }
 
 _Noreturn static void *listener_thread(void *args)

@@ -1,10 +1,11 @@
 #ifndef DAWN_UBUS_H
 #define DAWN_UBUS_H
 
-#include <libubox/blobmsg_json.h>
-#include <libubox/uloop.h>
+#include <libubus.h>
+#include <stdint.h>
 
 #include "datastorage.h"
+#include "mac_utils.h"
 
 /**
  * Init ubus.
@@ -14,12 +15,11 @@
  * @param hostapd_dir
  * @return
  */
-int dawn_run_uloop(const char *ubus_socket, const char *hostapd_dir);
-
+int dawn_run_uloop(void);
 void dawn_reload_config(void);
 
 void ubus_send_beacon_report(struct dawn_mac client, int id);
-int parse_add_mac_to_file(struct blob_attr *msg);
+int parse_add_mac_to_file(struct blob_attr *message);
 
 /**
  * Send probe message via the network.

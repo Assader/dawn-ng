@@ -184,12 +184,12 @@ bool dawn_uci_get_general(general_config_t *config)
 
     const char *tmp = uci_lookup_option_string(uci_ctx, general, "network_ip");
     if (tmp != NULL) {
-        strncpy(config->network_ip, tmp, MAX_IP_LENGTH);
+        strncpy(config->network_ip, tmp, INET_ADDRSTRLEN);
     }
 
     tmp = uci_lookup_option_string(uci_ctx, general, "server_ip");
     if (tmp != NULL) {
-        strncpy(config->server_ip, tmp, MAX_IP_LENGTH);
+        strncpy(config->server_ip, tmp, INET_ADDRSTRLEN);
     }
 
     tmp = uci_lookup_option_string(uci_ctx, general, "hostapd_dir");

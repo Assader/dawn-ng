@@ -122,33 +122,20 @@ error:
     return false;
 }
 
-void tcp_send(const char *message)
+int tcp_send(const char *message, size_t msglen)
 {
-    size_t msglen = strlen(message) + 1;
     tcp_connection_t *con, *tmp;
+    int bytes_sent = 0;
 
     print_tcp_array();
-
-    if (general_config.use_encryption) {
-        int enc_length;
-        char *enc;
-
-        enc = gcrypt_encrypt_msg(message, msglen, &enc_length);
-        if (enc == NULL) {
-            return;
-        }
-
-        msglen = enc_length;
-        message = enc;
-    }
 
     list_for_each_entry_safe(con, tmp, &tcp_connection_list, list) {
         if (con->connected) {
             size_t net_msglen = htonl(msglen);
-            int len_ustream = ustream_write(&con->stream.stream, (char *) &net_msglen, sizeof (net_msglen), 0);
-            len_ustream += ustream_write(&con->stream.stream, message, msglen, 0);
-            DAWN_LOG_DEBUG("Ustream sent: %d", len_ustream);
-            if (len_ustream <= 0) {
+            bytes_sent += ustream_write(&con->stream.stream, (char *) &net_msglen, sizeof (net_msglen), 0);
+            bytes_sent += ustream_write(&con->stream.stream, message, msglen, 0);
+            DAWN_LOG_DEBUG("Ustream sent: %d", bytes_sent);
+            if (bytes_sent <= 0) {
                 DAWN_LOG_ERROR("Failed to send message via ustream");
                 if (con->stream.stream.write_error) {
                     ustream_free(&con->stream.stream);
@@ -160,9 +147,7 @@ void tcp_send(const char *message)
         }
     }
 
-    if (general_config.use_encryption) {
-        dawn_free((void *) message);
-    }
+    return bytes_sent;
 }
 
 static void server_cb(struct uloop_fd *fd, unsigned int events)

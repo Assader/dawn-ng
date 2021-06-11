@@ -13,7 +13,7 @@ int dawn_setup_multicast_socket(const char *multicast_ip, uint16_t multicast_por
     struct ip_mreq mreq = {0};
     int sock;
 
-    if ((sock = socket(PF_INET, SOCK_DGRAM, 0)) == -1) {
+    if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
         DAWN_LOG_ERROR("Failed to create socket: %s", strerror(errno));
         goto error;
     }

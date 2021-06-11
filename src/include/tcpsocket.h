@@ -3,6 +3,7 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 /**
  * Add tcp connection.
@@ -23,6 +24,6 @@ bool tcp_run_server(uint16_t port);
  * Send message via tcp to all other hosts.
  * @param msg
  */
-void tcp_send(const char *message);
+int tcp_send(const char *message, size_t msglen);
 
 #endif /* DAWN_TCPSOCKET_H */

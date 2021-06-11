@@ -1,6 +1,7 @@
 #ifndef DAWN_DATASTORAGE_H
 #define DAWN_DATASTORAGE_H
 
+#include <arpa/inet.h>
 #include <limits.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -70,14 +71,10 @@ typedef struct {
     uint32_t denied_req_threshold;
 } time_intervals_config_t;
 
-enum {
-    MAX_IP_LENGTH = 46,
-};
-
 typedef struct {
     uint16_t network_port;
-    char network_ip[MAX_IP_LENGTH];
-    char server_ip[MAX_IP_LENGTH];
+    char network_ip[INET_ADDRSTRLEN];
+    char server_ip[INET_ADDRSTRLEN];
     int network_proto;
     int use_encryption;
     int log_level;
@@ -210,13 +207,10 @@ extern pthread_mutex_t client_array_mutex;
 probe_entry *insert_to_array(probe_entry *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
 probe_entry *probe_array_get_entry(struct dawn_mac bssid_addr, struct dawn_mac client_addr);
 void remove_old_probe_entries(time_t current_time, long long int threshold);
-void print_probe_array(void);
-void print_probe_entry(probe_entry *entry);
 int eval_probe_metric(struct probe_entry_s *probe_entry, ap *ap_entry);
 void denied_req_array_delete(auth_entry *entry);
 auth_entry *insert_to_denied_req_array(auth_entry *entry, int inc_counter, time_t expiry);
 void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac);
-void print_auth_entry(auth_entry *entry);
 bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rcpi, uint32_t rsni, int send_network);
 void remove_old_client_entries(time_t current_time, long long int threshold);
 client *insert_client_to_array(client *entry, time_t expiry);
@@ -224,17 +218,21 @@ int kick_clients(ap *kicking_ap, uint32_t id);
 void update_iw_info(struct dawn_mac bssid);
 client *client_array_get_client(const struct dawn_mac client_addr);
 client *client_array_delete(client *entry, int unlink_only);
-void print_client_array(void);
-void print_client_entry(client *entry);
 ap *insert_to_ap_array(ap *entry, time_t expiry);
 void remove_old_ap_entries(time_t current_time, long long int threshold);
-void print_ap_array(void);
 ap *ap_array_get_ap(struct dawn_mac bssid_mac);
 bool probe_array_set_all_probe_count(struct dawn_mac client_addr, uint32_t probe_count);
 int ap_get_collision_count(int col_domain);
 void send_beacon_reports(struct dawn_mac bssid, int id);
 int better_ap_available(ap *kicking_ap, struct dawn_mac client_addr, char *neighbor_report);
 void ap_array_insert(ap *entry);
+
+void print_ap_array(void);
+void print_client_entry(client *entry);
+void print_auth_entry(const char *header, auth_entry *entry);
+void print_probe_array(void);
+void print_probe_entry(probe_entry *entry);
+void print_client_array(void);
 
 /* All users of datastorage should call init_ / destroy_mutex at initialisation and termination respectively */
 bool init_mutex(void);

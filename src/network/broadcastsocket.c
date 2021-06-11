@@ -10,7 +10,7 @@ int dawn_setup_broadcast_socket(const char *broadcast_ip, uint16_t broadcast_por
 {
     int sock;
 
-    if ((sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
+    if ((sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) == -1) {
         DAWN_LOG_ERROR("Failed to create socket: %s", strerror(errno));
         goto error;
     }

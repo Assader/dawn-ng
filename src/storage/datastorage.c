@@ -1,6 +1,7 @@
 #include <stdio.h>
 
 #include "dawn_iwinfo.h"
+#include "dawn_log.h"
 #include "dawn_uci.h"
 #include "ieee80211_utils.h"
 #include "mac_utils.h"
@@ -283,7 +284,6 @@ int eval_probe_metric(struct probe_entry_s *probe_entry, ap *ap_entry)
     }
 
     printf("Score: %d of:\n", score);
-    print_probe_entry(probe_entry);
 
     return score;
 }
@@ -644,7 +644,7 @@ static bool probe_array_update_rssi(struct dawn_mac bssid_addr, struct dawn_mac 
 
 bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rcpi, uint32_t rsni, int send_network)
 {
-    bool updated = 0;
+    bool updated = false;
 
     pthread_mutex_lock(&probe_array_mutex);
 
@@ -667,27 +667,6 @@ bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac cl
 probe_entry *probe_array_get_entry(struct dawn_mac bssid_mac, struct dawn_mac client_mac)
 {
     return *probe_array_find_first_entry(client_mac, bssid_mac, true);
-}
-
-void print_probe_array(void)
-{
-    pthread_mutex_lock(&probe_array_mutex);
-
-    printf("Printing probe array (%d elements):\n", probe_entry_last);
-    for (probe_entry *i = probe_set; i != NULL; i = i->next_probe) {
-        print_probe_entry(i);
-    }
-
-    pthread_mutex_unlock(&probe_array_mutex);
-}
-
-void print_probe_entry(probe_entry *entry)
-{
-    printf(" - bssid_addr: " MACSTR ", client_addr: " MACSTR ", signal: %d, "
-           "freq: %d, counter: %d, vht: %d, min_rate: %d, max_rate: %d\n",
-           MAC2STR(entry->bssid_addr.u8), MAC2STR(entry->client_addr.u8),
-           entry->signal, entry->freq, entry->counter, entry->vht_capabilities,
-           entry->min_supp_datarate, entry->max_supp_datarate);
 }
 
 static void insert_to_skip_array(struct probe_entry_s *entry)
@@ -1101,26 +1080,12 @@ struct mac_entry_s *insert_to_mac_array(struct mac_entry_s *entry)
     return entry;
 }
 
-void print_auth_entry(auth_entry *entry)
-{
-    printf(" - bssid_addr: " MACSTR ", client_addr: " MACSTR ", signal: %d, freq: %d\n",
-           MAC2STR(entry->bssid_addr.u8), MAC2STR(entry->client_addr.u8), entry->signal, entry->freq);
-}
-
 void print_client_entry(client *entry)
 {
     printf(" - bssid_addr: " MACSTR ", client_addr: " MACSTR ", freq: %d, "
            "ht_supported: %d, vht_supported: %d, ht: %d, vht: %d, kick: %d\n",
            MAC2STR(entry->bssid_addr.u8), MAC2STR(entry->client_addr.u8), entry->freq,
            entry->ht_supported, entry->vht_supported, entry->ht, entry->vht, entry->kick_count);
-}
-
-void print_client_array(void)
-{
-    printf("Printing clients array (%d elements)\n", client_entry_last);
-    for (client *i = client_set_bc; i != NULL; i = i->next_entry_bc) {
-        print_client_entry(i);
-    }
 }
 
 static void print_ap_entry(ap *entry)
@@ -1137,6 +1102,42 @@ void print_ap_array(void)
     printf("Printing APs array (%d elements)\n", ap_entry_last);
     for (ap *i = ap_set; i != NULL; i = i->next_ap) {
         print_ap_entry(i);
+    }
+}
+
+void print_auth_entry(const char *header, auth_entry *entry)
+{
+    DAWN_LOG_DEBUG(header);
+    DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", signal: %d, freq: %d",
+                   MAC2STR(entry->bssid_addr.u8), MAC2STR(entry->client_addr.u8), entry->signal, entry->freq);
+}
+
+void print_probe_array(void)
+{
+    pthread_mutex_lock(&probe_array_mutex);
+
+    DAWN_LOG_DEBUG("Printing probe array");
+    for (probe_entry *i = probe_set; i != NULL; i = i->next_probe) {
+        print_probe_entry(i);
+    }
+
+    pthread_mutex_unlock(&probe_array_mutex);
+}
+
+void print_probe_entry(probe_entry *entry)
+{
+    DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", signal: %d, "
+                   "freq: %d, counter: %d, vht: %d, min_rate: %d, max_rate: %d",
+                   MAC2STR(entry->bssid_addr.u8), MAC2STR(entry->client_addr.u8),
+                   entry->signal, entry->freq, entry->counter, entry->vht_capabilities,
+                   entry->min_supp_datarate, entry->max_supp_datarate);
+}
+
+void print_client_array(void)
+{
+    DAWN_LOG_DEBUG("Printing clients array");
+    for (client *i = client_set_bc; i != NULL; i = i->next_entry_bc) {
+        print_client_entry(i);
     }
 }
 

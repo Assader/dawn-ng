@@ -17,7 +17,7 @@ static void connect_signals(void);
 static void signal_handler(int sig);
 static void dawn_shutdown(void);
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
     connect_signals();
 
@@ -26,6 +26,7 @@ int main(int argc, char **argv)
     }
     dawn_uci_get_general(&general_config);
     dawn_uci_get_intervals(&time_intervals_config);
+    dawn_uci_get_metric(&metric_config);
     dawn_uci_get_behaviour(&behaviour_config);
 
     if (general_config.use_encryption) {
@@ -42,18 +43,17 @@ int main(int argc, char **argv)
         exit(EXIT_FAILURE);
     }
 
-    if (general_config.network_proto == DAWN_SOCKET_BROADCAST ||
-        general_config.network_proto == DAWN_SOCKET_MULTICAST) {
-        if (!dawn_network_init(general_config.network_ip,
-                               general_config.network_port,
-                               general_config.network_proto)) {
-            exit(EXIT_FAILURE);
-        }
+    if (!dawn_network_init(general_config.network_ip,
+                           general_config.network_port,
+                           general_config.network_proto)) {
+        exit(EXIT_FAILURE);
     }
 
     insert_macs_from_file();
 
-    dawn_run_uloop(NULL, general_config.hostapd_dir);
+    dawn_run_uloop();
+
+    dawn_network_deinit();
 
     return 0;
 }
