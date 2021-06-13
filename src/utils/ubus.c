@@ -242,8 +242,8 @@ static void enable_bss_management(uint32_t id);
 static void ubus_get_own_neighbor_report(void);
 static void ubus_get_own_neighbor_report_cb(struct ubus_request *request, int type, struct blob_attr *message);
 static int parse_to_beacon_rep(struct blob_attr *message);
-static bool parse_to_assoc_req(struct blob_attr *message, assoc_entry *assoc_request);
-static bool parse_to_auth_req(struct blob_attr *message, auth_entry *auth_request);
+static bool parse_to_assoc_req(struct blob_attr *message, assoc_entry_t *assoc_request);
+static bool parse_to_auth_req(struct blob_attr *message, auth_entry_t *auth_request);
 static int ubus_get_clients(void);
 static void ubus_get_clients_cb(struct ubus_request *request, int type, struct blob_attr *message);
 static void ubus_set_neighbor_report(void);
@@ -702,7 +702,7 @@ static int handle_auth_request(struct blob_attr *message)
 
     print_probe_array();
 
-    auth_entry *auth_req = dawn_malloc(sizeof (struct auth_entry_s));
+    auth_entry_t *auth_req = dawn_malloc(sizeof (auth_entry_t));
     if (auth_req == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
         return -1;
@@ -757,7 +757,7 @@ static int handle_assoc_request(struct blob_attr *message)
 
     print_probe_array();
 
-    auth_entry *auth_req = dawn_malloc(sizeof(struct auth_entry_s));
+    auth_entry_t *auth_req = dawn_malloc(sizeof(auth_entry_t));
     if (auth_req == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
         return -1;
@@ -975,12 +975,12 @@ static int parse_to_beacon_rep(struct blob_attr *message)
     return 0;
 }
 
-static bool parse_to_assoc_req(struct blob_attr *message, assoc_entry *assoc_request)
+static bool parse_to_assoc_req(struct blob_attr *message, assoc_entry_t *assoc_request)
 {
     return parse_to_auth_req(message, assoc_request);
 }
 
-static bool parse_to_auth_req(struct blob_attr *message, auth_entry *auth_request)
+static bool parse_to_auth_req(struct blob_attr *message, auth_entry_t *auth_request)
 {
     struct blob_attr *tb[__AUTH_MAX];
     int err = EINVAL;

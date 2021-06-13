@@ -30,7 +30,7 @@ static void print_ap_entry(ap *entry);
 static bool is_connected(struct dawn_mac bssid_mac, struct dawn_mac client_mac);
 static bool compare_station_count(ap *ap_entry_own, ap *ap_entry_to_compare, struct dawn_mac client_addr);
 
-struct auth_entry_s *denied_req_set;
+auth_entry_t *denied_req_set;
 int denied_req_last;
 pthread_mutex_t denied_array_mutex;
 
@@ -76,7 +76,7 @@ static inline ap **ap_array_find_first_entry(struct dawn_mac bssid);
 static inline struct client_s **client_skip_array_find_first_entry(
         struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid);
 static inline client **client_find_first_c_entry(struct dawn_mac client_mac);
-static inline auth_entry **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac);
+static inline auth_entry_t **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac);
 static inline struct mac_entry_s **mac_find_first_entry(struct dawn_mac mac);
 static bool is_connected_somehwere(struct dawn_mac client_addr);
 static struct client_s *insert_to_client_bc_skip_array(struct client_s *entry);
@@ -145,13 +145,13 @@ static inline client **client_find_first_c_entry(struct dawn_mac client_mac)
                              NULL, 0, false, offsetof(client, next_entry_c));
 }
 
-static inline auth_entry **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac)
+static inline auth_entry_t **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac)
 {
-    return (auth_entry **)
+    return (auth_entry_t **)
             find_first_entry((char **) &denied_req_set,
-                             client_mac.u8, offsetof(auth_entry, client_addr),
-                             bssid.u8, offsetof(auth_entry, bssid_addr),
-                             true, offsetof(auth_entry, next_auth));
+                             client_mac.u8, offsetof(auth_entry_t, client_addr),
+                             bssid.u8, offsetof(auth_entry_t, bssid_addr),
+                             true, offsetof(auth_entry_t, next_auth));
 }
 
 static inline struct mac_entry_s **mac_find_first_entry(struct dawn_mac mac)
@@ -889,7 +889,7 @@ void remove_old_denied_req_entries(time_t current_time, long long int threshold,
 {
     pthread_mutex_lock(&denied_array_mutex);
 
-    for (auth_entry **i = &denied_req_set; *i != NULL;) {
+    for (auth_entry_t **i = &denied_req_set; *i != NULL;) {
         /* Check counter. Check timer */
         if (current_time > (*i)->time + threshold) {
             /* Client is not connected for a given time threshold! */
@@ -1021,11 +1021,11 @@ bool mac_in_maclist(struct dawn_mac mac)
     return *mac_find_first_entry(mac) != NULL;
 }
 
-auth_entry *insert_to_denied_req_array(auth_entry *entry, int inc_counter, time_t expiry)
+auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, time_t expiry)
 {
     pthread_mutex_lock(&denied_array_mutex);
 
-    auth_entry **i = auth_entry_find_first_entry(entry->bssid_addr, entry->client_addr);
+    auth_entry_t **i = auth_entry_find_first_entry(entry->bssid_addr, entry->client_addr);
 
     if ((*i) != NULL) {
         entry = *i;
@@ -1053,11 +1053,11 @@ auth_entry *insert_to_denied_req_array(auth_entry *entry, int inc_counter, time_
     return entry;
 }
 
-void denied_req_array_delete(auth_entry *entry)
+void denied_req_array_delete(auth_entry_t *entry)
 {
     pthread_mutex_lock(&denied_array_mutex);
 
-    for (auth_entry **i = &denied_req_set; *i != NULL; i = &((*i)->next_auth)) {
+    for (auth_entry_t **i = &denied_req_set; *i != NULL; i = &((*i)->next_auth)) {
         if (*i == entry) {
             *i = entry->next_auth;
             denied_req_last--;
@@ -1105,7 +1105,7 @@ void print_ap_array(void)
     }
 }
 
-void print_auth_entry(const char *header, auth_entry *entry)
+void print_auth_entry(const char *header, auth_entry_t *entry)
 {
     DAWN_LOG_DEBUG(header);
     DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", signal: %d, freq: %d",

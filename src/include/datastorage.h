@@ -126,7 +126,7 @@ typedef struct auth_entry_s {
     int counter;
 } auth_entry_t;
 
-typedef auth_entry_t assoc_entry;
+typedef auth_entry_t assoc_entry_t;
 
 typedef struct hostapd_notify_entry_s {
     struct dawn_mac bssid_addr;
