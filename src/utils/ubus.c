@@ -1435,7 +1435,7 @@ static int build_network_overview(struct blob_buf *b)
         blobmsg_add_string_buffer(b);
 
         /* TODO: Could optimise this by exporting search func, but not a core process */
-        client *k = client_set_bc;
+        client_t *k = client_set_bc;
         while (k != NULL) {
             if (macs_are_equal_bb(m->bssid_addr, k->bssid_addr)) {
                 sprintf(client_mac_buf, MACSTR, MAC2STR(k->client_addr.u8));

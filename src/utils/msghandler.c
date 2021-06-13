@@ -294,7 +294,7 @@ int handle_hostapd_deauth_request(struct blob_attr *msg)
 
     pthread_mutex_lock(&client_array_mutex);
 
-    client *client_entry = client_array_get_client(notify_req.client_addr);
+    client_t *client_entry = client_array_get_client(notify_req.client_addr);
     if (client_entry != NULL) {
         DAWN_LOG_INFO("Client " MACSTR " deauth from " MACSTR,
                       MAC2STR(client_entry->client_addr.u8), MAC2STR(client_entry->bssid_addr.u8));
@@ -462,9 +462,9 @@ static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
                         const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
                         uint8_t vht_supported)
 {
-    client *client_entry;
+    client_t *client_entry;
 
-    client_entry = dawn_calloc(1, sizeof (struct client_s));
+    client_entry = dawn_calloc(1, sizeof (client_t));
     if (client_entry == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
         return;

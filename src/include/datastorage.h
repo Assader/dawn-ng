@@ -178,7 +178,7 @@ typedef struct client_s {
     uint32_t aid;                  /* TODO: Never evaluated? */
     uint32_t kick_count;           /* kick_clients() */
     uint8_t rrm_enabled_capa;      /* the first byte is enough */
-} client;
+} client_t;
 
 typedef struct ap_s {
     struct ap_s *next_ap;
@@ -201,7 +201,7 @@ typedef struct ap_s {
 extern struct ap_s *ap_set;
 extern pthread_mutex_t ap_array_mutex;
 
-extern struct client_s *client_set_bc;
+extern client_t *client_set_bc;
 extern pthread_mutex_t client_array_mutex;
 
 probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
@@ -213,11 +213,11 @@ auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, t
 void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac);
 bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rcpi, uint32_t rsni, int send_network);
 void remove_old_client_entries(time_t current_time, long long int threshold);
-client *insert_client_to_array(client *entry, time_t expiry);
+client_t *insert_client_to_array(client_t *entry, time_t expiry);
 int kick_clients(ap *kicking_ap, uint32_t id);
 void update_iw_info(struct dawn_mac bssid);
-client *client_array_get_client(const struct dawn_mac client_addr);
-client *client_array_delete(client *entry, int unlink_only);
+client_t *client_array_get_client(const struct dawn_mac client_addr);
+client_t *client_array_delete(client_t *entry, int unlink_only);
 ap *insert_to_ap_array(ap *entry, time_t expiry);
 void remove_old_ap_entries(time_t current_time, long long int threshold);
 ap *ap_array_get_ap(struct dawn_mac bssid_mac);
@@ -228,7 +228,7 @@ int better_ap_available(ap *kicking_ap, struct dawn_mac client_addr, char *neigh
 void ap_array_insert(ap *entry);
 
 void print_ap_array(void);
-void print_client_entry(client *entry);
+void print_client_entry(client_t *entry);
 void print_auth_entry(const char *header, auth_entry_t *entry);
 void print_probe_array(void);
 void print_probe_entry(probe_entry_t *entry);

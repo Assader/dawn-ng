@@ -25,7 +25,7 @@ enum {
     WLAN_RRM_CAPS_BEACON_REPORT_TABLE = BIT(6),
 };
 
-static bool kick_client(ap *kicking_ap, struct client_s *client_entry, char *neighbor_report);
+static bool kick_client(ap *kicking_ap, client_t *client_entry, char *neighbor_report);
 static void print_ap_entry(ap *entry);
 static bool is_connected(struct dawn_mac bssid_mac, struct dawn_mac client_mac);
 static bool compare_station_count(ap *ap_entry_own, ap *ap_entry_to_compare, struct dawn_mac client_addr);
@@ -52,10 +52,10 @@ pthread_mutex_t ap_array_mutex;
 enum {
     DAWN_CLIENT_SKIP_RATIO = 32,
 };
-static struct client_s *client_skip_set;
+static client_t *client_skip_set;
 static uint32_t client_skip_entry_last;
-struct client_s *client_set_bc; /* Ordered by BSSID + client MAC */
-struct client_s *client_set_c;  /* Ordered by client MAC only */
+client_t *client_set_bc; /* Ordered by BSSID + client MAC */
+client_t *client_set_c;  /* Ordered by client MAC only */
 static int client_entry_last;
 pthread_mutex_t client_array_mutex;
 
@@ -73,15 +73,15 @@ static char **find_first_entry(char **entry,
 static inline probe_entry_t **probe_skip_array_find_first_entry(
         struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid);
 static inline ap **ap_array_find_first_entry(struct dawn_mac bssid);
-static inline struct client_s **client_skip_array_find_first_entry(
+static inline client_t **client_skip_array_find_first_entry(
         struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid);
-static inline client **client_find_first_c_entry(struct dawn_mac client_mac);
+static inline client_t **client_find_first_c_entry(struct dawn_mac client_mac);
 static inline auth_entry_t **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac);
 static inline struct mac_entry_s **mac_find_first_entry(struct dawn_mac mac);
 static bool is_connected_somehwere(struct dawn_mac client_addr);
-static struct client_s *insert_to_client_bc_skip_array(struct client_s *entry);
-static void client_array_insert(client *entry, client **insert_pos);
-static client *client_array_unlink_entry(client **ref_bc, int unlink_only);
+static client_t *insert_to_client_bc_skip_array(client_t *entry);
+static void client_array_insert(client_t *entry, client_t **insert_pos);
+static client_t *client_array_unlink_entry(client_t **ref_bc, int unlink_only);
 static void probe_array_unlink_next(probe_entry_t **i);
 static bool probe_array_update_rssi(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rssi, int send_network);
 static void insert_to_skip_array(probe_entry_t *entry);
@@ -126,23 +126,23 @@ static inline ap **ap_array_find_first_entry(struct dawn_mac bssid)
                              NULL, 0, false, offsetof(ap, next_ap));
 }
 
-static inline struct client_s **client_skip_array_find_first_entry(
+static inline client_t **client_skip_array_find_first_entry(
         struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid)
 {
-    return (struct client_s **)
+    return (client_t **)
             find_first_entry((char **) &client_skip_set,
-                             client_mac.u8, offsetof(struct client_s, client_addr),
-                             bssid.u8, offsetof(struct client_s, bssid_addr),
-                             check_bssid, offsetof(struct client_s, next_skip_entry_bc));
+                             client_mac.u8, offsetof(client_t, client_addr),
+                             bssid.u8, offsetof(client_t, bssid_addr),
+                             check_bssid, offsetof(client_t, next_skip_entry_bc));
 }
 
 /* Manage a list of client entries srted by client MAC only */
-static inline client **client_find_first_c_entry(struct dawn_mac client_mac)
+static inline client_t **client_find_first_c_entry(struct dawn_mac client_mac)
 {
-    return (client **)
+    return (client_t **)
             find_first_entry((char **) &client_set_c,
-                             client_mac.u8, offsetof(client, client_addr),
-                             NULL, 0, false, offsetof(client, next_entry_c));
+                             client_mac.u8, offsetof(client_t, client_addr),
+                             NULL, 0, false, offsetof(client_t, next_entry_c));
 }
 
 static inline auth_entry_t **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac)
@@ -199,10 +199,10 @@ static probe_entry_t **probe_array_find_first_entry(struct dawn_mac client_mac, 
     return lo_ptr;
 }
 
-static client **client_find_first_bc_entry(struct dawn_mac bssid_mac, struct dawn_mac client_mac, bool do_client)
+static client_t **client_find_first_bc_entry(struct dawn_mac bssid_mac, struct dawn_mac client_mac, bool do_client)
 {
-    client **lo_skip_ptr = &client_skip_set;
-    client **lo_ptr = &client_set_bc;
+    client_t **lo_skip_ptr = &client_skip_set;
+    client_t **lo_ptr = &client_set_bc;
 
     while (*lo_skip_ptr != NULL) {
         int this_cmp = macs_compare_bb(((*lo_skip_ptr))->bssid_addr, bssid_mac);
@@ -241,7 +241,7 @@ void send_beacon_reports(struct dawn_mac bssid, int id)
     pthread_mutex_lock(&client_array_mutex);
 
     /* Seach for BSSID */
-    client *i = *client_find_first_bc_entry(bssid, dawn_mac_null, false);
+    client_t *i = *client_find_first_bc_entry(bssid, dawn_mac_null, false);
 
     /* Go through clients */
     for (; i != NULL && macs_are_equal(i->bssid_addr.u8, bssid.u8); i = i->next_entry_bc) {
@@ -378,7 +378,7 @@ exit:
     return kick;
 }
 
-static bool kick_client(ap *kicking_ap, struct client_s *client_entry, char *neighbor_report)
+static bool kick_client(ap *kicking_ap, client_t *client_entry, char *neighbor_report)
 {
     bool kick = false;
 
@@ -399,7 +399,7 @@ int kick_clients(ap *kicking_ap, uint32_t id)
     printf("Kicking clients from ap " MACSTR "\n", MAC2STR(kicking_ap->bssid_addr.u8));
 
     /* Seach for BSSID */
-    client *j = *client_find_first_bc_entry(kicking_ap->bssid_addr, dawn_mac_null, false);
+    client_t *j = *client_find_first_bc_entry(kicking_ap->bssid_addr, dawn_mac_null, false);
     /* Go through clients */
     for (; j != NULL; j = j->next_entry_bc) {
         if (macs_are_equal(j->bssid_addr.u8, kicking_ap->bssid_addr.u8)) {
@@ -467,7 +467,7 @@ void update_iw_info(struct dawn_mac bssid)
 
     printf("Updating info for clients at " MACSTR "\n", MAC2STR(bssid.u8));
 
-    client *j = *client_find_first_bc_entry(bssid, dawn_mac_null, false);
+    client_t *j = *client_find_first_bc_entry(bssid, dawn_mac_null, false);
     /* Go through clients */
     for (; j != NULL; j = j->next_entry_bc) {
         if (!macs_are_equal(j->bssid_addr.u8, bssid.u8)) {
@@ -496,9 +496,9 @@ static bool is_connected(struct dawn_mac bssid_mac, struct dawn_mac client_mac)
     return *client_find_first_bc_entry(bssid_mac, client_mac, true) != NULL;
 }
 
-static struct client_s *insert_to_client_bc_skip_array(struct client_s *entry)
+static client_t *insert_to_client_bc_skip_array(client_t *entry)
 {
-    struct client_s **insert_pos = client_skip_array_find_first_entry(entry->client_addr, entry->bssid_addr, true);
+    client_t **insert_pos = client_skip_array_find_first_entry(entry->client_addr, entry->bssid_addr, true);
 
     entry->next_skip_entry_bc = *insert_pos;
     *insert_pos = entry;
@@ -507,7 +507,7 @@ static struct client_s *insert_to_client_bc_skip_array(struct client_s *entry)
     return entry;
 }
 
-static void client_array_insert(client *entry, client **insert_pos)
+static void client_array_insert(client_t *entry, client_t **insert_pos)
 {
     entry->next_entry_bc = *insert_pos;
     *insert_pos = entry;
@@ -525,16 +525,16 @@ static void client_array_insert(client *entry, client **insert_pos)
     }
 }
 
-client *client_array_get_client(const struct dawn_mac client_addr)
+client_t *client_array_get_client(const struct dawn_mac client_addr)
 {
     return *client_find_first_c_entry(client_addr);
 }
 
-static client *client_array_unlink_entry(client **ref_bc, int unlink_only)
+static client_t *client_array_unlink_entry(client_t **ref_bc, int unlink_only)
 {
-    client *entry = *ref_bc; /* Both ref_bc and ref_c point to the entry we're deleting */
+    client_t *entry = *ref_bc; /* Both ref_bc and ref_c point to the entry we're deleting */
 
-    for (struct client_s **s = &client_skip_set; *s != NULL; s = &((*s)->next_skip_entry_bc)) {
+    for (client_t **s = &client_skip_set; *s != NULL; s = &((*s)->next_skip_entry_bc)) {
         if (*s == entry) {
             *s = (*s)->next_skip_entry_bc;
 
@@ -544,7 +544,7 @@ static client *client_array_unlink_entry(client **ref_bc, int unlink_only)
     }
 
     /* Accident of history that we always pass in the _bc ref, so need to find _c ref */
-    client **ref_c = &client_set_c;
+    client_t **ref_c = &client_set_c;
     while (*ref_c != NULL && *ref_c != entry)
         ref_c = &((*ref_c)->next_entry_c);
 
@@ -565,9 +565,9 @@ static client *client_array_unlink_entry(client **ref_bc, int unlink_only)
     return entry;
 }
 
-client *client_array_delete(client *entry, int unlink_only)
+client_t *client_array_delete(client_t *entry, int unlink_only)
 {
-    client *ret = NULL, **ref_bc = NULL;
+    client_t *ret = NULL, **ref_bc = NULL;
 
     /* Bodyless for-loop: test done in control logic */
     for (ref_bc = &client_set_bc; (*ref_bc != NULL) && (*ref_bc != entry); ref_bc = &((*ref_bc)->next_entry_bc));
@@ -838,7 +838,7 @@ void remove_old_client_entries(time_t current_time, long long int threshold)
 {
     pthread_mutex_lock(&client_array_mutex);
 
-    for (client **next_client = &client_set_bc; *next_client != NULL;) {
+    for (client_t **next_client = &client_set_bc; *next_client != NULL;) {
         if (current_time > (*next_client)->time + threshold) {
             client_array_unlink_entry(next_client, false);
         }
@@ -915,11 +915,11 @@ void remove_old_denied_req_entries(time_t current_time, long long int threshold,
     pthread_mutex_unlock(&denied_array_mutex);
 }
 
-client *insert_client_to_array(client *entry, time_t expiry)
+client_t *insert_client_to_array(client_t *entry, time_t expiry)
 {
     pthread_mutex_lock(&client_array_mutex);
 
-    client **client_tmp = client_find_first_bc_entry(entry->bssid_addr, entry->client_addr, true),
+    client_t **client_tmp = client_find_first_bc_entry(entry->bssid_addr, entry->client_addr, true),
             *ret = NULL;
 
     if (*client_tmp == NULL) {
@@ -1080,7 +1080,7 @@ struct mac_entry_s *insert_to_mac_array(struct mac_entry_s *entry)
     return entry;
 }
 
-void print_client_entry(client *entry)
+void print_client_entry(client_t *entry)
 {
     printf(" - bssid_addr: " MACSTR ", client_addr: " MACSTR ", freq: %d, "
            "ht_supported: %d, vht_supported: %d, ht: %d, vht: %d, kick: %d\n",
@@ -1136,7 +1136,7 @@ void print_probe_entry(probe_entry_t *entry)
 void print_client_array(void)
 {
     DAWN_LOG_DEBUG("Printing clients array");
-    for (client *i = client_set_bc; i != NULL; i = i->next_entry_bc) {
+    for (client_t *i = client_set_bc; i != NULL; i = i->next_entry_bc) {
         print_client_entry(i);
     }
 }
