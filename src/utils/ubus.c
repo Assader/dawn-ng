@@ -87,7 +87,7 @@ typedef struct {
     uint32_t id;
     char iface_name[MAX_INTERFACE_NAME];
     char hostname[HOST_NAME_MAX];
-    struct dawn_mac bssid_addr;
+    struct dawn_mac bssid;
     char ssid[SSID_MAX_LEN];
     uint8_t ht_support;
     uint8_t vht_support;
@@ -553,7 +553,7 @@ static int hostapd_notify(struct ubus_context *context, struct ubus_object *obje
         blobmsg_add_blob(&b_notify, cur);
     }
 
-    blobmsg_add_macaddr(&b_notify, "bssid", entry->bssid_addr);
+    blobmsg_add_macaddr(&b_notify, "bssid", entry->bssid);
     blobmsg_add_string(&b_notify, "ssid", entry->ssid);
 
     if (strcmp(method, "probe") == 0) {
@@ -655,7 +655,7 @@ static bool subscribe(hostapd_sock_t *hostapd_entry)
 
     hostapd_entry->subscribed = true;
 
-    iwinfo_get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid_addr.u8);
+    iwinfo_get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid.u8);
     iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, SSID_MAX_LEN);
 
     hostapd_entry->ht_support = (uint8_t) iwinfo_ht_supported(hostapd_entry->iface_name);
@@ -1058,7 +1058,7 @@ static void ubus_get_clients_cb(struct ubus_request *request, int type, struct b
     blobmsg_add_json_from_string(&b_domain, data_str);
     dawn_free(data_str);
 
-    blobmsg_add_macaddr(&b_domain, "bssid", entry->bssid_addr);
+    blobmsg_add_macaddr(&b_domain, "bssid", entry->bssid);
     blobmsg_add_string(&b_domain, "ssid", entry->ssid);
     blobmsg_add_u8(&b_domain, "ht_supported", entry->ht_support);
     blobmsg_add_u8(&b_domain, "vht_supported", entry->vht_support);
@@ -1084,7 +1084,7 @@ static void ubus_set_neighbor_report(void)
     list_for_each_entry(sub, &hostapd_sock_list, list) {
         if (sub->subscribed) {
             blob_buf_init(&b_nr, 0);
-            create_neighbor_report(&b_nr, sub->bssid_addr);
+            create_neighbor_report(&b_nr, sub->bssid);
             err = ubus_invoke(ctx, sub->id, "rrm_nr_set", b_nr.head, NULL, NULL, 1000);
             if (err != 0) {
                 DAWN_LOG_ERROR("Failed to set neighbor report");
@@ -1151,7 +1151,7 @@ static void update_beacon_reports(struct uloop_timeout *t)
 
     list_for_each_entry(sub, &hostapd_sock_list, list) {
         if (sub->subscribed) {
-            send_beacon_reports(sub->bssid_addr, sub->id);
+            send_beacon_reports(sub->bssid, sub->id);
         }
     }
 
@@ -1413,7 +1413,7 @@ static int build_network_overview(struct blob_buf *b)
 
         bool local_ap = false;
         list_for_each_entry(sub, &hostapd_sock_list, list) {
-            if (macs_are_equal_bb(m->bssid_addr, sub->bssid_addr)) {
+            if (macs_are_equal_bb(m->bssid_addr, sub->bssid)) {
                 local_ap = true;
             }
         }
