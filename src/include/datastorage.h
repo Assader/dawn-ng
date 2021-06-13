@@ -128,10 +128,10 @@ typedef struct auth_entry_s {
 
 typedef auth_entry_t assoc_entry_t;
 
-typedef struct hostapd_notify_entry_s {
+typedef struct {
     struct dawn_mac bssid_addr;
     struct dawn_mac client_addr;
-} hostapd_notify_entry;
+} hostapd_notify_entry_t;
 
 enum {
     SSID_MAX_LEN = 32,

@@ -126,7 +126,7 @@ static const struct blobmsg_policy client_policy[__CLIENT_MAX] = {
 
 static void handle_set_probe(struct blob_attr *message);
 static int handle_uci_config(struct blob_attr *message);
-static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry *notify_req);
+static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry_t *notify_req);
 static uint8_t dump_rrm_table(struct blob_attr *head, int len);
 static uint8_t dump_rrm_data(void *data, int len, int type);
 static int dump_client_table(struct blob_attr *head, int len, const char *bssid_addr,
@@ -288,7 +288,7 @@ error:
 
 int handle_hostapd_deauth_request(struct blob_attr *msg)
 {
-    hostapd_notify_entry notify_req;
+    hostapd_notify_entry_t notify_req;
 
     handle_hostapd_notify(msg, &notify_req);
 
@@ -403,14 +403,14 @@ exit:
 
 static void handle_set_probe(struct blob_attr *message)
 {
-    hostapd_notify_entry notify_req;
+    hostapd_notify_entry_t notify_req;
 
     handle_hostapd_notify(message, &notify_req);
 
     probe_array_set_all_probe_count(notify_req.client_addr, behaviour_config.min_probe_count);
 }
 
-static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry *notify_req)
+static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry_t *notify_req)
 {
     struct blob_attr *tb[__HOSTAPD_NOTIFY_MAX];
 
