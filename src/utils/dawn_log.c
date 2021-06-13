@@ -8,6 +8,13 @@
 
 static int dawn_log_level = DAWN_LOG_LEVEL_WARNING;
 
+static char log_level_symbol[] = {
+    [DAWN_LOG_LEVEL_DEBUG]   = 'D',
+    [DAWN_LOG_LEVEL_INFO]    = 'I',
+    [DAWN_LOG_LEVEL_WARNING] = 'W',
+    [DAWN_LOG_LEVEL_ERROR]   = 'E',
+};
+
 #ifdef DAWN_VERBOSE_LOGS
 void dawn_log(int log_level, const char *file, const char *function, int line, const char *format, ...)
 {
@@ -29,7 +36,7 @@ void dawn_log(int log_level, const char *file, const char *function, int line, c
 
         syslog(log_level_map[log_level], "%s:%s:%d: %s", file, function, line, message);
 #else
-        fprintf(stderr, "%s:%s:%d: %s\n", file, function, line, message);
+        fprintf(stderr, "%s:%s:%d: <%c> %s\n", file, function, line, log_level_symbol[log_level], message);
 #endif
 
         free(message);
@@ -56,7 +63,7 @@ void dawn_log(int log_level, const char *format, ...)
 
         syslog(log_level_map[log_level], "%s", message);
 #else
-        fprintf(stderr, "%s\n", message);
+        fprintf(stderr, "<%c> %s\n", log_level_symbol[log_level], message);
 #endif
 
         free(message);
