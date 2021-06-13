@@ -2,6 +2,7 @@
 #define DAWN_DATASTORAGE_H
 
 #include <arpa/inet.h>
+#include <net/if.h>
 #include <limits.h>
 #include <pthread.h>
 #include <stdbool.h>
@@ -62,7 +63,6 @@ typedef struct {
 
 typedef struct {
     uint32_t update_client;
-    uint32_t update_hostapd;
     uint32_t update_tcp_con;
     uint32_t update_chan_util;
     uint32_t update_beacon_reports;
@@ -148,7 +148,6 @@ extern pthread_mutex_t probe_array_mutex;
 
 enum {
     SIGNATURE_LEN = 1024,
-    MAX_INTERFACE_NAME = 64,
 };
 
 /* Testing only: Removes the ability to find clients via secondary search, hence replicates
@@ -194,7 +193,7 @@ typedef struct ap_s {
     uint32_t collision_domain; /* TODO: ap_get_collision_count() never evaluated? */
     uint32_t bandwidth;        /* TODO: Never evaluated? */
     uint32_t ap_weight;        /* eval_probe_metric() */
-    char iface[MAX_INTERFACE_NAME];
+    char iface[IFNAMSIZ];
     char hostname[HOST_NAME_MAX];
 } ap_t;
 
