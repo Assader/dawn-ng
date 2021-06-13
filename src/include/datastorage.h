@@ -124,21 +124,21 @@ typedef struct auth_entry_s {
     uint32_t freq;               /* TODO: Never evaluated? */
     time_t time;                 /* Never used for removal? */
     int counter;
-} auth_entry;
+} auth_entry_t;
+
+typedef auth_entry_t assoc_entry;
 
 typedef struct hostapd_notify_entry_s {
     struct dawn_mac bssid_addr;
     struct dawn_mac client_addr;
 } hostapd_notify_entry;
 
-typedef struct auth_entry_s assoc_entry;
-
 enum {
     SSID_MAX_LEN = 32,
     NEIGHBOR_REPORT_LEN = 200,
 };
 
-extern struct auth_entry_s *denied_req_set;
+extern auth_entry_t *denied_req_set;
 extern pthread_mutex_t denied_array_mutex;
 
 extern probe_entry_t *probe_set;
@@ -208,8 +208,8 @@ probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_8
 probe_entry_t *probe_array_get_entry(struct dawn_mac bssid_addr, struct dawn_mac client_addr);
 void remove_old_probe_entries(time_t current_time, long long int threshold);
 int eval_probe_metric(probe_entry_t *probe_entry, ap *ap_entry);
-void denied_req_array_delete(auth_entry *entry);
-auth_entry *insert_to_denied_req_array(auth_entry *entry, int inc_counter, time_t expiry);
+void denied_req_array_delete(auth_entry_t *entry);
+auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, time_t expiry);
 void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac);
 bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rcpi, uint32_t rsni, int send_network);
 void remove_old_client_entries(time_t current_time, long long int threshold);
@@ -229,7 +229,7 @@ void ap_array_insert(ap *entry);
 
 void print_ap_array(void);
 void print_client_entry(client *entry);
-void print_auth_entry(const char *header, auth_entry *entry);
+void print_auth_entry(const char *header, auth_entry_t *entry);
 void print_probe_array(void);
 void print_probe_entry(probe_entry_t *entry);
 void print_client_array(void);
