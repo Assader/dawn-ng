@@ -92,7 +92,7 @@ typedef struct {
     uint64_t last_channel_time_busy;
     int chan_util_samples_sum;
     int chan_util_num_sample_periods;
-    int chan_util_average; /* TODO: Never evaluated? */
+    int chan_util_average;
 
     /* add neighbor report string */
     /*
@@ -274,10 +274,9 @@ int dawn_run_uloop(void)
 
     ubus_add_uloop(ctx);
 
-    /* Set up callbacks to remove aged data */
     uloop_add_data_callbacks();
 
-    if (ubus_add_object(ctx, &dawn_object)) {
+    if (ubus_add_object(ctx, &dawn_object) != 0) {
         DAWN_LOG_ERROR("Failed to add ubus object");
         goto free_context;
     }
@@ -302,7 +301,7 @@ void dawn_reload_config(void)
     dawn_uci_get_intervals(&time_intervals_config);
     dawn_uci_get_behaviour(&behaviour_config);
 
-    /* Allow setting timeout to 0 */
+    /* Allow setting timeout to 0. */
     ((time_intervals_config.update_beacon_reports == 0)?
         uloop_timeout_cancel : uloop_timeout_add)(&beacon_reports_timer);
 
@@ -311,6 +310,8 @@ void dawn_reload_config(void)
 
 void ubus_send_beacon_report(struct dawn_mac client, int id)
 {
+    int err;
+
     DAWN_LOG_DEBUG("Requesting beacon report");
 
     blob_buf_init(&b_beacon, 0);
@@ -321,7 +322,10 @@ void ubus_send_beacon_report(struct dawn_mac client, int id)
     blobmsg_add_u32(&b_beacon, "channel", behaviour_config.scan_channel);
     blobmsg_add_string(&b_beacon, "ssid", "");
 
-    ubus_invoke(ctx, id, "rrm_beacon_req", b_beacon.head, NULL, NULL, 1000);
+    err = ubus_invoke(ctx, id, "rrm_beacon_req", b_beacon.head, NULL, NULL, 1000);
+    if (err != 0) {
+        DAWN_LOG_ERROR("Failed to request beacon report");
+    }
 }
 
 int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *dest_ap, uint32_t duration)
@@ -343,7 +347,6 @@ int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *
 
     list_for_each_entry(sub, &hostapd_sock_list, list) {
         if (sub->subscribed) {
-            /* TODO: Maybe ID is wrong?! OR CHECK HERE ID */
             ubus_invoke(ctx, id, "wnm_disassoc_imminent", b.head, NULL, NULL, 1000);
         }
     }
@@ -354,10 +357,9 @@ int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *
 /* TODO: ADD STUFF HERE!!! */
 int ubus_send_probe_via_network(probe_entry_t *probe_entry)
 {
-    /* TODO: probe_entry is also a typedef - fix? */
     blob_buf_init(&b_probe, 0);
-    blobmsg_add_macaddr(&b_probe, "bssid", probe_entry->bssid_addr);
     blobmsg_add_macaddr(&b_probe, "address", probe_entry->client_addr);
+    blobmsg_add_macaddr(&b_probe, "bssid", probe_entry->bssid_addr);
     blobmsg_add_macaddr(&b_probe, "target", probe_entry->target_addr);
     blobmsg_add_u32(&b_probe, "signal", probe_entry->signal);
     blobmsg_add_u32(&b_probe, "freq", probe_entry->freq);
@@ -367,17 +369,6 @@ int ubus_send_probe_via_network(probe_entry_t *probe_entry)
 
     blobmsg_add_u32(&b_probe, "ht_capabilities", probe_entry->ht_capabilities);
     blobmsg_add_u32(&b_probe, "vht_capabilities", probe_entry->vht_capabilities);
-
-    /*if (probe_entry->ht_capabilities)
-    {
-        void *ht_cap = blobmsg_open_table(&b, "ht_capabilities");
-        blobmsg_close_table(&b, ht_cap);
-    }
-
-    if (probe_entry->vht_capabilities) {
-        void *vht_cap = blobmsg_open_table(&b, "vht_capabilities");
-        blobmsg_close_table(&b, vht_cap);
-    }*/
 
     send_blob_attr_via_network(b_probe.head, "probe");
 
@@ -399,6 +390,7 @@ int send_add_mac(struct dawn_mac client_addr)
 {
     blob_buf_init(&b, 0);
     blobmsg_add_macaddr(&b, "addr", client_addr);
+
     send_blob_attr_via_network(b.head, "addmac");
 
     return 0;
@@ -416,12 +408,10 @@ int parse_add_mac_to_file(struct blob_attr *message)
     }
 
     int len = blobmsg_data_len(tb[MAC_ADDR]);
-    printf("Length of array maclist: %d\n", len);
+    DAWN_LOG_DEBUG("Length of array maclist: %d", len);
 
     __blob_for_each_attr(attr, blobmsg_data(tb[MAC_ADDR]), len) {
         struct dawn_mac addr;
-
-        printf("Iteration through MAC-list\n");
 
         hwaddr_aton(blobmsg_data(attr), addr.u8);
 
