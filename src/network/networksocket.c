@@ -34,7 +34,7 @@ bool dawn_network_init(const char *ip, uint16_t port, int sock_type)
     if (sock_type == DAWN_SOCKET_TCP) {
         success = tcp_run_server(port);
         /* TODO: eliminate server_ip */
-        if (success) {
+        if (success && strcmp(general_config.server_ip, "") != 0) {
             success = tcp_add_conncection(general_config.server_ip, port);
         }
     }
