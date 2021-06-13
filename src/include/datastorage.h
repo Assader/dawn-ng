@@ -72,10 +72,9 @@ typedef struct {
 } time_intervals_config_t;
 
 typedef struct {
-    uint16_t network_port;
-    char network_ip[INET_ADDRSTRLEN];
-    char server_ip[INET_ADDRSTRLEN];
     int network_proto;
+    char network_ip[INET_ADDRSTRLEN];
+    uint16_t network_port;
     int use_encryption;
     int log_level;
     char hostapd_dir[64];

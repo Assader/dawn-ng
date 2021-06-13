@@ -8,6 +8,7 @@
 #include "dawn_log.h"
 #include "dawn_uci.h"
 #include "memory_utils.h"
+#include "networksocket.h"
 
 static struct uci_context *uci_ctx;
 static struct uci_package *uci_pkg;
@@ -186,11 +187,6 @@ bool dawn_uci_get_general(general_config_t *config)
         strncpy(config->network_ip, tmp, INET_ADDRSTRLEN);
     }
 
-    tmp = uci_lookup_option_string(uci_ctx, general, "server_ip");
-    if (tmp != NULL) {
-        strncpy(config->server_ip, tmp, INET_ADDRSTRLEN);
-    }
-
     tmp = uci_lookup_option_string(uci_ctx, general, "hostapd_dir");
     if (tmp == NULL) {
         DAWN_LOG_ERROR("Failed to read `hostapd_dir' from config");
@@ -201,10 +197,17 @@ bool dawn_uci_get_general(general_config_t *config)
 #define dawn_uci_lookup_general(option, def) \
     config->option = uci_lookup_option_int(uci_ctx, general, #option, def);
 
-    dawn_uci_lookup_general(network_proto, 2);
+    dawn_uci_lookup_general(network_proto, DAWN_SOCKET_TCP);
     dawn_uci_lookup_general(network_port, 1026);
     dawn_uci_lookup_general(use_encryption, 1);
     dawn_uci_lookup_general(log_level, DAWN_LOG_LEVEL_WARNING);
+
+    if ((config->network_proto == DAWN_SOCKET_BROADCAST ||
+         config->network_proto == DAWN_SOCKET_MULTICAST) &&
+            strcmp(config->network_ip, "") == 0) {
+        DAWN_LOG_ERROR("Broadcast/multicast protocol type is set, but no IP address is given");
+        return false;
+    }
 
     dawn_set_log_level(config->log_level);
 
