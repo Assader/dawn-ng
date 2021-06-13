@@ -113,7 +113,7 @@ typedef struct probe_entry_s {
     uint8_t min_supp_datarate; /* TODO: Never used? */
     uint32_t rcpi;
     uint32_t rsni;
-} probe_entry;
+} probe_entry_t;
 
 typedef struct auth_entry_s {
     struct auth_entry_s *next_auth;
@@ -141,7 +141,7 @@ enum {
 extern struct auth_entry_s *denied_req_set;
 extern pthread_mutex_t denied_array_mutex;
 
-extern struct probe_entry_s *probe_set;
+extern probe_entry_t *probe_set;
 extern pthread_mutex_t probe_array_mutex;
 
 /* AP, Client */
@@ -204,10 +204,10 @@ extern pthread_mutex_t ap_array_mutex;
 extern struct client_s *client_set_bc;
 extern pthread_mutex_t client_array_mutex;
 
-probe_entry *insert_to_array(probe_entry *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
-probe_entry *probe_array_get_entry(struct dawn_mac bssid_addr, struct dawn_mac client_addr);
+probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
+probe_entry_t *probe_array_get_entry(struct dawn_mac bssid_addr, struct dawn_mac client_addr);
 void remove_old_probe_entries(time_t current_time, long long int threshold);
-int eval_probe_metric(struct probe_entry_s *probe_entry, ap *ap_entry);
+int eval_probe_metric(probe_entry_t *probe_entry, ap *ap_entry);
 void denied_req_array_delete(auth_entry *entry);
 auth_entry *insert_to_denied_req_array(auth_entry *entry, int inc_counter, time_t expiry);
 void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac);
@@ -231,7 +231,7 @@ void print_ap_array(void);
 void print_client_entry(client *entry);
 void print_auth_entry(const char *header, auth_entry *entry);
 void print_probe_array(void);
-void print_probe_entry(probe_entry *entry);
+void print_probe_entry(probe_entry_t *entry);
 void print_client_array(void);
 
 /* All users of datastorage should call init_ / destroy_mutex at initialisation and termination respectively */

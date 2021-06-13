@@ -39,9 +39,9 @@ pthread_mutex_t denied_array_mutex;
 enum {
     DAWN_PROBE_SKIP_RATIO = 128
 };
-static struct probe_entry_s *probe_skip_set;
+static probe_entry_t *probe_skip_set;
 static uint32_t probe_skip_entry_last;
-struct probe_entry_s *probe_set;
+probe_entry_t *probe_set;
 static uint32_t probe_entry_last;
 pthread_mutex_t probe_array_mutex;
 
@@ -70,7 +70,7 @@ static char **find_first_entry(char **entry,
                                uint8_t *mac0, intptr_t mac0_offset,
                                uint8_t *mac1, intptr_t mac1_offset,
                                bool check_mac1, intptr_t next_offset);
-static inline struct probe_entry_s **probe_skip_array_find_first_entry(
+static inline probe_entry_t **probe_skip_array_find_first_entry(
         struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid);
 static inline ap **ap_array_find_first_entry(struct dawn_mac bssid);
 static inline struct client_s **client_skip_array_find_first_entry(
@@ -82,9 +82,9 @@ static bool is_connected_somehwere(struct dawn_mac client_addr);
 static struct client_s *insert_to_client_bc_skip_array(struct client_s *entry);
 static void client_array_insert(client *entry, client **insert_pos);
 static client *client_array_unlink_entry(client **ref_bc, int unlink_only);
-static void probe_array_unlink_next(probe_entry **i);
+static void probe_array_unlink_next(probe_entry_t **i);
 static bool probe_array_update_rssi(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rssi, int send_network);
-static void insert_to_skip_array(struct probe_entry_s *entry);
+static void insert_to_skip_array(probe_entry_t *entry);
 static void ap_array_unlink_next(ap **i);
 static bool ap_array_delete(ap *entry);
 
@@ -108,14 +108,14 @@ static char **find_first_entry(char **entry,
     return entry;
 }
 
-static inline struct probe_entry_s **probe_skip_array_find_first_entry(
+static inline probe_entry_t **probe_skip_array_find_first_entry(
         struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid)
 {
-    return (struct probe_entry_s **)
+    return (probe_entry_t **)
             find_first_entry((char **) &probe_skip_set,
-                             client_mac.u8, offsetof(struct probe_entry_s, client_addr),
-                             bssid.u8, offsetof(struct probe_entry_s, bssid_addr),
-                             check_bssid, offsetof(struct probe_entry_s, next_probe_skip));
+                             client_mac.u8, offsetof(probe_entry_t, client_addr),
+                             bssid.u8, offsetof(probe_entry_t, bssid_addr),
+                             check_bssid, offsetof(probe_entry_t, next_probe_skip));
 }
 
 static inline ap **ap_array_find_first_entry(struct dawn_mac bssid)
@@ -162,10 +162,10 @@ static inline struct mac_entry_s **mac_find_first_entry(struct dawn_mac mac)
                              NULL, 0, false, offsetof(struct mac_entry_s, next_mac));
 }
 
-static probe_entry **probe_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid_mac, bool do_bssid)
+static probe_entry_t **probe_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid_mac, bool do_bssid)
 {
-    probe_entry **lo_skip_ptr = &probe_skip_set;
-    probe_entry **lo_ptr = &probe_set;
+    probe_entry_t **lo_skip_ptr = &probe_skip_set;
+    probe_entry_t **lo_ptr = &probe_set;
 
     while (*lo_skip_ptr != NULL) {
         int this_cmp = macs_compare_bb(((*lo_skip_ptr))->client_addr, client_mac);
@@ -257,7 +257,7 @@ void send_beacon_reports(struct dawn_mac bssid, int id)
 
 /* TODO: Can metric be cached once calculated? Add score_fresh indicator and reset when signal changes
  * as rest of values look to be static fr any given entry. */
-int eval_probe_metric(struct probe_entry_s *probe_entry, ap *ap_entry)
+int eval_probe_metric(probe_entry_t *probe_entry, ap *ap_entry)
 {
     int score = 0;
 
@@ -312,7 +312,7 @@ static bool compare_station_count(ap *ap_entry_own, ap *ap_entry_to_compare, str
 
 int better_ap_available(ap *kicking_ap, struct dawn_mac client_mac, char *neighbor_report)
 {
-    probe_entry *own_probe = *probe_array_find_first_entry(client_mac, kicking_ap->bssid_addr, true);
+    probe_entry_t *own_probe = *probe_array_find_first_entry(client_mac, kicking_ap->bssid_addr, true);
     int own_score = -1;
     bool kick = false;
 
@@ -326,7 +326,7 @@ int better_ap_available(ap *kicking_ap, struct dawn_mac client_mac, char *neighb
 
     int max_score = own_score;
     /* Now carry on through entries for this client looking for better score */
-    probe_entry *i = *probe_array_find_first_entry(client_mac, dawn_mac_null, false);
+    probe_entry_t *i = *probe_array_find_first_entry(client_mac, dawn_mac_null, false);
 
     for (; i != NULL; i = i->next_probe) {
         if (!macs_are_equal(i->client_addr.u8, client_mac.u8)) {
@@ -580,13 +580,13 @@ client *client_array_delete(client *entry, int unlink_only)
     return ret;
 }
 
-static void probe_array_unlink_next(probe_entry **i)
+static void probe_array_unlink_next(probe_entry_t **i)
 {
-    probe_entry *victim = *i;
+    probe_entry_t *victim = *i;
 
     /* TODO: Can we pre-test that entry is in skip set with
      * if ((*s)->next_probe_skip != NULL)... ??? */
-    for (struct probe_entry_s **s = &probe_skip_set; *s != NULL; s = &((*s)->next_probe_skip)) {
+    for (probe_entry_t **s = &probe_skip_set; *s != NULL; s = &((*s)->next_probe_skip)) {
         if (*s == victim) {
             *s = (*s)->next_probe_skip;
 
@@ -607,7 +607,7 @@ bool probe_array_set_all_probe_count(struct dawn_mac client_addr, uint32_t probe
 
     pthread_mutex_lock(&probe_array_mutex);
 
-    for (probe_entry *i = probe_set; i != NULL; i = i->next_probe) {
+    for (probe_entry_t *i = probe_set; i != NULL; i = i->next_probe) {
         if (macs_are_equal_bb(client_addr, i->client_addr)) {
             printf("Setting probecount for given mac!\n");
             i->counter = probe_count;
@@ -627,7 +627,7 @@ static bool probe_array_update_rssi(struct dawn_mac bssid_addr, struct dawn_mac 
 
     pthread_mutex_lock(&probe_array_mutex);
 
-    probe_entry *i = probe_array_get_entry(bssid_addr, client_addr);
+    probe_entry_t *i = probe_array_get_entry(bssid_addr, client_addr);
     if (i != NULL) {
         i->signal = rssi;
         updated = true;
@@ -648,7 +648,7 @@ bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac cl
 
     pthread_mutex_lock(&probe_array_mutex);
 
-    probe_entry *i = probe_array_get_entry(bssid_addr, client_addr);
+    probe_entry_t *i = probe_array_get_entry(bssid_addr, client_addr);
     if (i != NULL) {
         i->rcpi = rcpi;
         i->rsni = rsni;
@@ -664,16 +664,16 @@ bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac cl
     return updated;
 }
 
-probe_entry *probe_array_get_entry(struct dawn_mac bssid_mac, struct dawn_mac client_mac)
+probe_entry_t *probe_array_get_entry(struct dawn_mac bssid_mac, struct dawn_mac client_mac)
 {
     return *probe_array_find_first_entry(client_mac, bssid_mac, true);
 }
 
-static void insert_to_skip_array(struct probe_entry_s *entry)
+static void insert_to_skip_array(probe_entry_t *entry)
 {
     pthread_mutex_lock(&probe_array_mutex);
 
-    struct probe_entry_s **insert_pos = probe_skip_array_find_first_entry(entry->client_addr, entry->bssid_addr, true);
+    probe_entry_t **insert_pos = probe_skip_array_find_first_entry(entry->client_addr, entry->bssid_addr, true);
 
     entry->next_probe_skip = *insert_pos;
     *insert_pos = entry;
@@ -682,14 +682,14 @@ static void insert_to_skip_array(struct probe_entry_s *entry)
     pthread_mutex_unlock(&probe_array_mutex);
 }
 
-probe_entry *insert_to_array(probe_entry *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry)
+probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry)
 {
     pthread_mutex_lock(&probe_array_mutex);
 
     entry->time = expiry;
 
     /* TODO: Add a packed / unpacked wrapper pair? */
-    probe_entry **existing_entry = probe_array_find_first_entry(entry->client_addr, entry->bssid_addr, true);
+    probe_entry_t **existing_entry = probe_array_find_first_entry(entry->client_addr, entry->bssid_addr, true);
 
     if (*existing_entry != NULL) {
         (*existing_entry)->time = expiry;
@@ -856,7 +856,7 @@ void remove_old_probe_entries(time_t current_time, long long int threshold)
 {
     pthread_mutex_lock(&probe_array_mutex);
 
-    for (probe_entry **next_probe = &probe_set; *next_probe != NULL;) {
+    for (probe_entry_t **next_probe = &probe_set; *next_probe != NULL;) {
         if ((current_time > (*next_probe)->time + threshold) &&
                 !is_connected((*next_probe)->bssid_addr, (*next_probe)->client_addr)) {
             probe_array_unlink_next(next_probe);
@@ -1117,14 +1117,14 @@ void print_probe_array(void)
     pthread_mutex_lock(&probe_array_mutex);
 
     DAWN_LOG_DEBUG("Printing probe array");
-    for (probe_entry *i = probe_set; i != NULL; i = i->next_probe) {
+    for (probe_entry_t *i = probe_set; i != NULL; i = i->next_probe) {
         print_probe_entry(i);
     }
 
     pthread_mutex_unlock(&probe_array_mutex);
 }
 
-void print_probe_entry(probe_entry *entry)
+void print_probe_entry(probe_entry_t *entry)
 {
     DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", signal: %d, "
                    "freq: %d, counter: %d, vht: %d, min_rate: %d, max_rate: %d",

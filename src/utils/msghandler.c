@@ -168,7 +168,7 @@ bool handle_network_message(const char *message)
 
     if (strcmp(method, "probe") == 0) {
         DAWN_LOG_INFO("Handling `probe' message");
-        probe_entry *entry = handle_hostapd_probe_request(data_buf.head);
+        probe_entry_t *entry = handle_hostapd_probe_request(data_buf.head);
         if (entry != NULL) {
             if (entry != insert_to_array(entry, false, true, false, time(NULL))) { /* Use 802.11k values */
                 /* Insert found an existing entry, rather than linking in our new one */
@@ -219,12 +219,12 @@ exit:
     return result;
 }
 
-probe_entry *handle_hostapd_probe_request(struct blob_attr *message)
+probe_entry_t *handle_hostapd_probe_request(struct blob_attr *message)
 {
     struct blob_attr *tb[__PROBE_MAX];
-    probe_entry *probe_req;
+    probe_entry_t *probe_req;
 
-    probe_req = dawn_calloc(1, sizeof (probe_entry));
+    probe_req = dawn_calloc(1, sizeof (probe_entry_t));
     if (probe_req == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;

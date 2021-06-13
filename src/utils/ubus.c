@@ -221,9 +221,6 @@ static struct ubus_object dawn_object = {
     .n_methods = ARRAY_SIZE(dawn_methods),
 };
 
-static int uci_send_via_network(void);
-
-
 static void uloop_add_data_callbacks(void);
 static void subscribe_to_new_interfaces(const char *hostapd_sock_path);
 static bool subscriber_to_interface(const char *ifname);
@@ -240,7 +237,7 @@ static int handle_probe_request(struct blob_attr *message);
 static int handle_auth_request(struct blob_attr *message);
 static int handle_assoc_request(struct blob_attr *message);
 static int handle_beacon_report(struct blob_attr *message);
-static bool proceed_operation(probe_entry *prob_req, int req_type);
+static bool proceed_operation(probe_entry_t *prob_req, int req_type);
 static void enable_bss_management(uint32_t id);
 static void ubus_get_own_neighbor_report(void);
 static void ubus_get_own_neighbor_report_cb(struct ubus_request *request, int type, struct blob_attr *message);
@@ -256,6 +253,7 @@ static void ubus_umdns_cb(struct ubus_request *request, int type, struct blob_at
 static int build_hearing_map_sort_client(struct blob_buf *b);
 static int build_network_overview(struct blob_buf *b);
 static void respond_to_notify(uint32_t id);
+static int uci_send_via_network(void);
 static int send_blob_attr_via_network(struct blob_attr *msg, char *method);
 static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr);
 
@@ -354,7 +352,7 @@ int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *
 }
 
 /* TODO: ADD STUFF HERE!!! */
-int ubus_send_probe_via_network(struct probe_entry_s *probe_entry)
+int ubus_send_probe_via_network(probe_entry_t *probe_entry)
 {
     /* TODO: probe_entry is also a typedef - fix? */
     blob_buf_init(&b_probe, 0);
@@ -675,7 +673,7 @@ static bool subscribe(struct hostapd_sock_entry *hostapd_entry)
 static int handle_probe_request(struct blob_attr *message)
 {
     /* MUSTDO: Untangle dawn_malloc() and linking of probe_entry */
-    probe_entry *probe_req = handle_hostapd_probe_request(message),
+    probe_entry_t *probe_req = handle_hostapd_probe_request(message),
             *probe_req_updated = NULL;
 
     if (probe_req != NULL) {
@@ -721,7 +719,7 @@ static int handle_auth_request(struct blob_attr *message)
     if (!mac_in_maclist(auth_req->client_addr)) {
         pthread_mutex_lock(&probe_array_mutex);
 
-        probe_entry *tmp = probe_array_get_entry(auth_req->bssid_addr, auth_req->client_addr);
+        probe_entry_t *tmp = probe_array_get_entry(auth_req->bssid_addr, auth_req->client_addr);
 
         pthread_mutex_unlock(&probe_array_mutex);
 
@@ -776,7 +774,7 @@ static int handle_assoc_request(struct blob_attr *message)
     if (!mac_in_maclist(auth_req->client_addr)) {
         pthread_mutex_lock(&probe_array_mutex);
 
-        probe_entry *tmp = probe_array_get_entry(auth_req->bssid_addr, auth_req->client_addr);
+        probe_entry_t *tmp = probe_array_get_entry(auth_req->bssid_addr, auth_req->client_addr);
 
         pthread_mutex_unlock(&probe_array_mutex);
 
@@ -816,7 +814,7 @@ static int handle_beacon_report(struct blob_attr *message)
     return 0;
 }
 
-static bool proceed_operation(probe_entry *prob_request, int req_type)
+static bool proceed_operation(probe_entry_t *prob_request, int req_type)
 {
     if (mac_in_maclist(prob_request->client_addr)) {
         return true;
@@ -942,11 +940,11 @@ static int parse_to_beacon_rep(struct blob_attr *message)
 
     DAWN_LOG_DEBUG("Trying to update RCPI and RSNI for beacon report");
     if (!probe_array_update_rcpi_rsni(msg_bssid, msg_client, rcpi, rsni, true)) {
-        probe_entry *beacon_rep, *beacon_rep_updated = NULL;
+        probe_entry_t *beacon_rep, *beacon_rep_updated = NULL;
 
         DAWN_LOG_DEBUG("Creating new probe entry");
 
-        beacon_rep = dawn_malloc(sizeof (probe_entry));
+        beacon_rep = dawn_malloc(sizeof (probe_entry_t));
         if (beacon_rep == NULL) {
             DAWN_LOG_ERROR("Failed to allocate memory");
             return -1;
@@ -1308,7 +1306,7 @@ static int build_hearing_map_sort_client(struct blob_buf *b)
         /* Scan AP list to find first of each SSID */
         if (!same_ssid) {
             ssid_list = blobmsg_open_table(b, (char *) m->ssid);
-            probe_entry *i = probe_set;
+            probe_entry_t *i = probe_set;
             while (i != NULL) {
                 ap *ap_entry_i = ap_array_get_ap(i->bssid_addr);
                 if (ap_entry_i == NULL) {
@@ -1323,7 +1321,7 @@ static int build_hearing_map_sort_client(struct blob_buf *b)
 
                 sprintf(client_mac_buf, MACSTR, MAC2STR(i->client_addr.u8));
                 client_list = blobmsg_open_table(b, client_mac_buf);
-                probe_entry *k;
+                probe_entry_t *k;
                 for (k = i;
                      k != NULL && macs_are_equal_bb(k->client_addr, i->client_addr);
                      k = k->next_probe) {
@@ -1454,7 +1452,7 @@ static int build_network_overview(struct blob_buf *b)
                 blobmsg_add_u32(b, "collision_count", ap_get_collision_count(m->collision_domain));
 
                 pthread_mutex_lock(&probe_array_mutex);
-                probe_entry *n = probe_array_get_entry(k->bssid_addr, k->client_addr);
+                probe_entry_t *n = probe_array_get_entry(k->bssid_addr, k->client_addr);
                 pthread_mutex_unlock(&probe_array_mutex);
 
                 if (n != NULL) {

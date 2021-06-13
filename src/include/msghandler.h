@@ -12,7 +12,7 @@
  * @param prob_req
  * @return
  */
-probe_entry *handle_hostapd_probe_request(struct blob_attr *message);
+probe_entry_t *handle_hostapd_probe_request(struct blob_attr *message);
 
 /**
  * Dump a client array into the database.

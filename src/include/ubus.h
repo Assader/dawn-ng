@@ -26,7 +26,7 @@ int parse_add_mac_to_file(struct blob_attr *message);
  * @param probe_entry
  * @return
  */
-int ubus_send_probe_via_network(struct probe_entry_s *probe_entry);
+int ubus_send_probe_via_network(probe_entry_t *probe_entry);
 
 /**
  * Function to set the probe counter to the min probe request.
