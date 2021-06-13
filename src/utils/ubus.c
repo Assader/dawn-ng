@@ -41,8 +41,6 @@ static struct blob_buf b_umdns;
 static struct blob_buf b_beacon;
 static struct blob_buf b_nr;
 
-static LIST_HEAD(hostapd_sock_list);
-
 static void update_clients(struct uloop_timeout *t);
 static void discover_new_dawn_instances(struct uloop_timeout *t);
 static void update_channel_utilization(struct uloop_timeout *t);
@@ -86,7 +84,6 @@ typedef struct {
 
     uint32_t id;
     char iface_name[MAX_INTERFACE_NAME];
-    char hostname[HOST_NAME_MAX];
     struct dawn_mac bssid;
     char ssid[SSID_MAX_LEN];
     uint8_t ht_support;
@@ -107,6 +104,9 @@ typedef struct {
     struct ubus_event_handler wait_handler;
     bool subscribed;
 } hostapd_sock_t;
+
+static LIST_HEAD(hostapd_sock_list);
+char dawn_instance_hostname[HOST_NAME_MAX];
 
 enum {
     AUTH_BSSID_ADDR,
@@ -510,9 +510,6 @@ static bool subscriber_to_interface(const char *ifname)
     }
 
     strcpy(hostapd_entry->iface_name, ifname);
-    /* TODO: use one more global variable */
-    dawn_uci_get_hostname(hostapd_entry->hostname);
-
     hostapd_entry->subscriber.cb = hostapd_notify;
     hostapd_entry->subscriber.remove_cb = hostapd_handle_remove;
     hostapd_entry->wait_handler.cb = wait_cb;
@@ -1067,7 +1064,7 @@ static void ubus_get_clients_cb(struct ubus_request *request, int type, struct b
     blobmsg_add_u32(&b_domain, "channel_utilization", entry->chan_util_average);
     blobmsg_add_string(&b_domain, "neighbor_report", entry->neighbor_report);
     blobmsg_add_string(&b_domain, "iface", entry->iface_name);
-    blobmsg_add_string(&b_domain, "hostname", entry->hostname);
+    blobmsg_add_string(&b_domain, "hostname", dawn_instance_hostname);
 
     send_blob_attr_via_network(b_domain.head, "clients");
     handle_hostapd_clients_message(b_domain.head, 1, request->peer);

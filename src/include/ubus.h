@@ -7,6 +7,8 @@
 #include "datastorage.h"
 #include "mac_utils.h"
 
+extern char dawn_instance_hostname[HOST_NAME_MAX];
+
 /**
  * Init ubus.
  * Setup tcp socket.

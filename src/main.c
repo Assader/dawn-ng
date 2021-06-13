@@ -28,6 +28,7 @@ int main(int argc, char *argv[])
     dawn_uci_get_intervals(&time_intervals_config);
     dawn_uci_get_metric(&metric_config);
     dawn_uci_get_behaviour(&behaviour_config);
+    dawn_uci_get_hostname(dawn_instance_hostname);
 
     if (general_config.use_encryption) {
         char key[MAX_KEY_LENGTH + 1] = {0}, iv[MAX_KEY_LENGTH + 1] = {0};
