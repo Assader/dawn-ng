@@ -25,10 +25,10 @@ enum {
     WLAN_RRM_CAPS_BEACON_REPORT_TABLE = BIT(6),
 };
 
-static bool kick_client(ap *kicking_ap, client_t *client_entry, char *neighbor_report);
-static void print_ap_entry(ap *entry);
+static bool kick_client(ap_t *kicking_ap, client_t *client_entry, char *neighbor_report);
+static void print_ap_entry(ap_t *entry);
 static bool is_connected(struct dawn_mac bssid_mac, struct dawn_mac client_mac);
-static bool compare_station_count(ap *ap_entry_own, ap *ap_entry_to_compare, struct dawn_mac client_addr);
+static bool compare_station_count(ap_t *ap_entry_own, ap_t *ap_entry_to_compare, struct dawn_mac client_addr);
 
 auth_entry_t *denied_req_set;
 int denied_req_last;
@@ -45,7 +45,7 @@ probe_entry_t *probe_set;
 static uint32_t probe_entry_last;
 pthread_mutex_t probe_array_mutex;
 
-struct ap_s *ap_set;
+ap_t *ap_set;
 static int ap_entry_last;
 pthread_mutex_t ap_array_mutex;
 
@@ -72,7 +72,7 @@ static char **find_first_entry(char **entry,
                                bool check_mac1, intptr_t next_offset);
 static inline probe_entry_t **probe_skip_array_find_first_entry(
         struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid);
-static inline ap **ap_array_find_first_entry(struct dawn_mac bssid);
+static inline ap_t **ap_array_find_first_entry(struct dawn_mac bssid);
 static inline client_t **client_skip_array_find_first_entry(
         struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid);
 static inline client_t **client_find_first_c_entry(struct dawn_mac client_mac);
@@ -85,8 +85,8 @@ static client_t *client_array_unlink_entry(client_t **ref_bc, int unlink_only);
 static void probe_array_unlink_next(probe_entry_t **i);
 static bool probe_array_update_rssi(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rssi, int send_network);
 static void insert_to_skip_array(probe_entry_t *entry);
-static void ap_array_unlink_next(ap **i);
-static bool ap_array_delete(ap *entry);
+static void ap_array_unlink_next(ap_t **i);
+static bool ap_array_delete(ap_t *entry);
 
 static char **find_first_entry(char **entry,
                                uint8_t *mac0, intptr_t mac0_offset,
@@ -118,12 +118,12 @@ static inline probe_entry_t **probe_skip_array_find_first_entry(
                              check_bssid, offsetof(probe_entry_t, next_probe_skip));
 }
 
-static inline ap **ap_array_find_first_entry(struct dawn_mac bssid)
+static inline ap_t **ap_array_find_first_entry(struct dawn_mac bssid)
 {
-    return (ap **)
+    return (ap_t **)
             find_first_entry((char **) &ap_set,
-                             bssid.u8, offsetof(ap, bssid_addr),
-                             NULL, 0, false, offsetof(ap, next_ap));
+                             bssid.u8, offsetof(ap_t, bssid_addr),
+                             NULL, 0, false, offsetof(ap_t, next_ap));
 }
 
 static inline client_t **client_skip_array_find_first_entry(
@@ -257,7 +257,7 @@ void send_beacon_reports(struct dawn_mac bssid, int id)
 
 /* TODO: Can metric be cached once calculated? Add score_fresh indicator and reset when signal changes
  * as rest of values look to be static fr any given entry. */
-int eval_probe_metric(probe_entry_t *probe_entry, ap *ap_entry)
+int eval_probe_metric(probe_entry_t *probe_entry, ap_t *ap_entry)
 {
     int score = 0;
 
@@ -288,7 +288,7 @@ int eval_probe_metric(probe_entry_t *probe_entry, ap *ap_entry)
     return score;
 }
 
-static bool compare_station_count(ap *ap_entry_own, ap *ap_entry_to_compare, struct dawn_mac client_addr)
+static bool compare_station_count(ap_t *ap_entry_own, ap_t *ap_entry_to_compare, struct dawn_mac client_addr)
 {
     int sta_count = ap_entry_own->station_count,
             sta_count_to_compare = ap_entry_to_compare->station_count;
@@ -310,7 +310,7 @@ static bool compare_station_count(ap *ap_entry_own, ap *ap_entry_to_compare, str
     return (sta_count - sta_count_to_compare) > behaviour_config.max_station_diff;
 }
 
-int better_ap_available(ap *kicking_ap, struct dawn_mac client_mac, char *neighbor_report)
+int better_ap_available(ap_t *kicking_ap, struct dawn_mac client_mac, char *neighbor_report)
 {
     probe_entry_t *own_probe = *probe_array_find_first_entry(client_mac, kicking_ap->bssid_addr, true);
     int own_score = -1;
@@ -337,7 +337,7 @@ int better_ap_available(ap *kicking_ap, struct dawn_mac client_mac, char *neighb
             continue;
         }
 
-        ap *candidate_ap = ap_array_get_ap(i->bssid_addr);
+        ap_t *candidate_ap = ap_array_get_ap(i->bssid_addr);
         if (candidate_ap == NULL) {
             continue;
         }
@@ -378,7 +378,7 @@ exit:
     return kick;
 }
 
-static bool kick_client(ap *kicking_ap, client_t *client_entry, char *neighbor_report)
+static bool kick_client(ap_t *kicking_ap, client_t *client_entry, char *neighbor_report)
 {
     bool kick = false;
 
@@ -389,7 +389,7 @@ static bool kick_client(ap *kicking_ap, client_t *client_entry, char *neighbor_r
     return kick;
 }
 
-int kick_clients(ap *kicking_ap, uint32_t id)
+int kick_clients(ap_t *kicking_ap, uint32_t id)
 {
     int kicked_clients = 0;
 
@@ -739,12 +739,12 @@ probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_8
     return entry;
 }
 
-ap *insert_to_ap_array(ap *entry, time_t expiry)
+ap_t *insert_to_ap_array(ap_t *entry, time_t expiry)
 {
     pthread_mutex_lock(&ap_array_mutex);
 
     /* TODO: Why do we delete and add here? */
-    ap *old_entry = *ap_array_find_first_entry(entry->bssid_addr);
+    ap_t *old_entry = *ap_array_find_first_entry(entry->bssid_addr);
     if (old_entry != NULL) {
         ap_array_delete(old_entry);
     }
@@ -765,7 +765,7 @@ int ap_get_collision_count(int col_domain)
 
     pthread_mutex_lock(&ap_array_mutex);
 
-    for (ap *i = ap_set; i != NULL; i = i->next_ap) {
+    for (ap_t *i = ap_set; i != NULL; i = i->next_ap) {
         if (i->collision_domain == col_domain) {
             ret_sta_count += i->station_count;
         }
@@ -778,9 +778,9 @@ int ap_get_collision_count(int col_domain)
 
 /* TODO: Do we need to order this set?  Scan of randomly arranged elements is just
  * as quick if we're not using an optimised search. */
-void ap_array_insert(ap *entry)
+void ap_array_insert(ap_t *entry)
 {
-    ap **i;
+    ap_t **i;
 
     for (i = &ap_set; *i != NULL; i = &((*i)->next_ap)) {
         /* TODO: Not sure these tests are right way around to ensure SSID / MAC ordering */
@@ -796,32 +796,32 @@ void ap_array_insert(ap *entry)
     ap_entry_last++;
 }
 
-ap *ap_array_get_ap(struct dawn_mac bssid_mac)
+ap_t *ap_array_get_ap(struct dawn_mac bssid_mac)
 {
     pthread_mutex_lock(&ap_array_mutex);
-    ap *ret = *ap_array_find_first_entry(bssid_mac);
+    ap_t *ret = *ap_array_find_first_entry(bssid_mac);
     pthread_mutex_unlock(&ap_array_mutex);
 
     return ret;
 }
 
-static void ap_array_unlink_next(ap **i)
+static void ap_array_unlink_next(ap_t **i)
 {
-    ap *entry = *i;
+    ap_t *entry = *i;
 
     *i = entry->next_ap;
     dawn_free(entry);
     ap_entry_last--;
 }
 
-static bool ap_array_delete(ap *entry)
+static bool ap_array_delete(ap_t *entry)
 {
     bool deleted = false;
 
     pthread_mutex_lock(&ap_array_mutex);
 
     /* TODO: Some parts of AP entry management look at SSID as well.  Not this? */
-    for (ap **i = &ap_set; *i != NULL; i = &((*i)->next_ap)) {
+    for (ap_t **i = &ap_set; *i != NULL; i = &((*i)->next_ap)) {
         if (*i == entry) {
             ap_array_unlink_next(i);
             deleted = true;
@@ -873,7 +873,7 @@ void remove_old_ap_entries(time_t current_time, long long int threshold)
 {
     pthread_mutex_unlock(&ap_array_mutex);
 
-    for (ap **next_ap = &ap_set; *next_ap != NULL;) {
+    for (ap_t **next_ap = &ap_set; *next_ap != NULL;) {
         if (current_time > (*next_ap)->time + threshold) {
             ap_array_unlink_next(next_ap);
         }
@@ -1088,7 +1088,7 @@ void print_client_entry(client_t *entry)
            entry->ht_supported, entry->vht_supported, entry->ht, entry->vht, entry->kick_count);
 }
 
-static void print_ap_entry(ap *entry)
+static void print_ap_entry(ap_t *entry)
 {
     printf(" - ssid: %s, bssid_addr: " MACSTR ", freq: %d, ht: %d, vht: %d, "
            "chan_utilz: %d, col_d: %d, bandwidth: %d, col_count: %d neighbor_report: %s\n",
@@ -1100,7 +1100,7 @@ static void print_ap_entry(ap *entry)
 void print_ap_array(void)
 {
     printf("Printing APs array (%d elements)\n", ap_entry_last);
-    for (ap *i = ap_set; i != NULL; i = i->next_ap) {
+    for (ap_t *i = ap_set; i != NULL; i = i->next_ap) {
         print_ap_entry(i);
     }
 }

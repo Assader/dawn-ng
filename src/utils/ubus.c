@@ -836,7 +836,7 @@ static bool proceed_operation(probe_entry_t *prob_request, int req_type)
         return true;
     }
 
-    ap *this_ap = ap_array_get_ap(prob_request->bssid_addr);
+    ap_t *this_ap = ap_array_get_ap(prob_request->bssid_addr);
     if (this_ap != NULL && better_ap_available(this_ap, prob_request->client_addr, NULL)) {
         return 0;
     }
@@ -929,7 +929,7 @@ static int parse_to_beacon_rep(struct blob_attr *message)
     hwaddr_aton(blobmsg_data(tb[BEACON_REP_BSSID]), msg_bssid.u8);
     hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), msg_client.u8);
 
-    ap *ap_entry_rep = ap_array_get_ap(msg_bssid);
+    ap_t *ap_entry_rep = ap_array_get_ap(msg_bssid);
     if (ap_entry_rep == NULL) {
         DAWN_LOG_INFO("Beacon report does not belong to our network, ignoring");
         return -1;
@@ -1101,7 +1101,7 @@ static int create_neighbor_report(struct blob_buf *b_local, struct dawn_mac own_
 
     void *neighbors = blobmsg_open_array(b_local, "list");
 
-    for (ap *i = ap_set; i != NULL; i = i->next_ap) {
+    for (ap_t *i = ap_set; i != NULL; i = i->next_ap) {
         if (macs_are_equal_bb(own_bssid_addr, i->bssid_addr)) {
             continue; /* TODO: Skip own entry?! */
         }
@@ -1301,14 +1301,14 @@ static int build_hearing_map_sort_client(struct blob_buf *b)
 
     blob_buf_init(b, 0);
 
-    for (ap *m = ap_set; m != NULL; m = m->next_ap) {
+    for (ap_t *m = ap_set; m != NULL; m = m->next_ap) {
         /* MUSTDO: Ensure SSID / BSSID ordering.  Lost when switched to linked list! */
         /* Scan AP list to find first of each SSID */
         if (!same_ssid) {
             ssid_list = blobmsg_open_table(b, (char *) m->ssid);
             probe_entry_t *i = probe_set;
             while (i != NULL) {
-                ap *ap_entry_i = ap_array_get_ap(i->bssid_addr);
+                ap_t *ap_entry_i = ap_array_get_ap(i->bssid_addr);
                 if (ap_entry_i == NULL) {
                     i = i->next_probe;
                     continue;
@@ -1326,7 +1326,7 @@ static int build_hearing_map_sort_client(struct blob_buf *b)
                      k != NULL && macs_are_equal_bb(k->client_addr, i->client_addr);
                      k = k->next_probe) {
 
-                    ap *ap_k = ap_array_get_ap(k->bssid_addr);
+                    ap_t *ap_k = ap_array_get_ap(k->bssid_addr);
                     if (ap_k == NULL || strcmp((char *) ap_k->ssid, (char *) m->ssid) != 0) {
                         continue;
                     }
@@ -1396,7 +1396,7 @@ static int build_network_overview(struct blob_buf *b)
 
     blob_buf_init(b, 0);
 
-    for (ap *m = ap_set; m != NULL; m = m->next_ap) {
+    for (ap_t *m = ap_set; m != NULL; m = m->next_ap) {
         if (add_ssid) {
             ssid_list = blobmsg_open_table(b, (char *) m->ssid);
             add_ssid = false;

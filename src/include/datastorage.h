@@ -196,9 +196,9 @@ typedef struct ap_s {
     uint32_t ap_weight;        /* eval_probe_metric() */
     char iface[MAX_INTERFACE_NAME];
     char hostname[HOST_NAME_MAX];
-} ap;
+} ap_t;
 
-extern struct ap_s *ap_set;
+extern ap_t *ap_set;
 extern pthread_mutex_t ap_array_mutex;
 
 extern client_t *client_set_bc;
@@ -207,25 +207,25 @@ extern pthread_mutex_t client_array_mutex;
 probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
 probe_entry_t *probe_array_get_entry(struct dawn_mac bssid_addr, struct dawn_mac client_addr);
 void remove_old_probe_entries(time_t current_time, long long int threshold);
-int eval_probe_metric(probe_entry_t *probe_entry, ap *ap_entry);
+int eval_probe_metric(probe_entry_t *probe_entry, ap_t *ap_entry);
 void denied_req_array_delete(auth_entry_t *entry);
 auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, time_t expiry);
 void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac);
 bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rcpi, uint32_t rsni, int send_network);
 void remove_old_client_entries(time_t current_time, long long int threshold);
 client_t *insert_client_to_array(client_t *entry, time_t expiry);
-int kick_clients(ap *kicking_ap, uint32_t id);
+int kick_clients(ap_t *kicking_ap, uint32_t id);
 void update_iw_info(struct dawn_mac bssid);
 client_t *client_array_get_client(const struct dawn_mac client_addr);
 client_t *client_array_delete(client_t *entry, int unlink_only);
-ap *insert_to_ap_array(ap *entry, time_t expiry);
+ap_t *insert_to_ap_array(ap_t *entry, time_t expiry);
 void remove_old_ap_entries(time_t current_time, long long int threshold);
-ap *ap_array_get_ap(struct dawn_mac bssid_mac);
+ap_t *ap_array_get_ap(struct dawn_mac bssid_mac);
 bool probe_array_set_all_probe_count(struct dawn_mac client_addr, uint32_t probe_count);
 int ap_get_collision_count(int col_domain);
 void send_beacon_reports(struct dawn_mac bssid, int id);
-int better_ap_available(ap *kicking_ap, struct dawn_mac client_addr, char *neighbor_report);
-void ap_array_insert(ap *entry);
+int better_ap_available(ap_t *kicking_ap, struct dawn_mac client_addr, char *neighbor_report);
+void ap_array_insert(ap_t *entry);
 
 void print_ap_array(void);
 void print_client_entry(client_t *entry);

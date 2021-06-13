@@ -328,7 +328,7 @@ bool handle_hostapd_clients_message(struct blob_attr *message, int do_kick, uint
                               blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
                               blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
 
-    ap *ap_entry = dawn_calloc(1, sizeof (struct ap_s));
+    ap_t *ap_entry = dawn_calloc(1, sizeof (ap_t));
     if (ap_entry == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;
