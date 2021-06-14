@@ -20,7 +20,7 @@ extern char dawn_instance_hostname[HOST_NAME_MAX];
 int dawn_run_uloop(void);
 void dawn_reload_config(void);
 
-void ubus_send_beacon_report(struct dawn_mac client, int id);
+void ubus_request_beacon_report(struct dawn_mac client, int id);
 int parse_add_mac_to_file(struct blob_attr *message);
 
 /**

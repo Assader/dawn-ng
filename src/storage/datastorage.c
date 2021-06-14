@@ -248,7 +248,7 @@ void send_beacon_reports(struct dawn_mac bssid, int id)
         if (i->rrm_enabled_capa & (WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE |
                                    WLAN_RRM_CAPS_BEACON_REPORT_ACTIVE |
                                    WLAN_RRM_CAPS_BEACON_REPORT_TABLE)) {
-            ubus_send_beacon_report(i->client_addr, id);
+            ubus_request_beacon_report(i->client_addr, id);
         }
     }
 
