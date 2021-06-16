@@ -957,10 +957,6 @@ void insert_macs_from_file(void)
         }
         DAWN_LOG_DEBUG("Read %zu bytes from macfile: %s", read, line);
 
-        /* Need to scanf to an array of ints as there is no byte format specifier. */
-        int tmp_int_mac[ETH_ALEN];
-        sscanf(line, MACSTR, STR2MAC(tmp_int_mac));
-
         mac_entry_t *new_mac = dawn_malloc(sizeof (mac_entry_t));
         if (new_mac == NULL) {
             DAWN_LOG_ERROR("Failed to allocate memory");
@@ -968,9 +964,7 @@ void insert_macs_from_file(void)
         }
 
         new_mac->next_mac = NULL;
-        for (int i = 0; i < ETH_ALEN; ++i) {
-            new_mac->mac.u8[i] = (uint8_t) tmp_int_mac[i];
-        }
+        sscanf(line, DAWNMACSTR, STR2MAC(new_mac->mac.u8));
 
         insert_to_mac_array(new_mac);
     }
