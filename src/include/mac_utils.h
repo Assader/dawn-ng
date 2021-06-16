@@ -11,6 +11,9 @@
 
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
 #define MACSTRLOWER "%02x:%02x:%02x:%02x:%02x:%02x"
+/* SCNx8 could be used, but the entire project does not rely on inttypes, so
+ maybe someday, someday... */
+#define DAWNMACSTR "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx"
 
 /* Simplify some handling of MAC addresses */
 typedef struct {
