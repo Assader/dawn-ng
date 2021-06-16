@@ -10,7 +10,6 @@
 #define STR2MAC(a) &(a)[0], &(a)[1], &(a)[2], &(a)[3], &(a)[4], &(a)[5]
 
 #define MACSTR "%02X:%02X:%02X:%02X:%02X:%02X"
-#define MACSTRLOWER "%02x:%02x:%02x:%02x:%02x:%02x"
 /* SCNx8 could be used, but the entire project does not rely on inttypes, so
  maybe someday, someday... */
 #define DAWNMACSTR "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx"
@@ -27,8 +26,8 @@ typedef struct {
 #define macs_are_equal(addr1, addr2) (memcmp(addr1, addr2, ETH_ALEN) == 0)
 
 /* For byte arrays inside MAC structure */
-#define macs_compare_bb(addr1, addr2) memcmp((addr1).u8, (addr2).u8, ETH_ALEN)
-#define macs_are_equal_bb(addr1, addr2) (memcmp((addr1).u8, (addr2).u8, ETH_ALEN) == 0)
+#define dawn_macs_compare(addr1, addr2) memcmp((addr1).u8, (addr2).u8, ETH_ALEN)
+#define dawn_macs_are_equal(addr1, addr2) (memcmp((addr1).u8, (addr2).u8, ETH_ALEN) == 0)
 
 /**
  * Convert mac adress string to mac adress.

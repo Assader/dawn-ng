@@ -37,9 +37,8 @@ probe_entry_t *probe_set;
 static uint32_t probe_entry_last;
 pthread_mutex_t probe_array_mutex;
 
-ap_t *ap_set;
-static int ap_entry_last;
-pthread_mutex_t ap_array_mutex;
+static LIST_HEAD(ap_set);
+static pthread_mutex_t ap_array_mutex;
 
 enum {
     DAWN_CLIENT_SKIP_RATIO = 32,
@@ -68,7 +67,7 @@ static char **find_first_entry(char **entry,
                                bool check_mac1, intptr_t next_offset);
 static inline probe_entry_t **probe_skip_array_find_first_entry(
         dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid);
-static inline ap_t **ap_array_find_first_entry(dawn_mac_t bssid);
+static ap_t *ap_array_find_first_entry(dawn_mac_t bssid);
 static inline client_t **client_skip_array_find_first_entry(
         dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid);
 static inline client_t **client_find_first_c_entry(dawn_mac_t client_mac);
@@ -81,7 +80,6 @@ static client_t *client_array_unlink_entry(client_t **ref_bc, int unlink_only);
 static void probe_array_unlink_next(probe_entry_t **i);
 static bool probe_array_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rssi, int send_network);
 static void insert_to_skip_array(probe_entry_t *entry);
-static void ap_array_unlink_next(ap_t **i);
 static bool ap_array_delete(ap_t *entry);
 mac_entry_t *insert_to_mac_array(mac_entry_t *entry);
 static bool kick_client(ap_t *kicking_ap, client_t *client_entry, char *neighbor_report);
@@ -118,12 +116,17 @@ static inline probe_entry_t **probe_skip_array_find_first_entry(
                              check_bssid, offsetof(probe_entry_t, next_probe_skip));
 }
 
-static inline ap_t **ap_array_find_first_entry(dawn_mac_t bssid)
+static ap_t *ap_array_find_first_entry(dawn_mac_t bssid)
 {
-    return (ap_t **)
-            find_first_entry((char **) &ap_set,
-                             bssid.u8, offsetof(ap_t, bssid),
-                             NULL, 0, false, offsetof(ap_t, next_ap));
+    ap_t *ap;
+
+    list_for_each_entry(ap, &ap_set, list) {
+        if (dawn_macs_are_equal(ap->bssid, bssid)) {
+            return ap;
+        }
+    }
+
+    return NULL;
 }
 
 static inline client_t **client_skip_array_find_first_entry(
@@ -168,10 +171,10 @@ static probe_entry_t **probe_array_find_first_entry(dawn_mac_t client_mac, dawn_
     probe_entry_t **lo_ptr = &probe_set;
 
     while (*lo_skip_ptr != NULL) {
-        int this_cmp = macs_compare_bb(((*lo_skip_ptr))->client_addr, client_mac);
+        int this_cmp = dawn_macs_compare(((*lo_skip_ptr))->client_addr, client_mac);
 
         if (this_cmp == 0 && do_bssid) {
-            this_cmp = macs_compare_bb(((*lo_skip_ptr))->bssid, bssid);
+            this_cmp = dawn_macs_compare(((*lo_skip_ptr))->bssid, bssid);
         }
 
         if (this_cmp >= 0) {
@@ -183,10 +186,10 @@ static probe_entry_t **probe_array_find_first_entry(dawn_mac_t client_mac, dawn_
     }
 
     while (*lo_ptr != NULL) {
-        int this_cmp = macs_compare_bb((*lo_ptr)->client_addr, client_mac);
+        int this_cmp = dawn_macs_compare((*lo_ptr)->client_addr, client_mac);
 
         if (this_cmp == 0 && do_bssid) {
-            this_cmp = macs_compare_bb((*lo_ptr)->bssid, bssid);
+            this_cmp = dawn_macs_compare((*lo_ptr)->bssid, bssid);
         }
 
         if (this_cmp >= 0) {
@@ -205,10 +208,10 @@ static client_t **client_find_first_bc_entry(dawn_mac_t bssid, dawn_mac_t client
     client_t **lo_ptr = &client_set_bc;
 
     while (*lo_skip_ptr != NULL) {
-        int this_cmp = macs_compare_bb(((*lo_skip_ptr))->bssid, bssid);
+        int this_cmp = dawn_macs_compare(((*lo_skip_ptr))->bssid, bssid);
 
         if (this_cmp == 0 && do_client) {
-            this_cmp = macs_compare_bb(((*lo_skip_ptr))->client_addr, client_mac);
+            this_cmp = dawn_macs_compare(((*lo_skip_ptr))->client_addr, client_mac);
         }
 
         if (this_cmp >= 0) {
@@ -220,10 +223,10 @@ static client_t **client_find_first_bc_entry(dawn_mac_t bssid, dawn_mac_t client
     }
 
     while (*lo_ptr != NULL) {
-        int this_cmp = macs_compare_bb((*lo_ptr)->bssid, bssid);
+        int this_cmp = dawn_macs_compare((*lo_ptr)->bssid, bssid);
 
         if (this_cmp == 0 && do_client) {
-            this_cmp = macs_compare_bb((*lo_ptr)->client_addr, client_mac);
+            this_cmp = dawn_macs_compare((*lo_ptr)->client_addr, client_mac);
         }
 
         if (this_cmp >= 0) {
@@ -603,7 +606,7 @@ bool probe_array_set_all_probe_count(dawn_mac_t client_addr, uint32_t probe_coun
     pthread_mutex_lock(&probe_array_mutex);
 
     for (probe_entry_t *i = probe_set; i != NULL; i = i->next_probe) {
-        if (macs_are_equal_bb(client_addr, i->client_addr)) {
+        if (dawn_macs_are_equal(client_addr, i->client_addr)) {
             DAWN_LOG_DEBUG("Setting probe count for " MACSTR " to %d",
                            MAC2STR(client_addr.u8), probe_count);
             i->counter = probe_count;
@@ -740,7 +743,7 @@ ap_t *insert_to_ap_array(ap_t *entry, time_t expiry)
     pthread_mutex_lock(&ap_array_mutex);
 
     /* TODO: Why do we delete and add here? */
-    ap_t *old_entry = *ap_array_find_first_entry(entry->bssid);
+    ap_t *old_entry = ap_array_find_first_entry(entry->bssid);
     if (old_entry != NULL) {
         ap_array_delete(old_entry);
     }
@@ -758,10 +761,11 @@ ap_t *insert_to_ap_array(ap_t *entry, time_t expiry)
 int ap_get_collision_count(int col_domain)
 {
     int ret_sta_count = 0;
+    ap_t *i;
 
     pthread_mutex_lock(&ap_array_mutex);
 
-    for (ap_t *i = ap_set; i != NULL; i = i->next_ap) {
+    list_for_each_entry(i, &ap_set, list) {
         if (i->collision_domain == col_domain) {
             ret_sta_count += i->station_count;
         }
@@ -776,58 +780,34 @@ int ap_get_collision_count(int col_domain)
  * as quick if we're not using an optimised search. */
 void ap_array_insert(ap_t *entry)
 {
-    ap_t **i;
+    ap_t *i;
 
-    for (i = &ap_set; *i != NULL; i = &((*i)->next_ap)) {
+    list_for_each_entry(i, &ap_set, list) {
         /* TODO: Not sure these tests are right way around to ensure SSID / MAC ordering */
         /* TODO: Do we do any SSID checks elsewhere? */
-        int sc = strcmp((char *) entry->ssid, (char *) (*i)->ssid);
-        if ((sc < 0) || (sc == 0 && macs_compare_bb(entry->bssid, (*i)->bssid) < 0)) {
+        int sc = strcmp((char *) entry->ssid, (char *) i->ssid);
+        if ((sc < 0) || (sc == 0 && dawn_macs_compare(entry->bssid, i->bssid) < 0)) {
+            list_add(&entry->list, &i->list);
             break;
         }
     }
-
-    entry->next_ap = *i;
-    *i = entry;
-    ap_entry_last++;
 }
 
 ap_t *ap_array_get_ap(dawn_mac_t bssid)
 {
     pthread_mutex_lock(&ap_array_mutex);
-    ap_t *ret = *ap_array_find_first_entry(bssid);
+    ap_t *ret = ap_array_find_first_entry(bssid);
     pthread_mutex_unlock(&ap_array_mutex);
 
     return ret;
 }
 
-static void ap_array_unlink_next(ap_t **i)
-{
-    ap_t *entry = *i;
-
-    *i = entry->next_ap;
-    dawn_free(entry);
-    ap_entry_last--;
-}
-
 static bool ap_array_delete(ap_t *entry)
 {
-    bool deleted = false;
+    list_del(&entry->list);
+    dawn_free(entry);
 
-    pthread_mutex_lock(&ap_array_mutex);
-
-    /* TODO: Some parts of AP entry management look at SSID as well.  Not this? */
-    for (ap_t **i = &ap_set; *i != NULL; i = &((*i)->next_ap)) {
-        if (*i == entry) {
-            ap_array_unlink_next(i);
-            deleted = true;
-            break;
-        }
-    }
-
-    pthread_mutex_unlock(&ap_array_mutex);
-
-    return deleted;
+    return true;
 }
 
 void remove_old_client_entries(time_t current_time, long long int threshold)
@@ -865,16 +845,15 @@ void remove_old_probe_entries(time_t current_time, uint32_t threshold)
     pthread_mutex_unlock(&probe_array_mutex);
 }
 
-void remove_old_ap_entries(time_t current_time, long long int threshold)
+void remove_old_ap_entries(time_t current_time, uint32_t threshold)
 {
-    pthread_mutex_unlock(&ap_array_mutex);
+    ap_t *i, *next;
 
-    for (ap_t **next_ap = &ap_set; *next_ap != NULL;) {
-        if (current_time > (*next_ap)->expiry + threshold) {
-            ap_array_unlink_next(next_ap);
-        }
-        else {
-            next_ap = &((*next_ap)->next_ap);
+    pthread_mutex_lock(&ap_array_mutex);
+
+    list_for_each_entry_safe(i, next, &ap_set, list) {
+        if (current_time > i->expiry + threshold) {
+            ap_array_delete(i);
         }
     }
 
@@ -987,7 +966,7 @@ bool insert_to_maclist(dawn_mac_t mac)
 {
     mac_entry_t **i = mac_find_first_entry(mac);
 
-    if (*i != NULL && macs_are_equal_bb((*i)->mac, mac)) {
+    if (*i != NULL && dawn_macs_are_equal((*i)->mac, mac)) {
         return false;
     }
 
@@ -1069,6 +1048,201 @@ mac_entry_t *insert_to_mac_array(mac_entry_t *entry)
     return entry;
 }
 
+/* TODO: Does all APs constitute neighbor report? How about using list of AP connected
+ * clients can also see (from probe_set) to give more (physically) local set? */
+void create_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid)
+{
+    void *neighbors = blobmsg_open_array(b, "list");
+    ap_t *i;
+
+    pthread_mutex_lock(&ap_array_mutex);
+
+    list_for_each_entry(i, &ap_set, list) {
+        if (dawn_macs_are_equal(own_bssid, i->bssid)) {
+            /* Hostapd adds own entry neighbor report by itself. */
+            continue;
+        }
+
+        char mac_buf[20];
+        sprintf(mac_buf, MACSTR, MAC2STR(i->bssid.u8));
+
+        void *neighbor = blobmsg_open_array(b, NULL);
+        blobmsg_add_string(b, NULL, mac_buf);
+        blobmsg_add_string(b, NULL, (char *) i->ssid);
+        blobmsg_add_string(b, NULL, i->neighbor_report);
+        blobmsg_close_array(b, neighbor);
+    }
+
+    pthread_mutex_unlock(&ap_array_mutex);
+
+    blobmsg_close_array(b, neighbors);
+}
+
+int build_hearing_map_sort_client(struct blob_buf *b)
+{
+    bool same_ssid = false;
+    ap_t *ap, *next_ap;
+    void *ssid_list;
+
+    print_probe_array();
+
+    blob_buf_init(b, 0);
+
+    pthread_mutex_lock(&ap_array_mutex);
+    pthread_mutex_lock(&probe_array_mutex);
+
+    list_for_each_entry_safe(ap, next_ap, &ap_set, list) {
+        if (!same_ssid) {
+            ssid_list = blobmsg_open_table(b, (char *) ap->ssid);
+
+            probe_entry_t *i = probe_set;
+            while (i != NULL) {
+                ap_t *ap_entry_i = ap_array_find_first_entry(i->bssid);
+                if (ap_entry_i == NULL) {
+                    i = i->next_probe;
+                    continue;
+                }
+
+                char client_mac_buf[20];
+                sprintf(client_mac_buf, MACSTR, MAC2STR(i->client_addr.u8));
+                void *client_list = blobmsg_open_table(b, client_mac_buf);
+
+                probe_entry_t *k;
+                for (k = i;
+                     k != NULL && dawn_macs_are_equal(k->client_addr, i->client_addr);
+                     k = k->next_probe) {
+
+                    ap_t *ap_k = ap_array_find_first_entry(k->bssid);
+                    if (ap_k == NULL) {
+                        continue;
+                    }
+
+                    char ap_mac_buf[20];
+                    sprintf(ap_mac_buf, MACSTR, MAC2STR(k->bssid.u8));
+                    void *ap_list = blobmsg_open_table(b, ap_mac_buf);
+
+                    blobmsg_add_u32(b, "signal", k->signal);
+                    blobmsg_add_u32(b, "rcpi", k->rcpi);
+                    blobmsg_add_u32(b, "rsni", k->rsni);
+                    blobmsg_add_u32(b, "freq", k->freq);
+                    blobmsg_add_u8(b, "ht_capabilities", k->ht_capabilities);
+                    blobmsg_add_u8(b, "vht_capabilities", k->vht_capabilities);
+
+                    blobmsg_add_u32(b, "channel_utilization", ap_k->channel_utilization);
+                    blobmsg_add_u32(b, "num_sta", ap_k->station_count);
+                    blobmsg_add_u8(b, "ht_support", ap_k->ht_support);
+                    blobmsg_add_u8(b, "vht_support", ap_k->vht_support);
+
+                    blobmsg_add_u32(b, "score", eval_probe_metric(k, ap_k));
+                    blobmsg_close_table(b, ap_list);
+                }
+
+                blobmsg_close_table(b, client_list);
+
+                /* TODO: Change this so that i and k are single loop? */
+                i = k;
+            }
+        }
+
+        if (strcmp((char *) ap->ssid, (char *) next_ap->ssid) != 0) {
+            blobmsg_close_table(b, ssid_list);
+            same_ssid = false;
+        }
+        else {
+            same_ssid = true;
+        }
+    }
+
+    pthread_mutex_unlock(&probe_array_mutex);
+    pthread_mutex_unlock(&ap_array_mutex);
+
+    return 0;
+}
+
+int build_network_overview(struct blob_buf *b)
+{
+    bool add_ssid = true;
+    ap_t *ap, *next_ap;
+    void *ssid_list;
+
+    blob_buf_init(b, 0);
+
+    pthread_mutex_lock(&ap_array_mutex);
+
+    list_for_each_entry_safe(ap, next_ap, &ap_set, list) {
+        if (add_ssid) {
+            ssid_list = blobmsg_open_table(b, (char *) ap->ssid);
+            add_ssid = false;
+        }
+
+        char ap_mac_buf[20];
+        sprintf(ap_mac_buf, MACSTR, MAC2STR(ap->bssid.u8));
+        void *ap_list = blobmsg_open_table(b, ap_mac_buf);
+
+        blobmsg_add_u32(b, "freq", ap->freq);
+        blobmsg_add_u32(b, "channel_utilization", ap->channel_utilization);
+        blobmsg_add_u32(b, "num_sta", ap->station_count);
+        blobmsg_add_u8(b, "ht_support", ap->ht_support);
+        blobmsg_add_u8(b, "vht_support", ap->vht_support);
+        blobmsg_add_u8(b, "local", ap_is_local(ap->bssid));
+
+        char *neighbor_report;
+        neighbor_report = blobmsg_alloc_string_buffer(b, "neighbor_report", NEIGHBOR_REPORT_LEN);
+        strncpy(neighbor_report, ap->neighbor_report, NEIGHBOR_REPORT_LEN);
+        blobmsg_add_string_buffer(b);
+
+        char *iface;
+        iface = blobmsg_alloc_string_buffer(b, "iface", IFNAMSIZ);
+        strncpy(iface, ap->iface, IFNAMSIZ);
+        blobmsg_add_string_buffer(b);
+
+        char *hostname;
+        hostname = blobmsg_alloc_string_buffer(b, "hostname", HOST_NAME_MAX);
+        strncpy(hostname, ap->hostname, HOST_NAME_MAX);
+        blobmsg_add_string_buffer(b);
+
+        /* TODO: Could optimise this by exporting search func, but not a core process */
+        client_t *k = client_set_bc;
+        while (k != NULL) {
+            if (dawn_macs_are_equal(ap->bssid, k->bssid)) {
+                char client_mac_buf[20];
+                sprintf(client_mac_buf, MACSTR, MAC2STR(k->client_addr.u8));
+                void *client_list = blobmsg_open_table(b, client_mac_buf);
+
+                if (strlen(k->signature) != 0) {
+                    char *s;
+                    s = blobmsg_alloc_string_buffer(b, "signature", 1024);
+                    sprintf(s, "%s", k->signature);
+                    blobmsg_add_string_buffer(b);
+                }
+                blobmsg_add_u8(b, "ht", k->ht);
+                blobmsg_add_u8(b, "vht", k->vht);
+                blobmsg_add_u32(b, "collision_count", ap_get_collision_count(ap->collision_domain));
+
+                pthread_mutex_lock(&probe_array_mutex);
+                probe_entry_t *n = probe_array_get_entry(k->bssid, k->client_addr);
+                pthread_mutex_unlock(&probe_array_mutex);
+
+                if (n != NULL) {
+                    blobmsg_add_u32(b, "signal", n->signal);
+                }
+                blobmsg_close_table(b, client_list);
+            }
+            k = k->next_entry_bc;
+        }
+        blobmsg_close_table(b, ap_list);
+
+        if (strcmp((char *) ap->ssid, (char *) next_ap->ssid) != 0) {
+            blobmsg_close_table(b, ssid_list);
+            add_ssid = true;
+        }
+    }
+
+    pthread_mutex_unlock(&ap_array_mutex);
+
+    return 0;
+}
+
 void print_client_entry(client_t *entry)
 {
     DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", freq: %d, "
@@ -1080,7 +1254,7 @@ void print_client_entry(client_t *entry)
 void print_ap_entry(ap_t *entry)
 {
     DAWN_LOG_DEBUG(" - ssid: %s, bssid: " MACSTR ", freq: %d, ht: %d, vht: %d, "
-                   "chan_utilz: %d, col_d: %d, bandwidth: %d, col_count: %d neighbor_report: %s",
+                   "chan_util: %d, col_d: %d, bandwidth: %d, col_count: %d neighbor_report: %s",
                    entry->ssid, MAC2STR(entry->bssid.u8), entry->freq, entry->ht_support, entry->vht_support,
                    entry->channel_utilization, entry->collision_domain, entry->bandwidth,
                    ap_get_collision_count(entry->collision_domain), entry->neighbor_report);
@@ -1088,8 +1262,10 @@ void print_ap_entry(ap_t *entry)
 
 void print_ap_array(void)
 {
-    DAWN_LOG_DEBUG("Printing APs array (%d elements)", ap_entry_last);
-    for (ap_t *i = ap_set; i != NULL; i = i->next_ap) {
+    ap_t *i;
+
+    DAWN_LOG_DEBUG("Printing APs array");
+    list_for_each_entry(i, &ap_set, list) {
         print_ap_entry(i);
     }
 }

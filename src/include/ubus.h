@@ -55,4 +55,6 @@ int wnm_disassoc_imminent(uint32_t id, dawn_mac_t client_addr, char *dest_ap, ui
  */
 int send_add_mac(dawn_mac_t client_addr);
 
+bool ap_is_local(dawn_mac_t bssid);
+
 #endif /* DAWN_UBUS_H */

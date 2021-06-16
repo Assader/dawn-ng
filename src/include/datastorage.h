@@ -8,6 +8,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <time.h>
+#include <libubox/list.h>
+#include <libubox/blob.h>
 
 #include "mac_utils.h"
 
@@ -155,7 +157,8 @@ typedef struct client_s {
 } client_t;
 
 typedef struct ap_s {
-    struct ap_s *next_ap;
+    struct list_head list;
+
     dawn_mac_t bssid;
     uint8_t ssid[SSID_MAX_LEN];
 
@@ -173,9 +176,6 @@ typedef struct ap_s {
     char iface[IFNAMSIZ];
     char hostname[HOST_NAME_MAX];
 } ap_t;
-
-extern ap_t *ap_set;
-extern pthread_mutex_t ap_array_mutex;
 
 extern client_t *client_set_bc;
 extern pthread_mutex_t client_array_mutex;
@@ -195,13 +195,19 @@ void update_iw_info(dawn_mac_t bssid);
 client_t *client_array_get_client(dawn_mac_t client_addr);
 client_t *client_array_delete(client_t *entry, int unlink_only);
 ap_t *insert_to_ap_array(ap_t *entry, time_t expiry);
-void remove_old_ap_entries(time_t current_time, long long int threshold);
+void remove_old_ap_entries(time_t current_time, uint32_t threshold);
 ap_t *ap_array_get_ap(dawn_mac_t bssid);
 bool probe_array_set_all_probe_count(dawn_mac_t client_addr, uint32_t probe_count);
 int ap_get_collision_count(int col_domain);
 void send_beacon_reports(dawn_mac_t bssid, int id);
 int better_ap_available(ap_t *kicking_ap, dawn_mac_t client_addr, char *neighbor_report);
 void ap_array_insert(ap_t *entry);
+
+
+void create_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid);
+int build_hearing_map_sort_client(struct blob_buf *b);
+int build_network_overview(struct blob_buf *b);
+
 
 void print_ap_array(void);
 void print_ap_entry(ap_t *entry);

@@ -257,11 +257,8 @@ static bool parse_to_auth_request(struct blob_attr *message, auth_entry_t *auth_
 static int ubus_get_clients(void);
 static void ubus_get_clients_cb(struct ubus_request *request, int type, struct blob_attr *message);
 static void ubus_set_neighbor_report(void);
-static int create_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid);
 static int ubus_call_umdns(void);
 static void ubus_umdns_cb(struct ubus_request *request, int type, struct blob_attr *message);
-static int build_hearing_map_sort_client(struct blob_buf *b);
-static int build_network_overview(struct blob_buf *b);
 static void respond_to_notify(uint32_t id);
 static int uci_send_via_network(void);
 static int send_blob_attr_via_network(struct blob_attr *message, char *method);
@@ -428,6 +425,20 @@ int parse_add_mac_to_file(struct blob_attr *message)
     }
 
     return 0;
+}
+
+bool ap_is_local(dawn_mac_t bssid)
+{
+    hostapd_instance_t *sub;
+    bool local = false;
+
+    list_for_each_entry(sub, &hostapd_instance_list, list) {
+        if (dawn_macs_are_equal(bssid, sub->bssid)) {
+            local = true;
+        }
+    }
+
+    return local;
 }
 
 static void uloop_add_data_callbacks(void)
@@ -1037,37 +1048,6 @@ static void ubus_set_neighbor_report(void)
     }
 }
 
-/* TODO: Does all APs constitute neighbor report? How about using list of AP connected
- * clients can also see (from probe_set) to give more (physically) local set? */
-static int create_neighbor_report(struct blob_buf *b_local, dawn_mac_t own_bssid)
-{
-    pthread_mutex_lock(&ap_array_mutex);
-
-    void *neighbors = blobmsg_open_array(b_local, "list");
-
-    for (ap_t *i = ap_set; i != NULL; i = i->next_ap) {
-        if (macs_are_equal_bb(own_bssid, i->bssid)) {
-            /* Hostapd adds own entry neighbor report by itself. */
-            continue;
-        }
-
-        char mac_buf[20];
-        sprintf(mac_buf, MACSTRLOWER, MAC2STR(i->bssid.u8));
-
-        void *neighbor = blobmsg_open_array(b_local, NULL);
-        blobmsg_add_string(b_local, NULL, mac_buf);
-        blobmsg_add_string(b_local, NULL, (char *) i->ssid);
-        blobmsg_add_string(b_local, NULL, i->neighbor_report);
-        blobmsg_close_array(b_local, neighbor);
-    }
-
-    blobmsg_close_array(b_local, neighbors);
-
-    pthread_mutex_unlock(&ap_array_mutex);
-
-    return 0;
-}
-
 static void update_channel_utilization(struct uloop_timeout *t)
 {
     hostapd_instance_t *sub;
@@ -1228,87 +1208,6 @@ static int get_hearing_map(struct ubus_context *context, struct ubus_object *obj
     return err;
 }
 
-static int build_hearing_map_sort_client(struct blob_buf *b)
-{
-    void *client_list, *ap_list, *ssid_list;
-    char ap_mac_buf[20], client_mac_buf[20];
-    bool same_ssid = false;
-
-    print_probe_array();
-    pthread_mutex_lock(&probe_array_mutex);
-
-    blob_buf_init(b, 0);
-
-    for (ap_t *m = ap_set; m != NULL; m = m->next_ap) {
-        /* MUSTDO: Ensure SSID / BSSID ordering.  Lost when switched to linked list! */
-        /* Scan AP list to find first of each SSID */
-        if (!same_ssid) {
-            ssid_list = blobmsg_open_table(b, (char *) m->ssid);
-            probe_entry_t *i = probe_set;
-            while (i != NULL) {
-                ap_t *ap_entry_i = ap_array_get_ap(i->bssid);
-                if (ap_entry_i == NULL) {
-                    i = i->next_probe;
-                    continue;
-                }
-
-                if (strcmp((char *) ap_entry_i->ssid, (char *) m->ssid) != 0) {
-                    i = i->next_probe;
-                    continue;
-                }
-
-                sprintf(client_mac_buf, MACSTR, MAC2STR(i->client_addr.u8));
-                client_list = blobmsg_open_table(b, client_mac_buf);
-                probe_entry_t *k;
-                for (k = i;
-                     k != NULL && macs_are_equal_bb(k->client_addr, i->client_addr);
-                     k = k->next_probe) {
-
-                    ap_t *ap_k = ap_array_get_ap(k->bssid);
-                    if (ap_k == NULL || strcmp((char *) ap_k->ssid, (char *) m->ssid) != 0) {
-                        continue;
-                    }
-
-                    sprintf(ap_mac_buf, MACSTR, MAC2STR(k->bssid.u8));
-                    ap_list = blobmsg_open_table(b, ap_mac_buf);
-                    blobmsg_add_u32(b, "signal", k->signal);
-                    blobmsg_add_u32(b, "rcpi", k->rcpi);
-                    blobmsg_add_u32(b, "rsni", k->rsni);
-                    blobmsg_add_u32(b, "freq", k->freq);
-                    blobmsg_add_u8(b, "ht_capabilities", k->ht_capabilities);
-                    blobmsg_add_u8(b, "vht_capabilities", k->vht_capabilities);
-
-                    /* Check if ap entry is available */
-                    blobmsg_add_u32(b, "channel_utilization", ap_k->channel_utilization);
-                    blobmsg_add_u32(b, "num_sta", ap_k->station_count);
-                    blobmsg_add_u8(b, "ht_support", ap_k->ht_support);
-                    blobmsg_add_u8(b, "vht_support", ap_k->vht_support);
-
-                    blobmsg_add_u32(b, "score", eval_probe_metric(k, ap_k));
-                    blobmsg_close_table(b, ap_list);
-                }
-
-                blobmsg_close_table(b, client_list);
-
-                /* TODO: Change this so that i and k are single loop? */
-                i = k;
-            }
-        }
-
-        if (m->next_ap != NULL && strcmp((char *) m->ssid, (char *) m->next_ap->ssid) != 0) {
-            blobmsg_close_table(b, ssid_list);
-            same_ssid = false;
-        }
-        else {
-            same_ssid = true;
-        }
-    }
-
-    pthread_mutex_unlock(&probe_array_mutex);
-
-    return 0;
-}
-
 static int get_network(struct ubus_context *context, struct ubus_object *object,
                        struct ubus_request_data *request, const char *method,
                        struct blob_attr *message)
@@ -1323,91 +1222,6 @@ static int get_network(struct ubus_context *context, struct ubus_object *object,
     }
 
     return err;
-}
-
-static int build_network_overview(struct blob_buf *b)
-{
-    void *client_list, *ap_list, *ssid_list;
-    char ap_mac_buf[20], client_mac_buf[20];
-    hostapd_instance_t *sub;
-    bool add_ssid = true;
-
-    blob_buf_init(b, 0);
-
-    for (ap_t *m = ap_set; m != NULL; m = m->next_ap) {
-        if (add_ssid) {
-            ssid_list = blobmsg_open_table(b, (char *) m->ssid);
-            add_ssid = false;
-        }
-
-        sprintf(ap_mac_buf, MACSTR, MAC2STR(m->bssid.u8));
-        ap_list = blobmsg_open_table(b, ap_mac_buf);
-
-        blobmsg_add_u32(b, "freq", m->freq);
-        blobmsg_add_u32(b, "channel_utilization", m->channel_utilization);
-        blobmsg_add_u32(b, "num_sta", m->station_count);
-        blobmsg_add_u8(b, "ht_support", m->ht_support);
-        blobmsg_add_u8(b, "vht_support", m->vht_support);
-
-        bool local_ap = false;
-        list_for_each_entry(sub, &hostapd_instance_list, list) {
-            if (macs_are_equal_bb(m->bssid, sub->bssid)) {
-                local_ap = true;
-            }
-        }
-        blobmsg_add_u8(b, "local", local_ap);
-
-        char *neighbor_report;
-        neighbor_report = blobmsg_alloc_string_buffer(b, "neighbor_report", NEIGHBOR_REPORT_LEN);
-        strncpy(neighbor_report, m->neighbor_report, NEIGHBOR_REPORT_LEN);
-        blobmsg_add_string_buffer(b);
-
-        char *iface;
-        iface = blobmsg_alloc_string_buffer(b, "iface", IFNAMSIZ);
-        strncpy(iface, m->iface, IFNAMSIZ);
-        blobmsg_add_string_buffer(b);
-
-        char *hostname;
-        hostname = blobmsg_alloc_string_buffer(b, "hostname", HOST_NAME_MAX);
-        strncpy(hostname, m->hostname, HOST_NAME_MAX);
-        blobmsg_add_string_buffer(b);
-
-        /* TODO: Could optimise this by exporting search func, but not a core process */
-        client_t *k = client_set_bc;
-        while (k != NULL) {
-            if (macs_are_equal_bb(m->bssid, k->bssid)) {
-                sprintf(client_mac_buf, MACSTR, MAC2STR(k->client_addr.u8));
-                client_list = blobmsg_open_table(b, client_mac_buf);
-
-                if (strlen(k->signature) != 0) {
-                    char *s;
-                    s = blobmsg_alloc_string_buffer(b, "signature", 1024);
-                    sprintf(s, "%s", k->signature);
-                    blobmsg_add_string_buffer(b);
-                }
-                blobmsg_add_u8(b, "ht", k->ht);
-                blobmsg_add_u8(b, "vht", k->vht);
-                blobmsg_add_u32(b, "collision_count", ap_get_collision_count(m->collision_domain));
-
-                pthread_mutex_lock(&probe_array_mutex);
-                probe_entry_t *n = probe_array_get_entry(k->bssid, k->client_addr);
-                pthread_mutex_unlock(&probe_array_mutex);
-
-                if (n != NULL) {
-                    blobmsg_add_u32(b, "signal", n->signal);
-                }
-                blobmsg_close_table(b, client_list);
-            }
-            k = k->next_entry_bc;
-        }
-        blobmsg_close_table(b, ap_list);
-
-        if (m->next_ap != NULL && strcmp((char *) m->ssid, (char *) m->next_ap->ssid) != 0) {
-            blobmsg_close_table(b, ssid_list);
-            add_ssid = true;
-        }
-    }
-    return 0;
 }
 
 static int reload_config(struct ubus_context *context, struct ubus_object *object,
