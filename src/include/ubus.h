@@ -20,7 +20,7 @@ extern char dawn_instance_hostname[HOST_NAME_MAX];
 int dawn_run_uloop(void);
 void dawn_reload_config(void);
 
-void ubus_request_beacon_report(struct dawn_mac client, int id);
+void ubus_request_beacon_report(dawn_mac_t client, int id);
 int parse_add_mac_to_file(struct blob_attr *message);
 
 /**
@@ -36,7 +36,7 @@ int ubus_send_probe_via_network(probe_entry_t *probe_entry);
  * @param client_addr
  * @return
  */
-int send_set_probe(struct dawn_mac client_addr);
+int send_set_probe(dawn_mac_t client_addr);
 
 /**
  * Function to tell a client that it is about to be disconnected.
@@ -46,13 +46,13 @@ int send_set_probe(struct dawn_mac client_addr);
  * @param duration
  * @return - 0 = asynchronous (client has been told to remove itself, and caller should manage arrays); 1 = synchronous (caller should assume arrays are updated)
  */
-int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *dest_ap, uint32_t duration);
+int wnm_disassoc_imminent(uint32_t id, dawn_mac_t client_addr, char *dest_ap, uint32_t duration);
 
 /**
  * Send control message to all hosts to add the mac to a don't control list.
  * @param client_addr
  * @return
  */
-int send_add_mac(struct dawn_mac client_addr);
+int send_add_mac(dawn_mac_t client_addr);
 
 #endif /* DAWN_UBUS_H */

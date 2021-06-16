@@ -6,11 +6,11 @@
 #include "dawn_log.h"
 #include "memory_utils.h"
 
-static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
-static int get_rssi(const char *ifname, struct dawn_mac client_addr);
-static int get_expected_throughput(const char *ifname, struct dawn_mac client_addr);
+static bool get_bandwidth(const char *ifname, dawn_mac_t client_addr, float *rx_rate, float *tx_rate);
+static int get_rssi(const char *ifname, dawn_mac_t client_addr);
+static int get_expected_throughput(const char *ifname, dawn_mac_t client_addr);
 
-bool iwinfo_get_bandwidth(struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
+bool iwinfo_get_bandwidth(dawn_mac_t client_addr, float *rx_rate, float *tx_rate)
 {
     bool success = false;
     struct dirent *entry;
@@ -37,7 +37,7 @@ exit:
     return success;
 }
 
-static bool get_bandwidth(const char *ifname, struct dawn_mac client_addr, float *rx_rate, float *tx_rate)
+static bool get_bandwidth(const char *ifname, dawn_mac_t client_addr, float *rx_rate, float *tx_rate)
 {
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
@@ -84,7 +84,7 @@ exit:
     return success;
 }
 
-int iwinfo_get_rssi(struct dawn_mac client_addr)
+int iwinfo_get_rssi(dawn_mac_t client_addr)
 {
     struct dirent *entry;
     int rssi = INT_MIN;
@@ -111,7 +111,7 @@ exit:
     return rssi;
 }
 
-static int get_rssi(const char *ifname, struct dawn_mac client_addr)
+static int get_rssi(const char *ifname, dawn_mac_t client_addr)
 {
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
@@ -155,7 +155,7 @@ exit:
     return rssi;
 }
 
-int iwinfo_get_expected_throughput(struct dawn_mac client_addr)
+int iwinfo_get_expected_throughput(dawn_mac_t client_addr)
 {
     int exp_thr = INT_MIN;
     struct dirent *entry;
@@ -182,7 +182,7 @@ exit:
     return exp_thr;
 }
 
-static int get_expected_throughput(const char *ifname, struct dawn_mac client_addr)
+static int get_expected_throughput(const char *ifname, dawn_mac_t client_addr)
 {
     struct iwinfo_assoclist_entry *e;
     const struct iwinfo_ops *iw;
@@ -226,7 +226,7 @@ exit:
     return throughput;
 }
 
-int iwinfo_get_bssid(const char *ifname, uint8_t *bssid_addr)
+int iwinfo_get_bssid(const char *ifname, uint8_t *bssid)
 {
     const struct iwinfo_ops *iw;
     char buf[18] = "00:00:00:00:00:00";
@@ -239,7 +239,7 @@ int iwinfo_get_bssid(const char *ifname, uint8_t *bssid_addr)
 
     iw->bssid(ifname, buf);
 
-    hwaddr_aton(buf, bssid_addr);
+    hwaddr_aton(buf, bssid);
 
     iwinfo_finish();
 

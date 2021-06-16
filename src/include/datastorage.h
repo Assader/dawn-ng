@@ -84,9 +84,9 @@ extern behaviour_config_t behaviour_config;
 typedef struct probe_entry_s {
     struct probe_entry_s *next_probe;
     struct probe_entry_s *next_probe_skip;
-    struct dawn_mac client_addr;
-    struct dawn_mac bssid_addr;
-    struct dawn_mac target_addr; /* TODO: Never evaluated? */
+    dawn_mac_t client_addr;
+    dawn_mac_t bssid;
+    dawn_mac_t target_addr; /* TODO: Never evaluated? */
     uint32_t signal;
     uint32_t freq;
     uint8_t ht_capabilities;
@@ -99,9 +99,9 @@ typedef struct probe_entry_s {
 
 typedef struct auth_entry_s {
     struct auth_entry_s *next_auth;
-    struct dawn_mac bssid_addr;
-    struct dawn_mac client_addr;
-    struct dawn_mac target_addr; /* TODO: Never evaluated? */
+    dawn_mac_t bssid;
+    dawn_mac_t client_addr;
+    dawn_mac_t target_addr; /* TODO: Never evaluated? */
     uint32_t signal;             /* TODO: Never evaluated? */
     uint32_t freq;               /* TODO: Never evaluated? */
     time_t time;
@@ -111,8 +111,8 @@ typedef struct auth_entry_s {
 typedef auth_entry_t assoc_entry_t;
 
 typedef struct {
-    struct dawn_mac bssid;
-    struct dawn_mac client_addr;
+    dawn_mac_t bssid;
+    dawn_mac_t client_addr;
 } hostapd_notify_entry_t;
 
 enum {
@@ -136,8 +136,8 @@ typedef struct client_s {
     struct client_s *next_entry_bc;
     struct client_s *next_skip_entry_bc;
     struct client_s *next_entry_c;
-    struct dawn_mac bssid;
-    struct dawn_mac client_addr;
+    dawn_mac_t bssid;
+    dawn_mac_t client_addr;
     char signature[SIGNATURE_LEN]; /* TODO: Never evaluated? */
     uint8_t ht_supported;          /* TODO: Never evaluated? */
     uint8_t vht_supported;         /* TODO: Never evaluated? */
@@ -160,7 +160,7 @@ typedef struct client_s {
 
 typedef struct ap_s {
     struct ap_s *next_ap;
-    struct dawn_mac bssid;
+    dawn_mac_t bssid;
     uint8_t ssid[SSID_MAX_LEN];
 
     uint32_t freq;                /* TODO: Never evaluated? */
@@ -185,26 +185,26 @@ extern client_t *client_set_bc;
 extern pthread_mutex_t client_array_mutex;
 
 probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
-probe_entry_t *probe_array_get_entry(struct dawn_mac bssid, struct dawn_mac client_addr);
+probe_entry_t *probe_array_get_entry(dawn_mac_t bssid, dawn_mac_t client_addr);
 void remove_old_probe_entries(time_t current_time, long long int threshold);
 int eval_probe_metric(probe_entry_t *probe_entry, ap_t *ap_entry);
 void denied_req_array_delete(auth_entry_t *entry);
 auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, time_t expiry);
 void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac);
-bool probe_array_update_rcpi_rsni(struct dawn_mac bssid, struct dawn_mac client_addr, uint32_t rcpi, uint32_t rsni, int send_network);
+bool probe_array_update_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rcpi, uint32_t rsni, int send_network);
 void remove_old_client_entries(time_t current_time, long long int threshold);
 client_t *insert_client_to_array(client_t *entry, time_t expiry);
 int kick_clients(ap_t *kicking_ap, uint32_t id);
-void update_iw_info(struct dawn_mac bssid);
-client_t *client_array_get_client(const struct dawn_mac client_addr);
+void update_iw_info(dawn_mac_t bssid);
+client_t *client_array_get_client(dawn_mac_t client_addr);
 client_t *client_array_delete(client_t *entry, int unlink_only);
 ap_t *insert_to_ap_array(ap_t *entry, time_t expiry);
 void remove_old_ap_entries(time_t current_time, long long int threshold);
-ap_t *ap_array_get_ap(struct dawn_mac bssid);
-bool probe_array_set_all_probe_count(struct dawn_mac client_addr, uint32_t probe_count);
+ap_t *ap_array_get_ap(dawn_mac_t bssid);
+bool probe_array_set_all_probe_count(dawn_mac_t client_addr, uint32_t probe_count);
 int ap_get_collision_count(int col_domain);
-void send_beacon_reports(struct dawn_mac bssid, int id);
-int better_ap_available(ap_t *kicking_ap, struct dawn_mac client_addr, char *neighbor_report);
+void send_beacon_reports(dawn_mac_t bssid, int id);
+int better_ap_available(ap_t *kicking_ap, dawn_mac_t client_addr, char *neighbor_report);
 void ap_array_insert(ap_t *entry);
 
 void print_ap_array(void);
@@ -217,8 +217,8 @@ void print_probe_entry(probe_entry_t *entry);
 
 /* Mac */
 void insert_macs_from_file(void);
-bool insert_to_maclist(struct dawn_mac mac);
-bool mac_in_maclist(struct dawn_mac mac);
+bool insert_to_maclist(dawn_mac_t mac);
+bool mac_in_maclist(dawn_mac_t mac);
 
 
 /* All users of datastorage should call init_ / destroy_mutex at initialisation and termination respectively */

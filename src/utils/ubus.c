@@ -80,7 +80,7 @@ typedef struct {
 
     uint32_t id;
     char iface_name[IFNAMSIZ];
-    struct dawn_mac bssid;
+    dawn_mac_t bssid;
     char ssid[SSID_MAX_LEN];
     uint8_t ht_support;
     uint8_t vht_support;
@@ -103,7 +103,7 @@ static LIST_HEAD(hostapd_instance_list);
 char dawn_instance_hostname[HOST_NAME_MAX];
 
 enum {
-    AUTH_BSSID_ADDR,
+    AUTH_BSSID,
     AUTH_CLIENT_ADDR,
     AUTH_TARGET_ADDR,
     AUTH_SIGNAL,
@@ -112,7 +112,7 @@ enum {
 };
 
 static const struct blobmsg_policy auth_policy[__AUTH_MAX] = {
-    [AUTH_BSSID_ADDR] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
+    [AUTH_BSSID] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
     [AUTH_CLIENT_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
     [AUTH_TARGET_ADDR] = {.name = "target", .type = BLOBMSG_TYPE_STRING},
     [AUTH_SIGNAL] = {.name = "signal", .type = BLOBMSG_TYPE_INT32},
@@ -257,7 +257,7 @@ static bool parse_to_auth_request(struct blob_attr *message, auth_entry_t *auth_
 static int ubus_get_clients(void);
 static void ubus_get_clients_cb(struct ubus_request *request, int type, struct blob_attr *message);
 static void ubus_set_neighbor_report(void);
-static int create_neighbor_report(struct blob_buf *b, struct dawn_mac own_bssid);
+static int create_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid);
 static int ubus_call_umdns(void);
 static void ubus_umdns_cb(struct ubus_request *request, int type, struct blob_attr *message);
 static int build_hearing_map_sort_client(struct blob_buf *b);
@@ -265,10 +265,10 @@ static int build_network_overview(struct blob_buf *b);
 static void respond_to_notify(uint32_t id);
 static int uci_send_via_network(void);
 static int send_blob_attr_via_network(struct blob_attr *message, char *method);
-static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr);
+static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, dawn_mac_t addr);
 
-static void del_client_all_interfaces(const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
-static void del_client_interface(uint32_t id, const struct dawn_mac client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
+static void del_client_all_interfaces(dawn_mac_t client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
+static void del_client_interface(uint32_t id, dawn_mac_t client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
 
 int dawn_run_uloop(void)
 {
@@ -318,7 +318,7 @@ void dawn_reload_config(void)
     uci_send_via_network();
 }
 
-void ubus_request_beacon_report(struct dawn_mac client, int id)
+void ubus_request_beacon_report(dawn_mac_t client, int id)
 {
     int err;
 
@@ -338,7 +338,7 @@ void ubus_request_beacon_report(struct dawn_mac client, int id)
     }
 }
 
-int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *dest_ap, uint32_t duration)
+int wnm_disassoc_imminent(uint32_t id, dawn_mac_t client_addr, char *dest_ap, uint32_t duration)
 {
     hostapd_instance_t *sub;
 
@@ -366,7 +366,7 @@ int ubus_send_probe_via_network(probe_entry_t *probe_entry)
 {
     blob_buf_init(&b_probe, 0);
     blobmsg_add_macaddr(&b_probe, "address", probe_entry->client_addr);
-    blobmsg_add_macaddr(&b_probe, "bssid", probe_entry->bssid_addr);
+    blobmsg_add_macaddr(&b_probe, "bssid", probe_entry->bssid);
     blobmsg_add_macaddr(&b_probe, "target", probe_entry->target_addr);
     blobmsg_add_u32(&b_probe, "signal", probe_entry->signal);
     blobmsg_add_u32(&b_probe, "freq", probe_entry->freq);
@@ -380,7 +380,7 @@ int ubus_send_probe_via_network(probe_entry_t *probe_entry)
     return 0;
 }
 
-int send_set_probe(struct dawn_mac client_addr)
+int send_set_probe(dawn_mac_t client_addr)
 {
     blob_buf_init(&b_probe, 0);
     blobmsg_add_macaddr(&b_probe, "bssid", client_addr);
@@ -391,7 +391,7 @@ int send_set_probe(struct dawn_mac client_addr)
     return 0;
 }
 
-int send_add_mac(struct dawn_mac client_addr)
+int send_add_mac(dawn_mac_t client_addr)
 {
     blob_buf_init(&b, 0);
     blobmsg_add_macaddr(&b, "addr", client_addr);
@@ -416,7 +416,7 @@ int parse_add_mac_to_file(struct blob_attr *message)
     DAWN_LOG_DEBUG("Length of array maclist: %d", len);
 
     __blob_for_each_attr(attr, blobmsg_data(tb[MAC_ADDR]), len) {
-        struct dawn_mac addr;
+        dawn_mac_t addr;
 
         hwaddr_aton(blobmsg_data(attr), addr.u8);
 
@@ -668,7 +668,7 @@ static int handle_auth_request(struct blob_attr *message)
     if (!mac_in_maclist(auth_req->client_addr)) {
         pthread_mutex_lock(&probe_array_mutex);
 
-        probe_entry_t *tmp = probe_array_get_entry(auth_req->bssid_addr, auth_req->client_addr);
+        probe_entry_t *tmp = probe_array_get_entry(auth_req->bssid, auth_req->client_addr);
 
         pthread_mutex_unlock(&probe_array_mutex);
 
@@ -723,7 +723,7 @@ static int handle_assoc_request(struct blob_attr *message)
     if (!mac_in_maclist(assoc_req->client_addr)) {
         pthread_mutex_lock(&probe_array_mutex);
 
-        probe_entry_t *tmp = probe_array_get_entry(assoc_req->bssid_addr, assoc_req->client_addr);
+        probe_entry_t *tmp = probe_array_get_entry(assoc_req->bssid, assoc_req->client_addr);
 
         pthread_mutex_unlock(&probe_array_mutex);
 
@@ -785,7 +785,7 @@ static bool proceed_operation(probe_entry_t *request, int request_type)
         return true;
     }
 
-    ap_t *this_ap = ap_array_get_ap(request->bssid_addr);
+    ap_t *this_ap = ap_array_get_ap(request->bssid);
     if (this_ap != NULL && better_ap_available(this_ap, request->client_addr, NULL)) {
         return false;
     }
@@ -865,7 +865,7 @@ static void ubus_get_own_neighbor_report_cb(struct ubus_request *request, int ty
 static int parse_to_beacon_rep(struct blob_attr *message)
 {
     struct blob_attr *tb[__BEACON_REP_MAX];
-    struct dawn_mac msg_bssid, msg_client;
+    dawn_mac_t msg_bssid, msg_client;
 
     blobmsg_parse(beacon_rep_policy, __BEACON_REP_MAX, tb, blob_data(message), blob_len(message));
 
@@ -900,7 +900,7 @@ static int parse_to_beacon_rep(struct blob_attr *message)
         }
 
         beacon_rep->next_probe = NULL;
-        beacon_rep->bssid_addr = msg_bssid;
+        beacon_rep->bssid = msg_bssid;
         beacon_rep->client_addr = msg_client;
         beacon_rep->counter = behaviour_config.min_probe_count;
         beacon_rep->target_addr = msg_client;
@@ -936,11 +936,11 @@ static bool parse_to_auth_request(struct blob_attr *message, auth_entry_t *auth_
 
     blobmsg_parse(auth_policy, __AUTH_MAX, tb, blob_data(message), blob_len(message));
 
-    if (!tb[AUTH_BSSID_ADDR] || !tb[AUTH_CLIENT_ADDR] || !tb[AUTH_TARGET_ADDR]) {
+    if (!tb[AUTH_BSSID] || !tb[AUTH_CLIENT_ADDR] || !tb[AUTH_TARGET_ADDR]) {
         goto exit;
     }
 
-    err = hwaddr_aton(blobmsg_data(tb[AUTH_BSSID_ADDR]), auth_request->bssid_addr.u8);
+    err = hwaddr_aton(blobmsg_data(tb[AUTH_BSSID]), auth_request->bssid.u8);
     err |= hwaddr_aton(blobmsg_data(tb[AUTH_CLIENT_ADDR]), auth_request->client_addr.u8);
     err |= hwaddr_aton(blobmsg_data(tb[AUTH_TARGET_ADDR]), auth_request->target_addr.u8);
 
@@ -1039,7 +1039,7 @@ static void ubus_set_neighbor_report(void)
 
 /* TODO: Does all APs constitute neighbor report? How about using list of AP connected
  * clients can also see (from probe_set) to give more (physically) local set? */
-static int create_neighbor_report(struct blob_buf *b_local, struct dawn_mac own_bssid)
+static int create_neighbor_report(struct blob_buf *b_local, dawn_mac_t own_bssid)
 {
     pthread_mutex_lock(&ap_array_mutex);
 
@@ -1100,7 +1100,7 @@ static void update_beacon_reports(struct uloop_timeout *t)
 }
 
 static void __attribute__((__unused__)) del_client_all_interfaces(
-        const struct dawn_mac client_addr, uint32_t reason,
+        dawn_mac_t client_addr, uint32_t reason,
         uint8_t deauth, uint32_t ban_time)
 {
     hostapd_instance_t *sub;
@@ -1117,7 +1117,7 @@ static void __attribute__((__unused__)) del_client_all_interfaces(
 }
 
 static void __attribute__((__unused__)) del_client_interface(
-        uint32_t id, const struct dawn_mac client_addr, uint32_t reason,
+        uint32_t id, dawn_mac_t client_addr, uint32_t reason,
         uint8_t deauth, uint32_t ban_time)
 {
     hostapd_instance_t *sub;
@@ -1246,7 +1246,7 @@ static int build_hearing_map_sort_client(struct blob_buf *b)
             ssid_list = blobmsg_open_table(b, (char *) m->ssid);
             probe_entry_t *i = probe_set;
             while (i != NULL) {
-                ap_t *ap_entry_i = ap_array_get_ap(i->bssid_addr);
+                ap_t *ap_entry_i = ap_array_get_ap(i->bssid);
                 if (ap_entry_i == NULL) {
                     i = i->next_probe;
                     continue;
@@ -1264,12 +1264,12 @@ static int build_hearing_map_sort_client(struct blob_buf *b)
                      k != NULL && macs_are_equal_bb(k->client_addr, i->client_addr);
                      k = k->next_probe) {
 
-                    ap_t *ap_k = ap_array_get_ap(k->bssid_addr);
+                    ap_t *ap_k = ap_array_get_ap(k->bssid);
                     if (ap_k == NULL || strcmp((char *) ap_k->ssid, (char *) m->ssid) != 0) {
                         continue;
                     }
 
-                    sprintf(ap_mac_buf, MACSTR, MAC2STR(k->bssid_addr.u8));
+                    sprintf(ap_mac_buf, MACSTR, MAC2STR(k->bssid.u8));
                     ap_list = blobmsg_open_table(b, ap_mac_buf);
                     blobmsg_add_u32(b, "signal", k->signal);
                     blobmsg_add_u32(b, "rcpi", k->rcpi);
@@ -1537,7 +1537,7 @@ static int send_blob_attr_via_network(struct blob_attr *message, char *method)
     return err;
 }
 
-static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, const struct dawn_mac addr)
+static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, dawn_mac_t addr)
 {
     char *s;
 

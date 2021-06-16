@@ -13,7 +13,7 @@
  * @param client_addr - mac adress of the client
  * @return The RSSI of the client if successful. INT_MIN if client was not found.
  */
-int iwinfo_get_rssi(struct dawn_mac client_addr);
+int iwinfo_get_rssi(dawn_mac_t client_addr);
 
 /**
  * Get expected throughut using the mac adress of the client.
@@ -24,7 +24,7 @@ int iwinfo_get_rssi(struct dawn_mac client_addr);
  * + INT_MIN if client was not found.
  * + 0 if the client is not supporting this feature.
  */
-int iwinfo_get_expected_throughput(struct dawn_mac client_addr);
+int iwinfo_get_expected_throughput(dawn_mac_t client_addr);
 
 /**
  * Get rx and tx bandwidth using the mac of the client.
@@ -34,9 +34,9 @@ int iwinfo_get_expected_throughput(struct dawn_mac client_addr);
  * @param tx_rate - float pointer for returning the tx rate
  * @return true if successful, false otherwise.
  */
-bool iwinfo_get_bandwidth(struct dawn_mac client_addr, float *rx_rate, float *tx_rate);
+bool iwinfo_get_bandwidth(dawn_mac_t client_addr, float *rx_rate, float *tx_rate);
 
-int iwinfo_get_bssid(const char *ifname, uint8_t *bssid_addr);
+int iwinfo_get_bssid(const char *ifname, uint8_t *bssid);
 int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax);
 int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy);
 bool iwinfo_ht_supported(const char *ifname);

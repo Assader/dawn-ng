@@ -13,9 +13,9 @@
 #define MACSTRLOWER "%02x:%02x:%02x:%02x:%02x:%02x"
 
 /* Simplify some handling of MAC addresses */
-struct __attribute__((__packed__)) dawn_mac {
+typedef struct {
     uint8_t u8[ETH_ALEN];
-};
+} dawn_mac_t;
 
 /* Compare a raw MAC address to 00:00:00:00:00:00 */
 #define mac_is_null(addr) (memcmp(addr.u8, (uint8_t []) {0, 0, 0, 0, 0, 0}, ETH_ALEN) == 0)
@@ -40,6 +40,6 @@ int hwaddr_aton(const char *txt, uint8_t *addr);
  * @param path
  * @param addr
  */
-void write_mac_to_file(const char *path, struct dawn_mac addr);
+void write_mac_to_file(const char *path, dawn_mac_t addr);
 
 #endif /* DAWN_MAC_UTILS_H */

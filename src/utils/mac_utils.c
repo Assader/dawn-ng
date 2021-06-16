@@ -53,7 +53,7 @@ int hwaddr_aton(const char *txt, uint8_t *addr)
     return 0;
 }
 
-void write_mac_to_file(const char *path, struct dawn_mac addr)
+void write_mac_to_file(const char *path, dawn_mac_t addr)
 {
     FILE *f = fopen(path, "a");
     if (f == NULL) {

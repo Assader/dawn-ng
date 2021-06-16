@@ -21,18 +21,18 @@ static const struct blobmsg_policy network_policy[__NETWORK_MAX] = {
 };
 
 enum {
-    HOSTAPD_NOTIFY_BSSID_ADDR,
+    HOSTAPD_NOTIFY_BSSID,
     HOSTAPD_NOTIFY_CLIENT_ADDR,
     __HOSTAPD_NOTIFY_MAX,
 };
 
 static const struct blobmsg_policy hostapd_notify_policy[__HOSTAPD_NOTIFY_MAX] = {
-    [HOSTAPD_NOTIFY_BSSID_ADDR] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
+    [HOSTAPD_NOTIFY_BSSID] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
     [HOSTAPD_NOTIFY_CLIENT_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
 };
 
 enum {
-    PROBE_BSSID_ADDR,
+    PROBE_BSSID,
     PROBE_CLIENT_ADDR,
     PROBE_TARGET_ADDR,
     PROBE_SIGNAL,
@@ -45,7 +45,7 @@ enum {
 };
 
 static const struct blobmsg_policy probe_policy[__PROBE_MAX] = {
-    [PROBE_BSSID_ADDR] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
+    [PROBE_BSSID] = {.name = "bssid", .type = BLOBMSG_TYPE_STRING},
     [PROBE_CLIENT_ADDR] = {.name = "address", .type = BLOBMSG_TYPE_STRING},
     [PROBE_TARGET_ADDR] = {.name = "target", .type = BLOBMSG_TYPE_STRING},
     [PROBE_SIGNAL] = {.name = "signal", .type = BLOBMSG_TYPE_INT32},
@@ -131,7 +131,7 @@ static uint8_t dump_rrm_table(struct blob_attr *head, int len);
 static uint8_t dump_rrm_data(void *data, int len, int type);
 static int dump_client_table(struct blob_attr *head, int len, const char *bssid,
                              uint32_t freq, uint8_t ht_supported, uint8_t vht_supported);
-static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
+static void dump_client(struct blob_attr **tb, dawn_mac_t client_addr,
                         const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
                         uint8_t vht_supported);
 
@@ -232,11 +232,11 @@ probe_entry_t *handle_hostapd_probe_request(struct blob_attr *message)
 
     blobmsg_parse(probe_policy, __PROBE_MAX, tb, blob_data(message), blob_len(message));
 
-    if (!tb[PROBE_BSSID_ADDR] || !tb[PROBE_CLIENT_ADDR] || !tb[PROBE_TARGET_ADDR]) {
+    if (!tb[PROBE_BSSID] || !tb[PROBE_CLIENT_ADDR] || !tb[PROBE_TARGET_ADDR]) {
         goto error;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[PROBE_BSSID_ADDR]), probe_req->bssid_addr.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[PROBE_BSSID]), probe_req->bssid.u8)) {
         goto error;
     }
 
@@ -416,11 +416,11 @@ static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entr
 
     blobmsg_parse(hostapd_notify_policy, __HOSTAPD_NOTIFY_MAX, tb, blob_data(message), blob_len(message));
 
-    if (!tb[HOSTAPD_NOTIFY_BSSID_ADDR] || !tb[HOSTAPD_NOTIFY_CLIENT_ADDR]) {
+    if (!tb[HOSTAPD_NOTIFY_BSSID] || !tb[HOSTAPD_NOTIFY_CLIENT_ADDR]) {
         return false;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID_ADDR]), notify_req->bssid.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID]), notify_req->bssid.u8)) {
         return false;
     }
 
@@ -444,7 +444,7 @@ static int dump_client_table(struct blob_attr *head, int len, const char *bssid,
         blobmsg_parse(client_policy, __CLIENT_MAX, tb, blobmsg_data(attr), blobmsg_len(attr));
 
         int tmp_int_mac[ETH_ALEN];
-        struct dawn_mac tmp_mac;
+        dawn_mac_t tmp_mac;
         sscanf((char *) hdr->name, MACSTR, STR2MAC(tmp_int_mac));
         for (int i = 0; i < ETH_ALEN; ++i) {
             tmp_mac.u8[i] = (uint8_t) tmp_int_mac[i];
@@ -458,7 +458,7 @@ static int dump_client_table(struct blob_attr *head, int len, const char *bssid,
 }
 
 /* TOOD: Refactor this! */
-static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
+static void dump_client(struct blob_attr **tb, dawn_mac_t client_addr,
                         const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
                         uint8_t vht_supported)
 {
