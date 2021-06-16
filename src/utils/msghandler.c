@@ -443,12 +443,8 @@ static int dump_client_table(struct blob_attr *head, int len, const char *bssid,
 
         blobmsg_parse(client_policy, __CLIENT_MAX, tb, blobmsg_data(attr), blobmsg_len(attr));
 
-        int tmp_int_mac[ETH_ALEN];
         dawn_mac_t tmp_mac;
-        sscanf((char *) hdr->name, MACSTR, STR2MAC(tmp_int_mac));
-        for (int i = 0; i < ETH_ALEN; ++i) {
-            tmp_mac.u8[i] = (uint8_t) tmp_int_mac[i];
-        }
+        sscanf((char *) hdr->name, DAWNMACSTR, STR2MAC(tmp_mac.u8));
 
         dump_client(tb, tmp_mac, bssid, freq, ht_supported, vht_supported);
         ++station_count;
