@@ -682,13 +682,13 @@ probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_8
 {
     pthread_mutex_lock(&probe_array_mutex);
 
-    entry->time = expiry;
+    entry->expiry = expiry;
 
     /* TODO: Add a packed / unpacked wrapper pair? */
     probe_entry_t **existing_entry = probe_array_find_first_entry(entry->client_addr, entry->bssid, true);
 
     if (*existing_entry != NULL) {
-        (*existing_entry)->time = expiry;
+        (*existing_entry)->expiry = expiry;
 
         if (inc_counter) {
             (*existing_entry)->counter++;
@@ -745,7 +745,7 @@ ap_t *insert_to_ap_array(ap_t *entry, time_t expiry)
         ap_array_delete(old_entry);
     }
 
-    entry->time = expiry;
+    entry->expiry = expiry;
 
     ap_array_insert(entry);
 
@@ -835,7 +835,7 @@ void remove_old_client_entries(time_t current_time, long long int threshold)
     pthread_mutex_lock(&client_array_mutex);
 
     for (client_t **next_client = &client_set_bc; *next_client != NULL;) {
-        if (current_time > (*next_client)->time + threshold) {
+        if (current_time > (*next_client)->expiry + threshold) {
             client_array_unlink_entry(next_client, false);
         }
         else {
@@ -848,12 +848,12 @@ void remove_old_client_entries(time_t current_time, long long int threshold)
     pthread_mutex_unlock(&client_array_mutex);
 }
 
-void remove_old_probe_entries(time_t current_time, long long int threshold)
+void remove_old_probe_entries(time_t current_time, uint32_t threshold)
 {
     pthread_mutex_lock(&probe_array_mutex);
 
     for (probe_entry_t **next_probe = &probe_set; *next_probe != NULL;) {
-        if ((current_time > (*next_probe)->time + threshold) &&
+        if (current_time > (*next_probe)->expiry + threshold &&
                 !is_connected((*next_probe)->bssid, (*next_probe)->client_addr)) {
             probe_array_unlink_next(next_probe);
         }
@@ -870,7 +870,7 @@ void remove_old_ap_entries(time_t current_time, long long int threshold)
     pthread_mutex_unlock(&ap_array_mutex);
 
     for (ap_t **next_ap = &ap_set; *next_ap != NULL;) {
-        if (current_time > (*next_ap)->time + threshold) {
+        if (current_time > (*next_ap)->expiry + threshold) {
             ap_array_unlink_next(next_ap);
         }
         else {
@@ -887,7 +887,7 @@ void remove_old_denied_req_entries(time_t current_time, long long int threshold,
 
     for (auth_entry_t **i = &denied_req_set; *i != NULL;) {
         /* Check counter. Check timer */
-        if (current_time > (*i)->time + threshold) {
+        if (current_time > (*i)->expiry + threshold) {
             /* Client is not connected for a given time threshold! */
             if (logmac && !is_connected_somehwere((*i)->client_addr)) {
                 DAWN_LOG_WARNING("Client probably has a bad driver");
@@ -920,12 +920,12 @@ client_t *insert_client_to_array(client_t *entry, time_t expiry)
 
     if (*client_tmp == NULL) {
         entry->kick_count = 0;
-        entry->time = expiry;
+        entry->expiry = expiry;
         client_array_insert(entry, client_tmp);
         ret = entry;
     }
     else {
-        (*client_tmp)->time = expiry;
+        (*client_tmp)->expiry = expiry;
     }
 
     pthread_mutex_unlock(&client_array_mutex);
@@ -1018,13 +1018,13 @@ auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, t
 
     if ((*i) != NULL) {
         entry = *i;
-        entry->time = expiry;
+        entry->expiry = expiry;
         if (inc_counter) {
             entry->counter++;
         }
     }
     else {
-        entry->time = expiry;
+        entry->expiry = expiry;
         if (inc_counter) {
             entry->counter++;
         }

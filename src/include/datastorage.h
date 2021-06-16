@@ -12,6 +12,25 @@
 #include "mac_utils.h"
 
 typedef struct {
+    int network_proto;
+    char network_ip[INET_ADDRSTRLEN];
+    uint16_t network_port;
+    int use_encryption;
+    int log_level;
+    char hostapd_dir[64];
+} general_config_t;
+
+typedef struct {
+    uint32_t update_client;
+    uint32_t update_tcp_con;
+    uint32_t update_chan_util;
+    uint32_t update_beacon_reports;
+    uint32_t remove_probe;
+    uint32_t remove_ap;
+    uint32_t denied_req_threshold;
+} time_intervals_config_t;
+
+typedef struct {
     int ap_weight;
     int ht_support;
     int vht_support;
@@ -47,33 +66,10 @@ typedef struct {
     int scan_channel;
 } behaviour_config_t;
 
-typedef struct {
-    uint32_t update_client;
-    uint32_t update_tcp_con;
-    uint32_t update_chan_util;
-    uint32_t update_beacon_reports;
-    uint32_t remove_probe;
-    uint32_t remove_ap;
-    uint32_t denied_req_threshold;
-} time_intervals_config_t;
-
-typedef struct {
-    int network_proto;
-    char network_ip[INET_ADDRSTRLEN];
-    uint16_t network_port;
-    int use_encryption;
-    int log_level;
-    char hostapd_dir[64];
-} general_config_t;
-
 extern general_config_t general_config;
 extern time_intervals_config_t time_intervals_config;
 extern metric_config_t metric_config;
 extern behaviour_config_t behaviour_config;
-
-/*** Core DAWN data structures for tracking network devices and status ***/
-/* Define this to remove printing / reporing of fields, and hence observe
- * which fields are evaluated in use at compile time. */
 
 /* TODO notes:
  * Never used? = No code reference
@@ -93,7 +89,7 @@ typedef struct probe_entry_s {
     uint8_t vht_capabilities;
     uint32_t rcpi;
     uint32_t rsni;
-    uint32_t time;
+    time_t expiry;
     int counter;
 } probe_entry_t;
 
@@ -104,7 +100,7 @@ typedef struct auth_entry_s {
     dawn_mac_t target_addr; /* TODO: Never evaluated? */
     uint32_t signal;             /* TODO: Never evaluated? */
     uint32_t freq;               /* TODO: Never evaluated? */
-    time_t time;
+    time_t expiry;
     int counter;
 } auth_entry_t;
 
@@ -153,7 +149,7 @@ typedef struct client_s {
     uint8_t wps;                   /* TODO: Never evaluated? */
     uint8_t mfp;                   /* TODO: Never evaluated? */
     uint32_t aid;                  /* TODO: Never evaluated? */
-    time_t time;
+    time_t expiry;
     uint32_t kick_count;
     uint8_t rrm_enabled_capa;
 } client_t;
@@ -164,11 +160,11 @@ typedef struct ap_s {
     uint8_t ssid[SSID_MAX_LEN];
 
     uint32_t freq;                /* TODO: Never evaluated? */
-    uint8_t ht_support;           /* eval_probe_metric() */
-    uint8_t vht_support;          /* eval_probe_metric() */
-    uint32_t channel_utilization; /* eval_probe_metric() */
-    time_t time;
-    uint32_t station_count;       /* compare_station_count() <- better_ap_available() */
+    uint8_t ht_support;
+    uint8_t vht_support;
+    uint32_t channel_utilization;
+    time_t expiry;
+    uint32_t station_count;
 
     char neighbor_report[NEIGHBOR_REPORT_LEN];
     uint32_t collision_domain; /* TODO: ap_get_collision_count() never evaluated? */
@@ -186,7 +182,7 @@ extern pthread_mutex_t client_array_mutex;
 
 probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
 probe_entry_t *probe_array_get_entry(dawn_mac_t bssid, dawn_mac_t client_addr);
-void remove_old_probe_entries(time_t current_time, long long int threshold);
+void remove_old_probe_entries(time_t current_time, uint32_t threshold);
 int eval_probe_metric(probe_entry_t *probe_entry, ap_t *ap_entry);
 void denied_req_array_delete(auth_entry_t *entry);
 auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, time_t expiry);
@@ -219,7 +215,6 @@ void print_probe_entry(probe_entry_t *entry);
 void insert_macs_from_file(void);
 bool insert_to_maclist(dawn_mac_t mac);
 bool mac_in_maclist(dawn_mac_t mac);
-
 
 /* All users of datastorage should call init_ / destroy_mutex at initialisation and termination respectively */
 bool init_mutex(void);
