@@ -129,7 +129,7 @@ static int handle_uci_config(struct blob_attr *message);
 static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry_t *notify_req);
 static uint8_t dump_rrm_table(struct blob_attr *head, int len);
 static uint8_t dump_rrm_data(void *data, int len, int type);
-static int dump_client_table(struct blob_attr *head, int len, const char *bssid_addr,
+static int dump_client_table(struct blob_attr *head, int len, const char *bssid,
                              uint32_t freq, uint8_t ht_supported, uint8_t vht_supported);
 static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
                         const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
@@ -297,7 +297,7 @@ int handle_hostapd_deauth_request(struct blob_attr *msg)
     client_t *client_entry = client_array_get_client(notify_req.client_addr);
     if (client_entry != NULL) {
         DAWN_LOG_INFO("Client " MACSTR " deauth from " MACSTR,
-                      MAC2STR(client_entry->client_addr.u8), MAC2STR(client_entry->bssid_addr.u8));
+                      MAC2STR(client_entry->client_addr.u8), MAC2STR(client_entry->bssid.u8));
         client_array_delete(client_entry, false);
     }
 
@@ -334,7 +334,7 @@ bool handle_hostapd_clients_message(struct blob_attr *message, int do_kick, uint
         goto exit;
     }
 
-    hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid_addr.u8);
+    hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid.u8);
     ap_entry->freq = blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]);
 
     if (tb[CLIENT_TABLE_HT]) {
@@ -392,7 +392,7 @@ bool handle_hostapd_clients_message(struct blob_attr *message, int do_kick, uint
     insert_to_ap_array(ap_entry, time(NULL));
 
     if (do_kick && behaviour_config.kicking) {
-        update_iw_info(ap_entry->bssid_addr);
+        update_iw_info(ap_entry->bssid);
         kick_clients(ap_entry, id);
     }
 
@@ -420,7 +420,7 @@ static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entr
         return false;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID_ADDR]), notify_req->bssid_addr.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID_ADDR]), notify_req->bssid.u8)) {
         return false;
     }
 
@@ -431,7 +431,7 @@ static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entr
     return true;
 }
 
-static int dump_client_table(struct blob_attr *head, int len, const char *bssid_addr,
+static int dump_client_table(struct blob_attr *head, int len, const char *bssid,
                              uint32_t freq, uint8_t ht_supported, uint8_t vht_supported)
 {
     struct blob_attr *tb[__CLIENT_MAX], *attr;
@@ -450,7 +450,7 @@ static int dump_client_table(struct blob_attr *head, int len, const char *bssid_
             tmp_mac.u8[i] = (uint8_t) tmp_int_mac[i];
         }
 
-        dump_client(tb, tmp_mac, bssid_addr, freq, ht_supported, vht_supported);
+        dump_client(tb, tmp_mac, bssid, freq, ht_supported, vht_supported);
         ++station_count;
     }
 
@@ -470,7 +470,7 @@ static void dump_client(struct blob_attr **tb, struct dawn_mac client_addr,
         return;
     }
 
-    hwaddr_aton(bssid_addr, client_entry->bssid_addr.u8);
+    hwaddr_aton(bssid_addr, client_entry->bssid.u8);
     client_entry->client_addr = client_addr;
     client_entry->freq = freq;
     client_entry->ht_supported = ht_supported;

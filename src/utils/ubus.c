@@ -168,6 +168,7 @@ static const struct blobmsg_policy dawn_umdns_policy[__DAWN_UMDNS_MAX] = {
     [DAWN_UMDNS_PORT] = {.name = "port", .type = BLOBMSG_TYPE_INT32},
 };
 
+/* RRM is for Radio Resource Management. */
 enum {
     RRM_ARRAY,
     __RRM_MAX,
@@ -361,7 +362,6 @@ int wnm_disassoc_imminent(uint32_t id, const struct dawn_mac client_addr, char *
     return 0;
 }
 
-/* TODO: ADD STUFF HERE!!! */
 int ubus_send_probe_via_network(probe_entry_t *probe_entry)
 {
     blob_buf_init(&b_probe, 0);
@@ -370,12 +370,10 @@ int ubus_send_probe_via_network(probe_entry_t *probe_entry)
     blobmsg_add_macaddr(&b_probe, "target", probe_entry->target_addr);
     blobmsg_add_u32(&b_probe, "signal", probe_entry->signal);
     blobmsg_add_u32(&b_probe, "freq", probe_entry->freq);
-
-    blobmsg_add_u32(&b_probe, "rcpi", probe_entry->rcpi);
-    blobmsg_add_u32(&b_probe, "rsni", probe_entry->rsni);
-
     blobmsg_add_u32(&b_probe, "ht_capabilities", probe_entry->ht_capabilities);
     blobmsg_add_u32(&b_probe, "vht_capabilities", probe_entry->vht_capabilities);
+    blobmsg_add_u32(&b_probe, "rcpi", probe_entry->rcpi);
+    blobmsg_add_u32(&b_probe, "rsni", probe_entry->rsni);
 
     send_blob_attr_via_network(b_probe.head, "probe");
 
@@ -422,7 +420,7 @@ int parse_add_mac_to_file(struct blob_attr *message)
 
         hwaddr_aton(blobmsg_data(attr), addr.u8);
 
-        if (insert_to_maclist(addr) == 0) {
+        if (insert_to_maclist(addr)) {
             /* TODO: File can grow arbitarily large.  Resource consumption risk. */
             /* TODO: Consolidate use of file across source: shared resource for name, single point of access? */
             write_mac_to_file("/tmp/dawn_mac_list", addr);
@@ -1048,13 +1046,13 @@ static int create_neighbor_report(struct blob_buf *b_local, struct dawn_mac own_
     void *neighbors = blobmsg_open_array(b_local, "list");
 
     for (ap_t *i = ap_set; i != NULL; i = i->next_ap) {
-        if (macs_are_equal_bb(own_bssid, i->bssid_addr)) {
+        if (macs_are_equal_bb(own_bssid, i->bssid)) {
             /* Hostapd adds own entry neighbor report by itself. */
             continue;
         }
 
         char mac_buf[20];
-        sprintf(mac_buf, MACSTRLOWER, MAC2STR(i->bssid_addr.u8));
+        sprintf(mac_buf, MACSTRLOWER, MAC2STR(i->bssid.u8));
 
         void *neighbor = blobmsg_open_array(b_local, NULL);
         blobmsg_add_string(b_local, NULL, mac_buf);
@@ -1342,7 +1340,7 @@ static int build_network_overview(struct blob_buf *b)
             add_ssid = false;
         }
 
-        sprintf(ap_mac_buf, MACSTR, MAC2STR(m->bssid_addr.u8));
+        sprintf(ap_mac_buf, MACSTR, MAC2STR(m->bssid.u8));
         ap_list = blobmsg_open_table(b, ap_mac_buf);
 
         blobmsg_add_u32(b, "freq", m->freq);
@@ -1353,7 +1351,7 @@ static int build_network_overview(struct blob_buf *b)
 
         bool local_ap = false;
         list_for_each_entry(sub, &hostapd_instance_list, list) {
-            if (macs_are_equal_bb(m->bssid_addr, sub->bssid)) {
+            if (macs_are_equal_bb(m->bssid, sub->bssid)) {
                 local_ap = true;
             }
         }
@@ -1377,7 +1375,7 @@ static int build_network_overview(struct blob_buf *b)
         /* TODO: Could optimise this by exporting search func, but not a core process */
         client_t *k = client_set_bc;
         while (k != NULL) {
-            if (macs_are_equal_bb(m->bssid_addr, k->bssid_addr)) {
+            if (macs_are_equal_bb(m->bssid, k->bssid)) {
                 sprintf(client_mac_buf, MACSTR, MAC2STR(k->client_addr.u8));
                 client_list = blobmsg_open_table(b, client_mac_buf);
 
@@ -1392,7 +1390,7 @@ static int build_network_overview(struct blob_buf *b)
                 blobmsg_add_u32(b, "collision_count", ap_get_collision_count(m->collision_domain));
 
                 pthread_mutex_lock(&probe_array_mutex);
-                probe_entry_t *n = probe_array_get_entry(k->bssid_addr, k->client_addr);
+                probe_entry_t *n = probe_array_get_entry(k->bssid, k->client_addr);
                 pthread_mutex_unlock(&probe_array_mutex);
 
                 if (n != NULL) {

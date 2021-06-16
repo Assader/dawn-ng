@@ -10,29 +10,21 @@
 #include "msghandler.h"
 #include "ubus.h"
 
-#ifndef BIT
-#define BIT(x) (1u << (x))
-#endif
-
 general_config_t general_config;
 time_intervals_config_t time_intervals_config;
 metric_config_t metric_config;
 behaviour_config_t behaviour_config;
 
+/* hostapd: ieee802_11_defs.h. */
 enum {
-    WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE = BIT(4),
-    WLAN_RRM_CAPS_BEACON_REPORT_ACTIVE = BIT(5),
-    WLAN_RRM_CAPS_BEACON_REPORT_TABLE = BIT(6),
+    WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE = 1 << 4,
+    WLAN_RRM_CAPS_BEACON_REPORT_ACTIVE = 1 << 5,
+    WLAN_RRM_CAPS_BEACON_REPORT_TABLE = 1 << 6,
 };
 
-static bool kick_client(ap_t *kicking_ap, client_t *client_entry, char *neighbor_report);
-static void print_ap_entry(ap_t *entry);
-static bool is_connected(struct dawn_mac bssid_mac, struct dawn_mac client_mac);
-static bool compare_station_count(ap_t *ap_entry_own, ap_t *ap_entry_to_compare, struct dawn_mac client_addr);
-
-auth_entry_t *denied_req_set;
-int denied_req_last;
-pthread_mutex_t denied_array_mutex;
+static int denied_req_last;
+static auth_entry_t *denied_req_set;
+static pthread_mutex_t denied_array_mutex;
 
 /* Ratio of skiping entries to all entries.
  * Approx sqrt() of large data set, and power of 2 for efficient division when adding entries. */
@@ -59,9 +51,13 @@ client_t *client_set_c;  /* Ordered by client MAC only */
 static int client_entry_last;
 pthread_mutex_t client_array_mutex;
 
-/* TODO: How big does this get? */
-struct mac_entry_s *mac_set;
-int mac_set_last;
+typedef struct mac_entry_s {
+    struct mac_entry_s *next_mac;
+    struct dawn_mac mac;
+} mac_entry_t;
+
+static mac_entry_t *mac_set;
+static int mac_set_last;
 
 /* Used as a filler where a value is required but not used functionally */
 static const struct dawn_mac dawn_mac_null = {.u8 = {0, 0, 0, 0, 0, 0}};
@@ -77,16 +73,20 @@ static inline client_t **client_skip_array_find_first_entry(
         struct dawn_mac client_mac, struct dawn_mac bssid, bool check_bssid);
 static inline client_t **client_find_first_c_entry(struct dawn_mac client_mac);
 static inline auth_entry_t **auth_entry_find_first_entry(struct dawn_mac bssid, struct dawn_mac client_mac);
-static inline struct mac_entry_s **mac_find_first_entry(struct dawn_mac mac);
+static inline mac_entry_t **mac_find_first_entry(struct dawn_mac mac);
 static bool is_connected_somehwere(struct dawn_mac client_addr);
 static client_t *insert_to_client_bc_skip_array(client_t *entry);
 static void client_array_insert(client_t *entry, client_t **insert_pos);
 static client_t *client_array_unlink_entry(client_t **ref_bc, int unlink_only);
 static void probe_array_unlink_next(probe_entry_t **i);
-static bool probe_array_update_rssi(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rssi, int send_network);
+static bool probe_array_update_rssi(struct dawn_mac bssid, struct dawn_mac client_addr, uint32_t rssi, int send_network);
 static void insert_to_skip_array(probe_entry_t *entry);
 static void ap_array_unlink_next(ap_t **i);
 static bool ap_array_delete(ap_t *entry);
+mac_entry_t *insert_to_mac_array(mac_entry_t *entry);
+static bool kick_client(ap_t *kicking_ap, client_t *client_entry, char *neighbor_report);
+static bool is_connected(struct dawn_mac bssid_mac, struct dawn_mac client_mac);
+static bool compare_station_count(ap_t *ap_entry_own, ap_t *ap_entry_to_compare, struct dawn_mac client_addr);
 
 static char **find_first_entry(char **entry,
                                uint8_t *mac0, intptr_t mac0_offset,
@@ -122,7 +122,7 @@ static inline ap_t **ap_array_find_first_entry(struct dawn_mac bssid)
 {
     return (ap_t **)
             find_first_entry((char **) &ap_set,
-                             bssid.u8, offsetof(ap_t, bssid_addr),
+                             bssid.u8, offsetof(ap_t, bssid),
                              NULL, 0, false, offsetof(ap_t, next_ap));
 }
 
@@ -132,7 +132,7 @@ static inline client_t **client_skip_array_find_first_entry(
     return (client_t **)
             find_first_entry((char **) &client_skip_set,
                              client_mac.u8, offsetof(client_t, client_addr),
-                             bssid.u8, offsetof(client_t, bssid_addr),
+                             bssid.u8, offsetof(client_t, bssid),
                              check_bssid, offsetof(client_t, next_skip_entry_bc));
 }
 
@@ -154,12 +154,12 @@ static inline auth_entry_t **auth_entry_find_first_entry(struct dawn_mac bssid, 
                              true, offsetof(auth_entry_t, next_auth));
 }
 
-static inline struct mac_entry_s **mac_find_first_entry(struct dawn_mac mac)
+static inline mac_entry_t **mac_find_first_entry(struct dawn_mac mac)
 {
-    return (struct mac_entry_s **)
+    return (mac_entry_t **)
             find_first_entry((char **) &mac_set,
-                             mac.u8, offsetof(struct mac_entry_s, mac),
-                             NULL, 0, false, offsetof(struct mac_entry_s, next_mac));
+                             mac.u8, offsetof(mac_entry_t, mac),
+                             NULL, 0, false, offsetof(mac_entry_t, next_mac));
 }
 
 static probe_entry_t **probe_array_find_first_entry(struct dawn_mac client_mac, struct dawn_mac bssid_mac, bool do_bssid)
@@ -205,7 +205,7 @@ static client_t **client_find_first_bc_entry(struct dawn_mac bssid_mac, struct d
     client_t **lo_ptr = &client_set_bc;
 
     while (*lo_skip_ptr != NULL) {
-        int this_cmp = macs_compare_bb(((*lo_skip_ptr))->bssid_addr, bssid_mac);
+        int this_cmp = macs_compare_bb(((*lo_skip_ptr))->bssid, bssid_mac);
 
         if (this_cmp == 0 && do_client) {
             this_cmp = macs_compare_bb(((*lo_skip_ptr))->client_addr, client_mac);
@@ -220,7 +220,7 @@ static client_t **client_find_first_bc_entry(struct dawn_mac bssid_mac, struct d
     }
 
     while (*lo_ptr != NULL) {
-        int this_cmp = macs_compare_bb((*lo_ptr)->bssid_addr, bssid_mac);
+        int this_cmp = macs_compare_bb((*lo_ptr)->bssid, bssid_mac);
 
         if (this_cmp == 0 && do_client) {
             this_cmp = macs_compare_bb((*lo_ptr)->client_addr, client_mac);
@@ -244,7 +244,7 @@ void send_beacon_reports(struct dawn_mac bssid, int id)
     client_t *i = *client_find_first_bc_entry(bssid, dawn_mac_null, false);
 
     /* Go through clients */
-    for (; i != NULL && macs_are_equal(i->bssid_addr.u8, bssid.u8); i = i->next_entry_bc) {
+    for (; i != NULL && macs_are_equal(i->bssid.u8, bssid.u8); i = i->next_entry_bc) {
         if (i->rrm_enabled_capa & (WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE |
                                    WLAN_RRM_CAPS_BEACON_REPORT_ACTIVE |
                                    WLAN_RRM_CAPS_BEACON_REPORT_TABLE)) {
@@ -255,13 +255,10 @@ void send_beacon_reports(struct dawn_mac bssid, int id)
     pthread_mutex_unlock(&client_array_mutex);
 }
 
-/* TODO: Can metric be cached once calculated? Add score_fresh indicator and reset when signal changes
- * as rest of values look to be static fr any given entry. */
 int eval_probe_metric(probe_entry_t *probe_entry, ap_t *ap_entry)
 {
     int score = 0;
 
-    /* Check if ap entry is available */
     if (ap_entry != NULL) {
         score += ap_entry->ap_weight;
 
@@ -283,7 +280,8 @@ int eval_probe_metric(probe_entry_t *probe_entry, ap_t *ap_entry)
         score = -2; /* -1 already used... */
     }
 
-    printf("Score: %d of:\n", score);
+    DAWN_LOG_DEBUG("The score of " MACSTR " for " MACSTR " is %d",
+                   MAC2STR(probe_entry->client_addr.u8), MAC2STR(ap_entry->bssid.u8), score);
 
     return score;
 }
@@ -293,39 +291,41 @@ static bool compare_station_count(ap_t *ap_entry_own, ap_t *ap_entry_to_compare,
     int sta_count = ap_entry_own->station_count,
             sta_count_to_compare = ap_entry_to_compare->station_count;
 
-    printf("Comparing own %d to %d\n", ap_entry_own->station_count, ap_entry_to_compare->station_count);
+    DAWN_LOG_DEBUG("Comparing own station count %d to %d", ap_entry_own->station_count, ap_entry_to_compare->station_count);
 
-    if (is_connected(ap_entry_own->bssid_addr, client_addr)) {
-        printf("Client is connected to our AP! Decrease counter!\n");
+    if (is_connected(ap_entry_own->bssid, client_addr)) {
+        DAWN_LOG_DEBUG("Client is connected to our AP. Decrease counter");
         sta_count--;
     }
 
-    if (is_connected(ap_entry_to_compare->bssid_addr, client_addr)) {
-        printf("Client is connected to AP we're comparing to! Decrease counter!\n");
+    if (is_connected(ap_entry_to_compare->bssid, client_addr)) {
+        DAWN_LOG_DEBUG("Client is connected to AP we're comparing to. Decrease counter");
         sta_count_to_compare--;
     }
 
-    printf("Comparing own station count %d to %d\n", sta_count, sta_count_to_compare);
+    DAWN_LOG_INFO("Comparing own station count %d to %d", sta_count, sta_count_to_compare);
 
     return (sta_count - sta_count_to_compare) > behaviour_config.max_station_diff;
 }
 
+/* neighbor_report could be NULL if we only want to know if there is a better AP.
+ If the pointer is set, it will be filled with neighbor report of the best AP. */
 int better_ap_available(ap_t *kicking_ap, struct dawn_mac client_mac, char *neighbor_report)
 {
-    probe_entry_t *own_probe = *probe_array_find_first_entry(client_mac, kicking_ap->bssid_addr, true);
+    probe_entry_t *own_probe = *probe_array_find_first_entry(client_mac, kicking_ap->bssid, true);
     int own_score = -1;
     bool kick = false;
 
     if (own_probe == NULL) {
-        printf("Current AP not found in probe array! Something is VERY wrong\n");
+        DAWN_LOG_WARNING("Current AP not found in probe array! Something is VERY wrong");
         goto exit;
     }
 
     own_score = eval_probe_metric(own_probe, kicking_ap);
-    printf("The score of our own AP is %d\n", own_score);
+    DAWN_LOG_INFO("The score of our own AP is %d", own_score);
 
     int max_score = own_score;
-    /* Now carry on through entries for this client looking for better score */
+    /* Now carry on through entries for this client looking for better score. */
     probe_entry_t *i = *probe_array_find_first_entry(client_mac, dawn_mac_null, false);
 
     for (; i != NULL; i = i->next_probe) {
@@ -347,10 +347,10 @@ int better_ap_available(ap_t *kicking_ap, struct dawn_mac client_mac, char *neig
             continue;
         }
 
-        int score_to_compare = eval_probe_metric(i, candidate_ap);
-        printf("AP we're comparing with has score %d\n", score_to_compare);
+        int candidate_ap_score = eval_probe_metric(i, candidate_ap);
+        DAWN_LOG_INFO("The score of candidate ap is %d", candidate_ap_score);
 
-        if (score_to_compare > max_score) {
+        if (candidate_ap_score > max_score) {
             kick = true;
 
             if (neighbor_report == NULL) {
@@ -359,9 +359,9 @@ int better_ap_available(ap_t *kicking_ap, struct dawn_mac client_mac, char *neig
 
             strncpy(neighbor_report, candidate_ap->neighbor_report, NEIGHBOR_REPORT_LEN);
 
-            max_score = score_to_compare;
+            max_score = candidate_ap_score;
         }
-        else if (score_to_compare == max_score && behaviour_config.use_station_count) {
+        else if (candidate_ap_score == max_score && behaviour_config.use_station_count) {
             if (compare_station_count(kicking_ap, candidate_ap, client_mac)) {
                 kick = true;
 
@@ -396,61 +396,57 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
     pthread_mutex_lock(&client_array_mutex);
     pthread_mutex_lock(&probe_array_mutex);
 
-    printf("Kicking clients from ap " MACSTR "\n", MAC2STR(kicking_ap->bssid_addr.u8));
+    DAWN_LOG_INFO("Kicking clients from " MACSTR " AP", MAC2STR(kicking_ap->bssid.u8));
 
-    /* Seach for BSSID */
-    client_t *j = *client_find_first_bc_entry(kicking_ap->bssid_addr, dawn_mac_null, false);
-    /* Go through clients */
-    for (; j != NULL; j = j->next_entry_bc) {
-        if (macs_are_equal(j->bssid_addr.u8, kicking_ap->bssid_addr.u8)) {
+    /* Seach for BSSID. */
+    client_t *client = *client_find_first_bc_entry(kicking_ap->bssid, dawn_mac_null, false);
+    /* Go through clients. */
+    for (; client != NULL; client = client->next_entry_bc) {
+        if (macs_are_equal(client->bssid.u8, kicking_ap->bssid.u8)) {
             continue;
         }
 
         char neighbor_report[NEIGHBOR_REPORT_LEN + 1] = {""};
-        bool do_kick = kick_client(kicking_ap, j, neighbor_report);
+        bool do_kick = kick_client(kicking_ap, client, neighbor_report);
 
-        printf("Chosen AP %s\n", neighbor_report);
+        DAWN_LOG_DEBUG("Chosen AP %s", neighbor_report);
 
-        /* Better ap available */
+        /* Better ap available. */
         if (do_kick) {
             /* kick after algorithm decided to kick several times
              * + rssi is changing a lot
              * + chan util is changing a lot
              * + ping pong behavior of clients will be reduced */
-            j->kick_count++;
-            printf("Comparing kick count! kickcount: %d to min_kick_count: %d!\n", j->kick_count,
-                   behaviour_config.min_kick_count);
-            if (j->kick_count >= behaviour_config.min_kick_count) {
-                printf("Better AP available. Kicking client:\n");
-                print_client_entry(j);
-                printf("Check if client is active receiving!\n");
-
+            ++client->kick_count;
+            DAWN_LOG_INFO(MACSTR " kick count is %d", MAC2STR(client->client_addr.u8), client->kick_count);
+            if (client->kick_count >= behaviour_config.min_kick_count) {
                 float rx_rate, tx_rate;
-                if (iwinfo_get_bandwidth(j->client_addr, &rx_rate, &tx_rate)) {
+                if (iwinfo_get_bandwidth(client->client_addr, &rx_rate, &tx_rate)) {
                     /* Only use rx_rate for indicating if transmission is going on
                      * <= 6MBits <- probably no transmission
                      * tx_rate has always some weird value so don't use ist */
                     if (rx_rate > behaviour_config.bandwidth_threshold) {
-                        printf("Client is probably in active transmisison. Don't kick! RxRate is: %f\n", rx_rate);
+                        DAWN_LOG_INFO(MACSTR " is probably in active transmisison. RxRate is: %f",
+                                      MAC2STR(client->client_addr.u8), rx_rate);
                     }
                     else {
-                        printf("Client is probably NOT in active transmisison. KICK! RxRate is: %f\n", rx_rate);
+                        DAWN_LOG_INFO(MACSTR " is probably NOT in active transmisison. RxRate is: %f. Kicking it",
+                                      MAC2STR(client->client_addr.u8), rx_rate);
 
                         /* Here we should send a messsage to set the probe.count for all aps to the min that there
                          * is no delay between switching the hearing map is full... */
-                        send_set_probe(j->client_addr);
+                        send_set_probe(client->client_addr);
 
-                        wnm_disassoc_imminent(id, j->client_addr, neighbor_report, 12);
+                        wnm_disassoc_imminent(id, client->client_addr, neighbor_report, 12);
 
-                        kicked_clients++;
+                        ++kicked_clients;
                     }
                 }
             }
         }
         else {
-            printf("AP is best. Client will stay:\n");
-            print_client_entry(j);
-            j->kick_count = 0;
+            DAWN_LOG_INFO(MACSTR " will stay", MAC2STR(client->client_addr.u8));
+            client->kick_count = 0;
         }
     }
 
@@ -465,19 +461,19 @@ void update_iw_info(struct dawn_mac bssid)
     pthread_mutex_lock(&client_array_mutex);
     pthread_mutex_lock(&probe_array_mutex);
 
-    printf("Updating info for clients at " MACSTR "\n", MAC2STR(bssid.u8));
+    DAWN_LOG_INFO("Updating info for clients at " MACSTR " AP", MAC2STR(bssid.u8));
 
-    client_t *j = *client_find_first_bc_entry(bssid, dawn_mac_null, false);
-    /* Go through clients */
-    for (; j != NULL; j = j->next_entry_bc) {
-        if (!macs_are_equal(j->bssid_addr.u8, bssid.u8)) {
+    client_t *client = *client_find_first_bc_entry(bssid, dawn_mac_null, false);
+    /* Go through clients. */
+    for (; client != NULL; client = client->next_entry_bc) {
+        if (!macs_are_equal(client->bssid.u8, bssid.u8)) {
             continue;
         }
 
-        int rssi = iwinfo_get_rssi(j->client_addr);
+        int rssi = iwinfo_get_rssi(client->client_addr);
         if (rssi != INT_MIN) {
-            if (!probe_array_update_rssi(j->bssid_addr, j->client_addr, rssi, true)) {
-                fprintf(stderr, "Failed to update rssi!\n");
+            if (!probe_array_update_rssi(client->bssid, client->client_addr, rssi, true)) {
+                DAWN_LOG_ERROR("Failed to update rssi");
             }
         }
     }
@@ -498,7 +494,7 @@ static bool is_connected(struct dawn_mac bssid_mac, struct dawn_mac client_mac)
 
 static client_t *insert_to_client_bc_skip_array(client_t *entry)
 {
-    client_t **insert_pos = client_skip_array_find_first_entry(entry->client_addr, entry->bssid_addr, true);
+    client_t **insert_pos = client_skip_array_find_first_entry(entry->client_addr, entry->bssid, true);
 
     entry->next_skip_entry_bc = *insert_pos;
     *insert_pos = entry;
@@ -518,7 +514,7 @@ static void client_array_insert(client_t *entry, client_t **insert_pos)
 
     client_entry_last++;
 
-    /* Try to keep skip list density stable */
+    /* Try to keep skip list density stable. */
     if ((client_entry_last / DAWN_CLIENT_SKIP_RATIO) > client_skip_entry_last) {
         entry->next_skip_entry_bc = NULL;
         insert_to_client_bc_skip_array(entry);
@@ -532,7 +528,7 @@ client_t *client_array_get_client(const struct dawn_mac client_addr)
 
 static client_t *client_array_unlink_entry(client_t **ref_bc, int unlink_only)
 {
-    client_t *entry = *ref_bc; /* Both ref_bc and ref_c point to the entry we're deleting */
+    client_t *entry = *ref_bc; /* Both ref_bc and ref_c point to the entry we're deleting. */
 
     for (client_t **s = &client_skip_set; *s != NULL; s = &((*s)->next_skip_entry_bc)) {
         if (*s == entry) {
@@ -543,7 +539,7 @@ static client_t *client_array_unlink_entry(client_t **ref_bc, int unlink_only)
         }
     }
 
-    /* Accident of history that we always pass in the _bc ref, so need to find _c ref */
+    /* Accident of history that we always pass in the _bc ref, so need to find _c ref. */
     client_t **ref_c = &client_set_c;
     while (*ref_c != NULL && *ref_c != entry)
         ref_c = &((*ref_c)->next_entry_c);
@@ -569,7 +565,6 @@ client_t *client_array_delete(client_t *entry, int unlink_only)
 {
     client_t *ret = NULL, **ref_bc = NULL;
 
-    /* Bodyless for-loop: test done in control logic */
     for (ref_bc = &client_set_bc; (*ref_bc != NULL) && (*ref_bc != entry); ref_bc = &((*ref_bc)->next_entry_bc));
 
     /* Should never fail, but better to be safe... */
@@ -609,7 +604,8 @@ bool probe_array_set_all_probe_count(struct dawn_mac client_addr, uint32_t probe
 
     for (probe_entry_t *i = probe_set; i != NULL; i = i->next_probe) {
         if (macs_are_equal_bb(client_addr, i->client_addr)) {
-            printf("Setting probecount for given mac!\n");
+            DAWN_LOG_DEBUG("Setting probe count for " MACSTR " to %d",
+                           MAC2STR(client_addr.u8), probe_count);
             i->counter = probe_count;
             updated = true;
             break;
@@ -621,13 +617,13 @@ bool probe_array_set_all_probe_count(struct dawn_mac client_addr, uint32_t probe
     return updated;
 }
 
-static bool probe_array_update_rssi(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rssi, int send_network)
+static bool probe_array_update_rssi(struct dawn_mac bssid, struct dawn_mac client_addr, uint32_t rssi, int send_network)
 {
     bool updated = false;
 
     pthread_mutex_lock(&probe_array_mutex);
 
-    probe_entry_t *i = probe_array_get_entry(bssid_addr, client_addr);
+    probe_entry_t *i = probe_array_get_entry(bssid, client_addr);
     if (i != NULL) {
         i->signal = rssi;
         updated = true;
@@ -642,13 +638,13 @@ static bool probe_array_update_rssi(struct dawn_mac bssid_addr, struct dawn_mac 
     return updated;
 }
 
-bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac client_addr, uint32_t rcpi, uint32_t rsni, int send_network)
+bool probe_array_update_rcpi_rsni(struct dawn_mac bssid, struct dawn_mac client_addr, uint32_t rcpi, uint32_t rsni, int send_network)
 {
     bool updated = false;
 
     pthread_mutex_lock(&probe_array_mutex);
 
-    probe_entry_t *i = probe_array_get_entry(bssid_addr, client_addr);
+    probe_entry_t *i = probe_array_get_entry(bssid, client_addr);
     if (i != NULL) {
         i->rcpi = rcpi;
         i->rsni = rsni;
@@ -664,9 +660,9 @@ bool probe_array_update_rcpi_rsni(struct dawn_mac bssid_addr, struct dawn_mac cl
     return updated;
 }
 
-probe_entry_t *probe_array_get_entry(struct dawn_mac bssid_mac, struct dawn_mac client_mac)
+probe_entry_t *probe_array_get_entry(struct dawn_mac bssid, struct dawn_mac client_mac)
 {
-    return *probe_array_find_first_entry(client_mac, bssid_mac, true);
+    return *probe_array_find_first_entry(client_mac, bssid, true);
 }
 
 static void insert_to_skip_array(probe_entry_t *entry)
@@ -735,7 +731,7 @@ probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_8
 
     pthread_mutex_unlock(&probe_array_mutex);
 
-    /* Return pointer to what we used, which may not be what was passed in */
+    /* Return pointer to what we used, which may not be what was passed in. */
     return entry;
 }
 
@@ -744,7 +740,7 @@ ap_t *insert_to_ap_array(ap_t *entry, time_t expiry)
     pthread_mutex_lock(&ap_array_mutex);
 
     /* TODO: Why do we delete and add here? */
-    ap_t *old_entry = *ap_array_find_first_entry(entry->bssid_addr);
+    ap_t *old_entry = *ap_array_find_first_entry(entry->bssid);
     if (old_entry != NULL) {
         ap_array_delete(old_entry);
     }
@@ -786,7 +782,7 @@ void ap_array_insert(ap_t *entry)
         /* TODO: Not sure these tests are right way around to ensure SSID / MAC ordering */
         /* TODO: Do we do any SSID checks elsewhere? */
         int sc = strcmp((char *) entry->ssid, (char *) (*i)->ssid);
-        if ((sc < 0) || (sc == 0 && macs_compare_bb(entry->bssid_addr, (*i)->bssid_addr) < 0)) {
+        if ((sc < 0) || (sc == 0 && macs_compare_bb(entry->bssid, (*i)->bssid) < 0)) {
             break;
         }
     }
@@ -796,10 +792,10 @@ void ap_array_insert(ap_t *entry)
     ap_entry_last++;
 }
 
-ap_t *ap_array_get_ap(struct dawn_mac bssid_mac)
+ap_t *ap_array_get_ap(struct dawn_mac bssid)
 {
     pthread_mutex_lock(&ap_array_mutex);
-    ap_t *ret = *ap_array_find_first_entry(bssid_mac);
+    ap_t *ret = *ap_array_find_first_entry(bssid);
     pthread_mutex_unlock(&ap_array_mutex);
 
     return ret;
@@ -894,10 +890,10 @@ void remove_old_denied_req_entries(time_t current_time, long long int threshold,
         if (current_time > (*i)->time + threshold) {
             /* Client is not connected for a given time threshold! */
             if (logmac && !is_connected_somehwere((*i)->client_addr)) {
-                printf("Client has probably a bad driver!\n");
+                DAWN_LOG_WARNING("Client probably has a bad driver");
                 /* Problem that somehow station will land into this list
                  * maybe delete again? */
-                if (insert_to_maclist((*i)->client_addr) == 0) {
+                if (insert_to_maclist((*i)->client_addr)) {
                     send_add_mac((*i)->client_addr);
                     /* TODO: File can grow arbitarily large.  Resource consumption risk. */
                     /* TODO: Consolidate use of file across source: shared resource for name, single point of access? */
@@ -919,7 +915,7 @@ client_t *insert_client_to_array(client_t *entry, time_t expiry)
 {
     pthread_mutex_lock(&client_array_mutex);
 
-    client_t **client_tmp = client_find_first_bc_entry(entry->bssid_addr, entry->client_addr, true),
+    client_t **client_tmp = client_find_first_bc_entry(entry->bssid, entry->client_addr, true),
             *ret = NULL;
 
     if (*client_tmp == NULL) {
@@ -959,31 +955,32 @@ void insert_macs_from_file(void)
             old_line = line;
             dawn_regmem(old_line);
         }
-        printf("Retrieved line of length %zu:\n%s", read, line);
+        DAWN_LOG_DEBUG("Read %zu bytes from macfile: %s", read, line);
 
-        /* Need to scanf to an array of ints as there is no byte format specifier */
+        /* Need to scanf to an array of ints as there is no byte format specifier. */
         int tmp_int_mac[ETH_ALEN];
         sscanf(line, MACSTR, STR2MAC(tmp_int_mac));
 
-        struct mac_entry_s *new_mac = dawn_malloc(sizeof (struct mac_entry_s));
+        mac_entry_t *new_mac = dawn_malloc(sizeof (mac_entry_t));
         if (new_mac == NULL) {
-            printf("dawn_malloc of MAC struct failed!\n");
+            DAWN_LOG_ERROR("Failed to allocate memory");
+            goto cleanup;
         }
-        else {
-            new_mac->next_mac = NULL;
-            for (int i = 0; i < ETH_ALEN; ++i) {
-                new_mac->mac.u8[i] = (uint8_t) tmp_int_mac[i];
-            }
 
-            insert_to_mac_array(new_mac);
+        new_mac->next_mac = NULL;
+        for (int i = 0; i < ETH_ALEN; ++i) {
+            new_mac->mac.u8[i] = (uint8_t) tmp_int_mac[i];
         }
+
+        insert_to_mac_array(new_mac);
     }
 
-    printf("Printing MAC list:\n");
-    for (struct mac_entry_s *i = mac_set; i != NULL; i = i->next_mac) {
-        printf(MACSTR "\n", MAC2STR(i->mac.u8));
+    DAWN_LOG_DEBUG("Printing MAC list:");
+    for (mac_entry_t *i = mac_set; i != NULL; i = i->next_mac) {
+        DAWN_LOG_DEBUG(" - "MACSTR, MAC2STR(i->mac.u8));
     }
 
+cleanup:
     fclose(fp);
     dawn_unregmem(fp);
     if (line) {
@@ -992,27 +989,25 @@ void insert_macs_from_file(void)
 }
 
 /* TODO: This list only ever seems to get longer. Why do we need it? */
-int insert_to_maclist(struct dawn_mac mac)
+bool insert_to_maclist(struct dawn_mac mac)
 {
-    int ret = 0;
-    struct mac_entry_s **i = mac_find_first_entry(mac);
+    mac_entry_t **i = mac_find_first_entry(mac);
 
     if (*i != NULL && macs_are_equal_bb((*i)->mac, mac)) {
-        ret = -1;
-    }
-    else {
-        struct mac_entry_s *new_mac = dawn_malloc(sizeof (struct mac_entry_s));
-        if (new_mac == NULL) {
-            printf("dawn_malloc of MAC struct failed!\n");
-        }
-        else {
-            new_mac->next_mac = NULL;
-            new_mac->mac = mac;
-            insert_to_mac_array(new_mac);
-        }
+        return false;
     }
 
-    return ret;
+    mac_entry_t *new_mac = dawn_malloc(sizeof (mac_entry_t));
+    if (new_mac == NULL) {
+        DAWN_LOG_ERROR("Failed to allocate memory");
+        return false;
+    }
+
+    new_mac->next_mac = NULL;
+    new_mac->mac = mac;
+    insert_to_mac_array(new_mac);
+
+    return true;
 }
 
 /* TODO: How big is it in a large network? */
@@ -1069,9 +1064,9 @@ void denied_req_array_delete(auth_entry_t *entry)
     pthread_mutex_unlock(&denied_array_mutex);
 }
 
-struct mac_entry_s *insert_to_mac_array(struct mac_entry_s *entry)
+mac_entry_t *insert_to_mac_array(mac_entry_t *entry)
 {
-    struct mac_entry_s **insert_pos = mac_find_first_entry(entry->mac);
+    mac_entry_t **insert_pos = mac_find_first_entry(entry->mac);
 
     entry->next_mac = *insert_pos;
     *insert_pos = entry;
@@ -1082,24 +1077,24 @@ struct mac_entry_s *insert_to_mac_array(struct mac_entry_s *entry)
 
 void print_client_entry(client_t *entry)
 {
-    printf(" - bssid_addr: " MACSTR ", client_addr: " MACSTR ", freq: %d, "
-           "ht_supported: %d, vht_supported: %d, ht: %d, vht: %d, kick: %d\n",
-           MAC2STR(entry->bssid_addr.u8), MAC2STR(entry->client_addr.u8), entry->freq,
-           entry->ht_supported, entry->vht_supported, entry->ht, entry->vht, entry->kick_count);
+    DAWN_LOG_DEBUG(" - bssid_addr: " MACSTR ", client_addr: " MACSTR ", freq: %d, "
+                   "ht_supported: %d, vht_supported: %d, ht: %d, vht: %d, kick: %d",
+                   MAC2STR(entry->bssid.u8), MAC2STR(entry->client_addr.u8), entry->freq,
+                   entry->ht_supported, entry->vht_supported, entry->ht, entry->vht, entry->kick_count);
 }
 
-static void print_ap_entry(ap_t *entry)
+void print_ap_entry(ap_t *entry)
 {
-    printf(" - ssid: %s, bssid_addr: " MACSTR ", freq: %d, ht: %d, vht: %d, "
-           "chan_utilz: %d, col_d: %d, bandwidth: %d, col_count: %d neighbor_report: %s\n",
-           entry->ssid, MAC2STR(entry->bssid_addr.u8), entry->freq, entry->ht_support, entry->vht_support,
-           entry->channel_utilization, entry->collision_domain, entry->bandwidth,
-           ap_get_collision_count(entry->collision_domain), entry->neighbor_report);
+    DAWN_LOG_DEBUG(" - ssid: %s, bssid_addr: " MACSTR ", freq: %d, ht: %d, vht: %d, "
+                   "chan_utilz: %d, col_d: %d, bandwidth: %d, col_count: %d neighbor_report: %s",
+                   entry->ssid, MAC2STR(entry->bssid.u8), entry->freq, entry->ht_support, entry->vht_support,
+                   entry->channel_utilization, entry->collision_domain, entry->bandwidth,
+                   ap_get_collision_count(entry->collision_domain), entry->neighbor_report);
 }
 
 void print_ap_array(void)
 {
-    printf("Printing APs array (%d elements)\n", ap_entry_last);
+    DAWN_LOG_DEBUG("Printing APs array (%d elements)", ap_entry_last);
     for (ap_t *i = ap_set; i != NULL; i = i->next_ap) {
         print_ap_entry(i);
     }
@@ -1127,10 +1122,9 @@ void print_probe_array(void)
 void print_probe_entry(probe_entry_t *entry)
 {
     DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", signal: %d, "
-                   "freq: %d, counter: %d, vht: %d, min_rate: %d, max_rate: %d",
+                   "freq: %d, counter: %d, vht: %d",
                    MAC2STR(entry->bssid_addr.u8), MAC2STR(entry->client_addr.u8),
-                   entry->signal, entry->freq, entry->counter, entry->vht_capabilities,
-                   entry->min_supp_datarate, entry->max_supp_datarate);
+                   entry->signal, entry->freq, entry->counter, entry->vht_capabilities);
 }
 
 void print_client_array(void)
@@ -1151,7 +1145,7 @@ bool init_mutex(void)
     err |= pthread_mutex_init(&denied_array_mutex, NULL);
 
     if (err != 0) {
-        fprintf(stderr, "Failed to initialize mutex!\n");
+        DAWN_LOG_ERROR("Failed to initialize mutex");
     }
 
     return !err;
@@ -1159,8 +1153,6 @@ bool init_mutex(void)
 
 void destroy_mutex(void)
 {
-    /* Free resources */
-    printf("Freeing mutex resources\n");
     pthread_mutex_destroy(&probe_array_mutex);
     pthread_mutex_destroy(&client_array_mutex);
     pthread_mutex_destroy(&ap_array_mutex);
