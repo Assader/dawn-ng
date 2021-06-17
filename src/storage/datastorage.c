@@ -22,8 +22,7 @@ enum {
     WLAN_RRM_CAPS_BEACON_REPORT_TABLE = 1 << 6,
 };
 
-static int denied_req_last;
-static auth_entry_t *denied_req_set;
+static LIST_HEAD(denied_req_set);
 static pthread_mutex_t denied_array_mutex;
 
 /* Ratio of skiping entries to all entries.
@@ -72,7 +71,7 @@ static ap_t *ap_array_find_first_entry(dawn_mac_t bssid);
 static inline client_t **client_skip_array_find_first_entry(
         dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid);
 static inline client_t **client_find_first_c_entry(dawn_mac_t client_mac);
-static inline auth_entry_t **auth_entry_find_first_entry(dawn_mac_t bssid, dawn_mac_t client_mac);
+static inline auth_entry_t *auth_entry_find_first_entry(dawn_mac_t bssid, dawn_mac_t client_mac);
 static inline mac_entry_t **mac_find_first_entry(dawn_mac_t mac);
 static bool is_connected_somehwere(dawn_mac_t client_addr);
 static client_t *insert_to_client_bc_skip_array(client_t *entry);
@@ -149,13 +148,17 @@ static inline client_t **client_find_first_c_entry(dawn_mac_t client_mac)
                              NULL, 0, false, offsetof(client_t, next_entry_c));
 }
 
-static inline auth_entry_t **auth_entry_find_first_entry(dawn_mac_t bssid, dawn_mac_t client_mac)
+static inline auth_entry_t *auth_entry_find_first_entry(dawn_mac_t bssid, dawn_mac_t client_mac)
 {
-    return (auth_entry_t **)
-            find_first_entry((char **) &denied_req_set,
-                             client_mac.u8, offsetof(auth_entry_t, client_addr),
-                             bssid.u8, offsetof(auth_entry_t, bssid),
-                             true, offsetof(auth_entry_t, next_auth));
+    auth_entry_t *i;
+
+    list_for_each_entry(i, &denied_req_set, list) {
+        if (dawn_macs_are_equal(i->bssid, bssid) && dawn_macs_are_equal(i->client_addr, client_mac)) {
+            return i;
+        }
+    }
+
+    return NULL;
 }
 
 static inline mac_entry_t **mac_find_first_entry(dawn_mac_t mac)
@@ -809,7 +812,7 @@ static bool ap_array_delete(ap_t *entry)
     return true;
 }
 
-void remove_old_client_entries(time_t current_time, long long int threshold)
+void remove_old_client_entries(time_t current_time, uint32_t threshold)
 {
     pthread_mutex_lock(&client_array_mutex);
 
@@ -859,30 +862,29 @@ void remove_old_ap_entries(time_t current_time, uint32_t threshold)
     pthread_mutex_unlock(&ap_array_mutex);
 }
 
-void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac)
+void remove_old_denied_req_entries(time_t current_time, uint32_t threshold, int logmac)
 {
+    auth_entry_t *i, *next;
+
     pthread_mutex_lock(&denied_array_mutex);
 
-    for (auth_entry_t **i = &denied_req_set; *i != NULL;) {
+    list_for_each_entry_safe(i, next, &denied_req_set, list) {
         /* Check counter. Check timer */
-        if (current_time > (*i)->expiry + threshold) {
+        if (current_time > i->expiry + threshold) {
             /* Client is not connected for a given time threshold! */
-            if (logmac && !is_connected_somehwere((*i)->client_addr)) {
+            if (logmac && !is_connected_somehwere(i->client_addr)) {
                 DAWN_LOG_WARNING("Client probably has a bad driver");
                 /* Problem that somehow station will land into this list
                  * maybe delete again? */
-                if (insert_to_maclist((*i)->client_addr)) {
-                    send_add_mac((*i)->client_addr);
+                if (insert_to_maclist(i->client_addr)) {
+                    send_add_mac(i->client_addr);
                     /* TODO: File can grow arbitarily large.  Resource consumption risk. */
                     /* TODO: Consolidate use of file across source: shared resource for name, single point of access? */
-                    write_mac_to_file("/tmp/dawn_mac_list", (*i)->client_addr);
+                    write_mac_to_file("/tmp/dawn_mac_list", i->client_addr);
                 }
             }
             /* TODO: Add unlink function to save rescan to find element */
-            denied_req_array_delete(*i);
-        }
-        else {
-            i = &((*i)->next_auth);
+            denied_req_array_delete(i);
         }
     }
 
@@ -992,28 +994,19 @@ auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, t
 {
     pthread_mutex_lock(&denied_array_mutex);
 
-    auth_entry_t **i = auth_entry_find_first_entry(entry->bssid, entry->client_addr);
+    auth_entry_t *i = auth_entry_find_first_entry(entry->bssid, entry->client_addr);
 
-    if ((*i) != NULL) {
-        entry = *i;
-        entry->expiry = expiry;
-        if (inc_counter) {
-            entry->counter++;
-        }
+    if (i != NULL) {
+        entry = i;
+        entry->counter++;
     }
     else {
-        entry->expiry = expiry;
-        if (inc_counter) {
-            entry->counter++;
-        }
-        else {
-            entry->counter = 0;
-        }
+        entry->counter = 1;
 
-        entry->next_auth = *i;
-        *i = entry;
-        denied_req_last++;
+        list_add(&entry->list, &denied_req_set);
     }
+
+    entry->expiry = expiry;
 
     pthread_mutex_unlock(&denied_array_mutex);
 
@@ -1022,18 +1015,8 @@ auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, t
 
 void denied_req_array_delete(auth_entry_t *entry)
 {
-    pthread_mutex_lock(&denied_array_mutex);
-
-    for (auth_entry_t **i = &denied_req_set; *i != NULL; i = &((*i)->next_auth)) {
-        if (*i == entry) {
-            *i = entry->next_auth;
-            denied_req_last--;
-            dawn_free(entry);
-            break;
-        }
-    }
-
-    pthread_mutex_unlock(&denied_array_mutex);
+    list_del(&entry->list);
+    dawn_free(entry);
 }
 
 mac_entry_t *insert_to_mac_array(mac_entry_t *entry)

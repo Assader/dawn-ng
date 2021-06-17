@@ -96,7 +96,8 @@ typedef struct probe_entry_s {
 } probe_entry_t;
 
 typedef struct auth_entry_s {
-    struct auth_entry_s *next_auth;
+    struct list_head list;
+
     dawn_mac_t bssid;
     dawn_mac_t client_addr;
     dawn_mac_t target_addr; /* TODO: Never evaluated? */
@@ -175,9 +176,9 @@ void remove_old_probe_entries(time_t current_time, uint32_t threshold);
 int eval_probe_metric(probe_entry_t *probe_entry, ap_t *ap_entry);
 void denied_req_array_delete(auth_entry_t *entry);
 auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, time_t expiry);
-void remove_old_denied_req_entries(time_t current_time, long long int threshold, int logmac);
+void remove_old_denied_req_entries(time_t current_time, uint32_t threshold, int logmac);
 bool probe_array_update_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rcpi, uint32_t rsni, int send_network);
-void remove_old_client_entries(time_t current_time, long long int threshold);
+void remove_old_client_entries(time_t current_time, uint32_t threshold);
 client_t *insert_client_to_array(client_t *entry, time_t expiry);
 int kick_clients(ap_t *kicking_ap, uint32_t id);
 void update_iw_info(dawn_mac_t bssid);
