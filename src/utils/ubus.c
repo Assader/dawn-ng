@@ -1064,7 +1064,7 @@ static void update_beacon_reports(struct uloop_timeout *t)
     hostapd_instance_t *sub;
 
     list_for_each_entry(sub, &hostapd_instance_list, list) {
-        send_beacon_reports(sub->bssid, sub->id);
+        request_beacon_reports(sub->bssid, sub->id);
     }
 
     uloop_timeout_set(t, time_intervals_config.update_beacon_reports * 1000);

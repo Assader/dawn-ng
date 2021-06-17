@@ -124,9 +124,11 @@ enum {
  * the pre-optimisation behaviour of only scanning the BSSID+MAC orderd list */
 
 typedef struct client_s {
-    struct client_s *next_entry_bc;
-    struct client_s *next_skip_entry_bc;
-    struct client_s *next_entry_c;
+    struct list_head list;
+
+//    struct client_s *next_entry_bc;
+//    struct client_s *next_skip_entry_bc;
+//    struct client_s *next_entry_c;
 
     dawn_mac_t client_addr;
     dawn_mac_t bssid;
@@ -190,7 +192,7 @@ void remove_old_ap_entries(time_t current_time, uint32_t threshold);
 ap_t *ap_array_get_ap(dawn_mac_t bssid);
 bool probe_array_set_all_probe_count(dawn_mac_t client_addr, uint32_t probe_count);
 int ap_get_collision_count(int col_domain);
-void send_beacon_reports(dawn_mac_t bssid, int id);
+void request_beacon_reports(dawn_mac_t bssid, int id);
 int better_ap_available(ap_t *kicking_ap, dawn_mac_t client_addr, char *neighbor_report);
 void ap_array_insert(ap_t *entry);
 
