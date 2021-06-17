@@ -33,9 +33,10 @@ enum {
 };
 static probe_entry_t *probe_skip_set;
 static uint32_t probe_skip_entry_last;
-probe_entry_t *probe_set;
+
+static probe_entry_t *probe_set;
 static uint32_t probe_entry_last;
-pthread_mutex_t probe_array_mutex;
+static pthread_mutex_t probe_array_mutex;
 
 static LIST_HEAD(ap_set);
 static pthread_mutex_t ap_array_mutex;
@@ -45,10 +46,10 @@ enum {
 };
 static client_t *client_skip_set;
 static uint32_t client_skip_entry_last;
-client_t *client_set_bc; /* Ordered by BSSID + client MAC */
-client_t *client_set_c;  /* Ordered by client MAC only */
+static client_t *client_set_bc; /* Ordered by BSSID + client MAC */
+static client_t *client_set_c;  /* Ordered by client MAC only */
 static int client_entry_last;
-pthread_mutex_t client_array_mutex;
+static pthread_mutex_t client_array_mutex;
 
 typedef struct mac_entry_s {
     struct mac_entry_s *next_mac;
@@ -526,7 +527,10 @@ static void client_array_insert(client_t *entry, client_t **insert_pos)
 
 client_t *client_array_get_client(dawn_mac_t client_addr)
 {
-    return *client_find_first_c_entry(client_addr);
+    pthread_mutex_lock(&client_array_mutex);
+    client_t *i = *client_find_first_c_entry(client_addr);
+    pthread_mutex_unlock(&client_array_mutex);
+    return i;
 }
 
 static client_t *client_array_unlink_entry(client_t **ref_bc, int unlink_only)
@@ -624,8 +628,6 @@ static bool probe_array_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, ui
 {
     bool updated = false;
 
-    pthread_mutex_lock(&probe_array_mutex);
-
     probe_entry_t *i = probe_array_get_entry(bssid, client_addr);
     if (i != NULL) {
         i->signal = rssi;
@@ -636,16 +638,12 @@ static bool probe_array_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, ui
         }
     }
 
-    pthread_mutex_unlock(&probe_array_mutex);
-
     return updated;
 }
 
 bool probe_array_update_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rcpi, uint32_t rsni, int send_network)
 {
     bool updated = false;
-
-    pthread_mutex_lock(&probe_array_mutex);
 
     probe_entry_t *i = probe_array_get_entry(bssid, client_addr);
     if (i != NULL) {
@@ -658,14 +656,15 @@ bool probe_array_update_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint
         }
     }
 
-    pthread_mutex_unlock(&probe_array_mutex);
-
     return updated;
 }
 
 probe_entry_t *probe_array_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac)
 {
-    return *probe_array_find_first_entry(client_mac, bssid, true);
+    pthread_mutex_lock(&probe_array_mutex);
+    probe_entry_t *i = *probe_array_find_first_entry(client_mac, bssid, true);
+    pthread_mutex_unlock(&probe_array_mutex);
+    return i;
 }
 
 static void insert_to_skip_array(probe_entry_t *entry)
@@ -1219,10 +1218,7 @@ int build_network_overview(struct blob_buf *b)
                 blobmsg_add_u8(b, "vht", k->vht);
                 blobmsg_add_u32(b, "collision_count", ap_get_collision_count(ap->collision_domain));
 
-                pthread_mutex_lock(&probe_array_mutex);
                 probe_entry_t *n = probe_array_get_entry(k->bssid, k->client_addr);
-                pthread_mutex_unlock(&probe_array_mutex);
-
                 if (n != NULL) {
                     blobmsg_add_u32(b, "signal", n->signal);
                 }

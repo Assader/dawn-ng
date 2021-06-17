@@ -292,16 +292,12 @@ int handle_hostapd_deauth_request(struct blob_attr *msg)
 
     handle_hostapd_notify(msg, &notify_req);
 
-    pthread_mutex_lock(&client_array_mutex);
-
     client_t *client_entry = client_array_get_client(notify_req.client_addr);
     if (client_entry != NULL) {
         DAWN_LOG_INFO("Client " MACSTR " deauth from " MACSTR,
                       MAC2STR(client_entry->client_addr.u8), MAC2STR(client_entry->bssid.u8));
         client_array_delete(client_entry, false);
     }
-
-    pthread_mutex_unlock(&client_array_mutex);
 
     return 0;
 }
@@ -519,12 +515,10 @@ static void dump_client(struct blob_attr **tb, dawn_mac_t client_addr,
         strncpy(client_entry->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN);
     }
 
-    pthread_mutex_lock(&client_array_mutex);
     /* If entry was already in list, it won't be added, so free memory */
     if (client_entry != insert_client_to_array(client_entry, time(NULL))) {
         dawn_free(client_entry);
     }
-    pthread_mutex_unlock(&client_array_mutex);
 }
 
 static uint8_t dump_rrm_table(struct blob_attr *head, int len)

@@ -677,11 +677,7 @@ static int handle_auth_request(struct blob_attr *message)
     print_auth_entry("Authentication entry:", auth_req);
 
     if (!mac_in_maclist(auth_req->client_addr)) {
-        pthread_mutex_lock(&probe_array_mutex);
-
         probe_entry_t *tmp = probe_array_get_entry(auth_req->bssid, auth_req->client_addr);
-
-        pthread_mutex_unlock(&probe_array_mutex);
 
         /* Block if entry was not found in probe database. */
         if (tmp == NULL || !proceed_operation(tmp, REQUEST_TYPE_AUTH)) {
@@ -732,11 +728,7 @@ static int handle_assoc_request(struct blob_attr *message)
     print_auth_entry("Association entry:", assoc_req);
 
     if (!mac_in_maclist(assoc_req->client_addr)) {
-        pthread_mutex_lock(&probe_array_mutex);
-
         probe_entry_t *tmp = probe_array_get_entry(assoc_req->bssid, assoc_req->client_addr);
-
-        pthread_mutex_unlock(&probe_array_mutex);
 
         /* Block if entry was not found in probe database. */
         if (tmp == NULL || !proceed_operation(tmp, REQUEST_TYPE_ASSOC)) {

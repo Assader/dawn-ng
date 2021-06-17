@@ -118,9 +118,6 @@ enum {
     NEIGHBOR_REPORT_LEN = 200,
 };
 
-extern probe_entry_t *probe_set;
-extern pthread_mutex_t probe_array_mutex;
-
 /* AP, Client */
 
 enum {
@@ -176,9 +173,6 @@ typedef struct ap_s {
     char iface[IFNAMSIZ];
     char hostname[HOST_NAME_MAX];
 } ap_t;
-
-extern client_t *client_set_bc;
-extern pthread_mutex_t client_array_mutex;
 
 probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
 probe_entry_t *probe_array_get_entry(dawn_mac_t bssid, dawn_mac_t client_addr);
