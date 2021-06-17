@@ -80,8 +80,8 @@ extern behaviour_config_t behaviour_config;
 /* Probe, Auth, Assoc */
 
 typedef struct probe_entry_s {
-    struct probe_entry_s *next_probe;
-    struct probe_entry_s *next_probe_skip;
+    struct list_head list;
+
     dawn_mac_t client_addr;
     dawn_mac_t bssid;
     dawn_mac_t target_addr; /* TODO: Never evaluated? */
@@ -171,7 +171,7 @@ typedef struct ap_s {
     char hostname[HOST_NAME_MAX];
 } ap_t;
 
-probe_entry_t *insert_to_array(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
+probe_entry_t *insert_to_probe_array(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
 probe_entry_t *probe_array_get_entry(dawn_mac_t bssid, dawn_mac_t client_addr);
 void remove_old_probe_entries(time_t current_time, uint32_t threshold);
 int eval_probe_metric(probe_entry_t *probe_entry, ap_t *ap_entry);

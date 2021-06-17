@@ -175,7 +175,7 @@ bool handle_network_message(const char *message)
         DAWN_LOG_INFO("Handling `probe' message");
         probe_entry_t *entry = handle_hostapd_probe_request(data_buf.head);
         if (entry != NULL) {
-            if (entry != insert_to_array(entry, false, true, false, time(NULL))) { /* Use 802.11k values */
+            if (entry != insert_to_probe_array(entry, false, true, false, time(NULL))) { /* Use 802.11k values */
                 /* Insert found an existing entry, rather than linking in our new one */
                 dawn_free(entry);
             }

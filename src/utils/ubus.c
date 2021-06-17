@@ -637,7 +637,7 @@ static int handle_probe_request(struct blob_attr *message)
             *probe_req_updated = NULL;
 
     if (probe_req != NULL) {
-        probe_req_updated = insert_to_array(probe_req, true, true, false, time(NULL));
+        probe_req_updated = insert_to_probe_array(probe_req, true, true, false, time(NULL));
         if (probe_req != probe_req_updated) {
             /* Insert found an existing entry, rather than linking in our new one
              * send new probe req because we want to stay synced. */
@@ -902,7 +902,6 @@ static int parse_to_beacon_rep(struct blob_attr *message)
             return -1;
         }
 
-        beacon_rep->next_probe = NULL;
         beacon_rep->bssid = msg_bssid;
         beacon_rep->client_addr = msg_client;
         beacon_rep->counter = behaviour_config.min_probe_count;
@@ -916,7 +915,7 @@ static int parse_to_beacon_rep(struct blob_attr *message)
         beacon_rep->vht_capabilities = false; /* That is very problematic!!! */
 
         /* Use 802.11k values */
-        beacon_rep_updated = insert_to_array(beacon_rep, false, false, true, time(NULL));
+        beacon_rep_updated = insert_to_probe_array(beacon_rep, false, false, true, time(NULL));
         if (beacon_rep != beacon_rep_updated) {
             dawn_free(beacon_rep);
         }
