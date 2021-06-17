@@ -362,7 +362,7 @@ int wnm_disassoc_imminent(uint32_t id, dawn_mac_t client_addr, char *dest_ap, ui
 int ubus_send_probe_via_network(probe_entry_t *probe_entry)
 {
     blob_buf_init(&b_probe, 0);
-    blobmsg_add_macaddr(&b_probe, "address", probe_entry->client_addr);
+    blobmsg_add_macaddr(&b_probe, "address", probe_entry->address);
     blobmsg_add_macaddr(&b_probe, "bssid", probe_entry->bssid);
     blobmsg_add_macaddr(&b_probe, "target", probe_entry->target_addr);
     blobmsg_add_u32(&b_probe, "signal", probe_entry->signal);
@@ -417,7 +417,7 @@ int parse_add_mac_to_file(struct blob_attr *message)
 
         hwaddr_aton(blobmsg_data(attr), addr.u8);
 
-        if (insert_to_maclist(addr)) {
+        if (mac_set_insert(addr)) {
             /* TODO: File can grow arbitarily large.  Resource consumption risk. */
             /* TODO: Consolidate use of file across source: shared resource for name, single point of access? */
             write_mac_to_file("/tmp/dawn_mac_list", addr);
@@ -637,7 +637,7 @@ static int handle_probe_request(struct blob_attr *message)
             *probe_req_updated = NULL;
 
     if (probe_req != NULL) {
-        probe_req_updated = insert_to_probe_array(probe_req, true, true, false, time(NULL));
+        probe_req_updated = probe_set_insert(probe_req, true, true, false, time(NULL));
         if (probe_req != probe_req_updated) {
             /* Insert found an existing entry, rather than linking in our new one
              * send new probe req because we want to stay synced. */
@@ -676,8 +676,8 @@ static int handle_auth_request(struct blob_attr *message)
 
     print_auth_entry("Authentication entry:", auth_req);
 
-    if (!mac_in_maclist(auth_req->client_addr)) {
-        probe_entry_t *tmp = probe_array_get_entry(auth_req->bssid, auth_req->client_addr);
+    if (!mac_set_contains(auth_req->address)) {
+        probe_entry_t *tmp = probe_set_get(auth_req->bssid, auth_req->address);
 
         /* Block if entry was not found in probe database. */
         if (tmp == NULL || !proceed_operation(tmp, REQUEST_TYPE_AUTH)) {
@@ -686,7 +686,7 @@ static int handle_auth_request(struct blob_attr *message)
             }
 
             if (behaviour_config.use_driver_recog) {
-                if (auth_req == insert_to_denied_req_array(auth_req, 1, time(NULL))) {
+                if (auth_req == denied_req_set_insert(auth_req, 1, time(NULL))) {
                     discard_entry = false;
                 }
             }
@@ -727,8 +727,8 @@ static int handle_assoc_request(struct blob_attr *message)
 
     print_auth_entry("Association entry:", assoc_req);
 
-    if (!mac_in_maclist(assoc_req->client_addr)) {
-        probe_entry_t *tmp = probe_array_get_entry(assoc_req->bssid, assoc_req->client_addr);
+    if (!mac_set_contains(assoc_req->address)) {
+        probe_entry_t *tmp = probe_set_get(assoc_req->bssid, assoc_req->address);
 
         /* Block if entry was not found in probe database. */
         if (tmp == NULL || !proceed_operation(tmp, REQUEST_TYPE_ASSOC)) {
@@ -737,7 +737,7 @@ static int handle_assoc_request(struct blob_attr *message)
             }
 
             if (behaviour_config.use_driver_recog) {
-                if (assoc_req == insert_to_denied_req_array(assoc_req, 1, time(NULL))) {
+                if (assoc_req == denied_req_set_insert(assoc_req, 1, time(NULL))) {
                     discard_entry = false;
                 }
             }
@@ -768,7 +768,7 @@ static int handle_beacon_report(struct blob_attr *message)
 
 static bool proceed_operation(probe_entry_t *request, int request_type)
 {
-    if (mac_in_maclist(request->client_addr)) {
+    if (mac_set_contains(request->address)) {
         return true;
     }
 
@@ -788,8 +788,8 @@ static bool proceed_operation(probe_entry_t *request, int request_type)
         return true;
     }
 
-    ap_t *this_ap = ap_array_get_ap(request->bssid);
-    if (this_ap != NULL && better_ap_available(this_ap, request->client_addr, NULL)) {
+    ap_t *this_ap = ap_set_get(request->bssid);
+    if (this_ap != NULL && better_ap_available(this_ap, request->address, NULL)) {
         return false;
     }
 
@@ -881,7 +881,7 @@ static int parse_to_beacon_rep(struct blob_attr *message)
     hwaddr_aton(blobmsg_data(tb[BEACON_REP_BSSID]), msg_bssid.u8);
     hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), msg_client.u8);
 
-    ap_t *ap_entry_rep = ap_array_get_ap(msg_bssid);
+    ap_t *ap_entry_rep = ap_set_get(msg_bssid);
     if (ap_entry_rep == NULL) {
         DAWN_LOG_INFO("Beacon report does not belong to our network, ignoring");
         return -1;
@@ -891,7 +891,7 @@ static int parse_to_beacon_rep(struct blob_attr *message)
     int rsni = blobmsg_get_u16(tb[BEACON_REP_RSNI]);
 
     DAWN_LOG_DEBUG("Trying to update RCPI and RSNI for beacon report");
-    if (!probe_array_update_rcpi_rsni(msg_bssid, msg_client, rcpi, rsni, true)) {
+    if (!probe_set_update_rcpi_rsni(msg_bssid, msg_client, rcpi, rsni)) {
         probe_entry_t *beacon_rep, *beacon_rep_updated = NULL;
 
         DAWN_LOG_DEBUG("Creating new probe entry");
@@ -903,7 +903,7 @@ static int parse_to_beacon_rep(struct blob_attr *message)
         }
 
         beacon_rep->bssid = msg_bssid;
-        beacon_rep->client_addr = msg_client;
+        beacon_rep->address = msg_client;
         beacon_rep->counter = behaviour_config.min_probe_count;
         beacon_rep->target_addr = msg_client;
         beacon_rep->signal = 0;
@@ -915,7 +915,7 @@ static int parse_to_beacon_rep(struct blob_attr *message)
         beacon_rep->vht_capabilities = false; /* That is very problematic!!! */
 
         /* Use 802.11k values */
-        beacon_rep_updated = insert_to_probe_array(beacon_rep, false, false, true, time(NULL));
+        beacon_rep_updated = probe_set_insert(beacon_rep, false, false, true, time(NULL));
         if (beacon_rep != beacon_rep_updated) {
             dawn_free(beacon_rep);
         }
@@ -943,7 +943,7 @@ static bool parse_to_auth_request(struct blob_attr *message, auth_entry_t *auth_
     }
 
     err = hwaddr_aton(blobmsg_data(tb[AUTH_BSSID]), auth_request->bssid.u8);
-    err |= hwaddr_aton(blobmsg_data(tb[AUTH_CLIENT_ADDR]), auth_request->client_addr.u8);
+    err |= hwaddr_aton(blobmsg_data(tb[AUTH_CLIENT_ADDR]), auth_request->address.u8);
     err |= hwaddr_aton(blobmsg_data(tb[AUTH_TARGET_ADDR]), auth_request->target_addr.u8);
 
     if (tb[AUTH_SIGNAL]) {
@@ -1031,7 +1031,7 @@ static void ubus_set_neighbor_report(void)
 
     list_for_each_entry(sub, &hostapd_instance_list, list) {
         blob_buf_init(&b_nr, 0);
-        create_neighbor_report(&b_nr, sub->bssid);
+        build_neighbor_report(&b_nr, sub->bssid);
         err = ubus_invoke(ctx, sub->id, "rrm_nr_set", b_nr.head, NULL, NULL, 1000);
         if (err != 0) {
             DAWN_LOG_ERROR("Failed to set neighbor report");
@@ -1189,7 +1189,7 @@ static int get_hearing_map(struct ubus_context *context, struct ubus_object *obj
 {
     int err;
 
-    build_hearing_map_sort_client(&b);
+    build_hearing_map(&b);
 
     err = ubus_send_reply(context, request, b.head);
     if (err != 0) {

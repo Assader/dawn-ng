@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    insert_macs_from_file();
+    mac_set_insert_from_file();
 
     dawn_run_uloop();
 

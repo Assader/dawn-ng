@@ -8,7 +8,7 @@
 
 typedef struct {
     dawn_mac_t bssid;
-    dawn_mac_t client_addr;
+    dawn_mac_t address;
 } hostapd_notify_entry_t;
 
 static struct blob_buf network_buf;
@@ -175,7 +175,7 @@ bool handle_network_message(const char *message)
         DAWN_LOG_INFO("Handling `probe' message");
         probe_entry_t *entry = handle_hostapd_probe_request(data_buf.head);
         if (entry != NULL) {
-            if (entry != insert_to_probe_array(entry, false, true, false, time(NULL))) { /* Use 802.11k values */
+            if (entry != probe_set_insert(entry, false, true, false, time(NULL))) { /* Use 802.11k values */
                 /* Insert found an existing entry, rather than linking in our new one */
                 dawn_free(entry);
             }
@@ -245,7 +245,7 @@ probe_entry_t *handle_hostapd_probe_request(struct blob_attr *message)
         goto error;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[PROBE_CLIENT_ADDR]), probe_req->client_addr.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[PROBE_CLIENT_ADDR]), probe_req->address.u8)) {
         goto error;
     }
 
@@ -297,11 +297,11 @@ int handle_hostapd_deauth_request(struct blob_attr *msg)
 
     handle_hostapd_notify(msg, &notify_req);
 
-    client_t *client_entry = client_array_get_client(notify_req.client_addr);
+    client_t *client_entry = client_set_get(notify_req.address);
     if (client_entry != NULL) {
         DAWN_LOG_INFO("Client " MACSTR " deauth from " MACSTR,
-                      MAC2STR(client_entry->client_addr.u8), MAC2STR(client_entry->bssid.u8));
-        client_array_delete(client_entry, false);
+                      MAC2STR(client_entry->address.u8), MAC2STR(client_entry->bssid.u8));
+        client_set_delete(client_entry);
     }
 
     return 0;
@@ -390,7 +390,7 @@ bool handle_hostapd_clients_message(struct blob_attr *message, int do_kick, uint
         strncpy(ap_entry->hostname, blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]), HOST_NAME_MAX);
     }
 
-    insert_to_ap_array(ap_entry, time(NULL));
+    ap_set_insert(ap_entry, time(NULL));
 
     if (do_kick && behaviour_config.kicking) {
         update_iw_info(ap_entry->bssid);
@@ -408,7 +408,7 @@ static void handle_set_probe(struct blob_attr *message)
 
     handle_hostapd_notify(message, &notify_req);
 
-    probe_array_set_all_probe_count(notify_req.client_addr, behaviour_config.min_probe_count);
+    probe_set_update_all_probe_count(notify_req.address, behaviour_config.min_probe_count);
 }
 
 static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry_t *notify_req)
@@ -425,7 +425,7 @@ static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entr
         return false;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->client_addr.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->address.u8)) {
         return false;
     }
 
@@ -468,7 +468,7 @@ static void dump_client(struct blob_attr **tb, dawn_mac_t client_addr,
     }
 
     hwaddr_aton(bssid_addr, client_entry->bssid.u8);
-    client_entry->client_addr = client_addr;
+    client_entry->address = client_addr;
     client_entry->freq = freq;
     client_entry->ht_supported = ht_supported;
     client_entry->vht_supported = vht_supported;
@@ -521,7 +521,7 @@ static void dump_client(struct blob_attr **tb, dawn_mac_t client_addr,
     }
 
     /* If entry was already in list, it won't be added, so free memory */
-    if (client_entry != insert_client_to_array(client_entry, time(NULL))) {
+    if (client_entry != client_set_insert(client_entry, time(NULL))) {
         dawn_free(client_entry);
     }
 }
