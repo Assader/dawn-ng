@@ -108,11 +108,6 @@ typedef struct auth_entry_s {
 
 typedef auth_entry_t assoc_entry_t;
 
-typedef struct {
-    dawn_mac_t bssid;
-    dawn_mac_t client_addr;
-} hostapd_notify_entry_t;
-
 enum {
     SSID_MAX_LEN = 32,
     NEIGHBOR_REPORT_LEN = 200,

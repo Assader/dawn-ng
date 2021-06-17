@@ -6,6 +6,11 @@
 #include "msghandler.h"
 #include "ubus.h"
 
+typedef struct {
+    dawn_mac_t bssid;
+    dawn_mac_t client_addr;
+} hostapd_notify_entry_t;
+
 static struct blob_buf network_buf;
 static struct blob_buf data_buf;
 
