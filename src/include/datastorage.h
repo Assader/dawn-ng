@@ -127,8 +127,9 @@ typedef struct client_s {
     struct client_s *next_entry_bc;
     struct client_s *next_skip_entry_bc;
     struct client_s *next_entry_c;
-    dawn_mac_t bssid;
+
     dawn_mac_t client_addr;
+    dawn_mac_t bssid;
     char signature[SIGNATURE_LEN]; /* TODO: Never evaluated? */
     uint8_t ht_supported;          /* TODO: Never evaluated? */
     uint8_t vht_supported;         /* TODO: Never evaluated? */

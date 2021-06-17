@@ -51,12 +51,12 @@ static int client_entry_last;
 static pthread_mutex_t client_array_mutex;
 
 typedef struct mac_entry_s {
-    struct mac_entry_s *next_mac;
+    struct list_head list;
+
     dawn_mac_t mac;
 } mac_entry_t;
 
-static mac_entry_t *mac_set;
-static int mac_set_last;
+static LIST_HEAD(mac_set);
 
 /* Used as a filler where a value is required but not used functionally */
 static const dawn_mac_t dawn_mac_null = {.u8 = {0, 0, 0, 0, 0, 0}};
@@ -72,7 +72,7 @@ static inline client_t **client_skip_array_find_first_entry(
         dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid);
 static inline client_t **client_find_first_c_entry(dawn_mac_t client_mac);
 static inline auth_entry_t *auth_entry_find_first_entry(dawn_mac_t bssid, dawn_mac_t client_mac);
-static inline mac_entry_t **mac_find_first_entry(dawn_mac_t mac);
+static inline mac_entry_t *mac_find_first_entry(dawn_mac_t mac);
 static bool is_connected_somehwere(dawn_mac_t client_addr);
 static client_t *insert_to_client_bc_skip_array(client_t *entry);
 static void client_array_insert(client_t *entry, client_t **insert_pos);
@@ -161,12 +161,17 @@ static inline auth_entry_t *auth_entry_find_first_entry(dawn_mac_t bssid, dawn_m
     return NULL;
 }
 
-static inline mac_entry_t **mac_find_first_entry(dawn_mac_t mac)
+static inline mac_entry_t *mac_find_first_entry(dawn_mac_t mac)
 {
-    return (mac_entry_t **)
-            find_first_entry((char **) &mac_set,
-                             mac.u8, offsetof(mac_entry_t, mac),
-                             NULL, 0, false, offsetof(mac_entry_t, next_mac));
+    mac_entry_t *i;
+
+    list_for_each_entry(i, &mac_set, list) {
+        if (dawn_macs_are_equal(i->mac, mac)) {
+            return i;
+        }
+    }
+
+    return NULL;
 }
 
 static probe_entry_t **probe_array_find_first_entry(dawn_mac_t client_mac, dawn_mac_t bssid, bool do_bssid)
@@ -943,14 +948,14 @@ void insert_macs_from_file(void)
             goto cleanup;
         }
 
-        new_mac->next_mac = NULL;
         sscanf(line, DAWNMACSTR, STR2MAC(new_mac->mac.u8));
 
         insert_to_mac_array(new_mac);
     }
 
     DAWN_LOG_DEBUG("Printing MAC list:");
-    for (mac_entry_t *i = mac_set; i != NULL; i = i->next_mac) {
+    mac_entry_t *i;
+    list_for_each_entry(i, &mac_set, list) {
         DAWN_LOG_DEBUG(" - "MACSTR, MAC2STR(i->mac.u8));
     }
 
@@ -965,9 +970,9 @@ cleanup:
 /* TODO: This list only ever seems to get longer. Why do we need it? */
 bool insert_to_maclist(dawn_mac_t mac)
 {
-    mac_entry_t **i = mac_find_first_entry(mac);
+    mac_entry_t *i = mac_find_first_entry(mac);
 
-    if (*i != NULL && dawn_macs_are_equal((*i)->mac, mac)) {
+    if (i != NULL) {
         return false;
     }
 
@@ -977,7 +982,6 @@ bool insert_to_maclist(dawn_mac_t mac)
         return false;
     }
 
-    new_mac->next_mac = NULL;
     new_mac->mac = mac;
     insert_to_mac_array(new_mac);
 
@@ -987,7 +991,7 @@ bool insert_to_maclist(dawn_mac_t mac)
 /* TODO: How big is it in a large network? */
 bool mac_in_maclist(dawn_mac_t mac)
 {
-    return *mac_find_first_entry(mac) != NULL;
+    return mac_find_first_entry(mac) != NULL;
 }
 
 auth_entry_t *insert_to_denied_req_array(auth_entry_t *entry, int inc_counter, time_t expiry)
@@ -1021,11 +1025,7 @@ void denied_req_array_delete(auth_entry_t *entry)
 
 mac_entry_t *insert_to_mac_array(mac_entry_t *entry)
 {
-    mac_entry_t **insert_pos = mac_find_first_entry(entry->mac);
-
-    entry->next_mac = *insert_pos;
-    *insert_pos = entry;
-    mac_set_last++;
+    list_add(&entry->list, &mac_set);
 
     return entry;
 }
