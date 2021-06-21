@@ -21,7 +21,6 @@ enum {
 static int sock;
 static struct sockaddr_in addr;
 static char recv_buff[MAX_RECV_LENGTH];
-static pthread_mutex_t send_mutex;
 static pthread_t listener_thread_handler;
 
 static int udp_send(const char *message, size_t msglen);
@@ -77,12 +76,8 @@ int dawn_network_send(const char *message)
         message = enc;
     }
 
-    pthread_mutex_lock(&send_mutex);
-
     err = ((general_config.network_proto == DAWN_SOCKET_TCP)?
                tcp_send : udp_send) (message, msglen);
-
-    pthread_mutex_unlock(&send_mutex);
 
     if (general_config.use_encryption) {
         dawn_free((void *) message);

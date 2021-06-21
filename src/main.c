@@ -40,10 +40,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (!init_mutex()) {
-        exit(EXIT_FAILURE);
-    }
-
     if (!dawn_network_init(general_config.network_ip,
                            general_config.network_port,
                            general_config.network_proto)) {
@@ -94,5 +90,4 @@ static void dawn_shutdown(void)
     dawn_network_deinit();
     dawn_uci_deinit();
     uloop_end();
-    destroy_mutex();
 }

@@ -162,9 +162,6 @@ typedef struct {
     uint8_t rrm_enabled_capa;
 } client_t;
 
-bool init_mutex(void);
-void destroy_mutex(void);
-
 int kick_clients(ap_t *kicking_ap, uint32_t id);
 int better_ap_available(ap_t *kicking_ap, dawn_mac_t client_addr, char *neighbor_report);
 
