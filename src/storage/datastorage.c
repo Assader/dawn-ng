@@ -46,11 +46,11 @@ static LIST_HEAD(mac_set);
 /* Used as a filler where a value is required but not used functionally */
 static const dawn_mac_t dawn_mac_null = {.u8 = {0, 0, 0, 0, 0, 0}};
 
-static bool kick_client(ap_t *kicking_ap, client_t *client_entry, char *neighbor_report);
+static bool kick_client(ap_t *kicking_ap, client_t *client, char *neighbor_report);
 static int eval_probe_metric(probe_entry_t *probe, ap_t *ap);
 static bool station_count_imbalance_detected(ap_t *own_ap, ap_t *ap_to_compare, dawn_mac_t client_addr);
 static probe_entry_t *probe_set_get_entry(dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid);
-static void probe_set_delete_entry(probe_entry_t *i);
+static void probe_set_delete_entry(probe_entry_t *probe);
 static bool probe_set_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rssi);
 static auth_entry_t *denied_req_set_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac);
 static ap_t *ap_set_get_entry(dawn_mac_t bssid);
@@ -58,9 +58,9 @@ static void ap_set_insert_entry(ap_t *ap);
 static void ap_set_delete_entry(ap_t *ap);
 static int ap_get_collision_count(int col_domain);
 static client_t *client_set_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac, bool check_bssid, bool check_client);
-static void client_set_insert_entry(client_t *client, client_t **insert_pos);
+static void client_set_insert_entry(client_t *client);
 static mac_entry_t *mac_set_get_entry(dawn_mac_t mac);
-static mac_entry_t *mac_set_insert_entry(mac_entry_t *entry);
+static void mac_set_insert_entry(mac_entry_t *mac);
 static bool is_connected(dawn_mac_t bssid, dawn_mac_t client_mac);
 static bool is_connected_somehwere(dawn_mac_t client_addr);
 
@@ -69,9 +69,9 @@ bool init_mutex(void)
     int err;
 
     err = pthread_mutex_init(&probe_set_mutex, NULL);
-    err |= pthread_mutex_init(&client_set_mutex, NULL);
-    err |= pthread_mutex_init(&ap_set_mutex, NULL);
     err |= pthread_mutex_init(&denied_req_set_mutex, NULL);
+    err |= pthread_mutex_init(&ap_set_mutex, NULL);
+    err |= pthread_mutex_init(&client_set_mutex, NULL);
 
     if (err != 0) {
         DAWN_LOG_ERROR("Failed to initialize mutex");
@@ -83,8 +83,9 @@ bool init_mutex(void)
 void destroy_mutex(void)
 {
     pthread_mutex_destroy(&probe_set_mutex);
-    pthread_mutex_destroy(&client_set_mutex);
+    pthread_mutex_destroy(&denied_req_set_mutex);
     pthread_mutex_destroy(&ap_set_mutex);
+    pthread_mutex_destroy(&client_set_mutex);
 }
 
 int kick_clients(ap_t *kicking_ap, uint32_t id)
@@ -92,15 +93,18 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
     int kicked_clients = 0;
 
     pthread_mutex_lock(&client_set_mutex);
-    pthread_mutex_lock(&probe_set_mutex);
 
     DAWN_LOG_INFO("Kicking clients from " MACSTR " AP", MAC2STR(kicking_ap->bssid.u8));
 
-    /* Seach for BSSID. */
     client_t *head = client_set_get_entry(kicking_ap->bssid, dawn_mac_null, true, false), *client;
-    /* Go through clients. */
-    list_for_each_entry(client, &head->list, list) {
-        if (!macs_are_equal(client->bssid.u8, kicking_ap->bssid.u8)) {
+    if (head == NULL) {
+        DAWN_LOG_WARNING("Client set for this AP is empty");
+        goto cleanup;
+    }
+
+    list_for_each_entry(client, head->list.prev, list) {
+        if (!dawn_macs_are_equal(client->bssid, kicking_ap->bssid)) {
+            DAWN_LOG_WARNING("End of list");
             break;
         }
 
@@ -111,44 +115,46 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
 
         /* Better ap available. */
         if (do_kick) {
-            /* kick after algorithm decided to kick several times
+            /* Kick after algorithm decided to kick several times
              * + rssi is changing a lot
              * + chan util is changing a lot
-             * + ping pong behavior of clients will be reduced */
+             * + ping pong behavior of clients will be reduced. */
             ++client->kick_count;
-            DAWN_LOG_INFO(MACSTR " kick count is %d", MAC2STR(client->address.u8), client->kick_count);
+            DAWN_LOG_INFO(MACSTR " kick count is %d", MAC2STR(client->client_addr.u8), client->kick_count);
             if (client->kick_count >= behaviour_config.min_kick_count) {
                 float rx_rate, tx_rate;
-                if (iwinfo_get_bandwidth(client->address, &rx_rate, &tx_rate)) {
-                    /* Only use rx_rate for indicating if transmission is going on
-                     * <= 6MBits <- probably no transmission
-                     * tx_rate has always some weird value so don't use it. */
-                    if (rx_rate > behaviour_config.bandwidth_threshold) {
-                        DAWN_LOG_INFO(MACSTR " is probably in active transmisison. RxRate is: %f",
-                                      MAC2STR(client->address.u8), rx_rate);
-                    }
-                    else {
-                        DAWN_LOG_INFO(MACSTR " is probably NOT in active transmisison. RxRate is: %f. Kicking it",
-                                      MAC2STR(client->address.u8), rx_rate);
+                if (!iwinfo_get_bandwidth(client->client_addr, &rx_rate, &tx_rate)) {
+                    continue;
+                }
 
-                        /* Here we should send a messsage to set the probe count for all APs to the min that there
-                         * is no delay between switching the hearing map is full... */
-                        send_set_probe(client->address);
+                /* Only use rx_rate for indicating if transmission is going on
+                 * <= 6MBits <- probably no transmission
+                 * tx_rate has always some weird value so don't use it. */
+                if (rx_rate > behaviour_config.bandwidth_threshold) {
+                    DAWN_LOG_INFO(MACSTR " is probably in active transmisison. RxRate is: %f",
+                                  MAC2STR(client->client_addr.u8), rx_rate);
+                }
+                else {
+                    DAWN_LOG_INFO(MACSTR " is probably not in active transmisison. RxRate is: %f. Kicking it",
+                                  MAC2STR(client->client_addr.u8), rx_rate);
 
-                        wnm_disassoc_imminent(id, client->address, neighbor_report, 12);
+                    /* Here we should send a messsage to set the probe count for all APs to the min that there
+                     * is no delay between switching the hearing map is full... */
+                    send_set_probe(client->client_addr);
 
-                        ++kicked_clients;
-                    }
+                    wnm_disassoc_imminent(id, client->client_addr, neighbor_report, 12);
+
+                    ++kicked_clients;
                 }
             }
         }
         else {
-            DAWN_LOG_INFO(MACSTR " will stay", MAC2STR(client->address.u8));
+            DAWN_LOG_INFO(MACSTR " will stay", MAC2STR(client->client_addr.u8));
             client->kick_count = 0;
         }
     }
 
-    pthread_mutex_unlock(&probe_set_mutex);
+cleanup:
     pthread_mutex_unlock(&client_set_mutex);
 
     return kicked_clients;
@@ -159,24 +165,24 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
 int better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor_report)
 {
     bool kick = false;
-    int own_score;
 
     pthread_mutex_lock(&probe_set_mutex);
 
     probe_entry_t *own_probe = probe_set_get_entry(client_mac, kicking_ap->bssid, true);
     if (own_probe == NULL) {
-        DAWN_LOG_WARNING("Current AP not found in probe array! Something is VERY wrong");
+        DAWN_LOG_WARNING("Current AP not found in probe array");
         goto cleanup;
     }
 
-    own_score = eval_probe_metric(own_probe, kicking_ap);
-    DAWN_LOG_INFO("The score of " MACSTR " to our own AP is %d", MAC2STR(client_mac.u8), own_score);
+    int own_score = eval_probe_metric(own_probe, kicking_ap);
+    DAWN_LOG_INFO(MACSTR " score to " MACSTR " AP is %d",
+                  MAC2STR(client_mac.u8), MAC2STR(kicking_ap->bssid.u8), own_score);
 
     int max_score = own_score;
     /* Now carry on through entries for this client looking for better score. */
-    probe_entry_t *head = probe_set_get_entry(client_mac, dawn_mac_null, false), *probe;
-    list_for_each_entry(probe, &head->list, list) {
-        if (!macs_are_equal(probe->address.u8, client_mac.u8)) {
+    probe_entry_t *probe;
+    list_for_each_entry(probe, &probe_set, list) {
+        if (!dawn_macs_are_equal(probe->client_addr, client_mac)) {
             continue;
         }
 
@@ -189,13 +195,8 @@ int better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor_
             continue;
         }
 
-        /* Check if same ssid! */
-        if (strcmp((char *) kicking_ap->ssid, (char *) candidate_ap->ssid) != 0) {
-            continue;
-        }
-
         int candidate_ap_score = eval_probe_metric(probe, candidate_ap);
-        DAWN_LOG_INFO("The score of candidate AP " MACSTR " is %d",
+        DAWN_LOG_INFO(MACSTR " score to " MACSTR " AP is %d", MAC2STR(client_mac.u8),
                       MAC2STR(candidate_ap->bssid.u8), candidate_ap_score);
 
         if (candidate_ap_score > max_score) {
@@ -233,8 +234,11 @@ void request_beacon_reports(dawn_mac_t bssid, int id)
     pthread_mutex_lock(&client_set_mutex);
 
     client_t *head = client_set_get_entry(bssid, dawn_mac_null, true, false), *client;
+    if (head == NULL) {
+        return;
+    }
 
-    list_for_each_entry(client, &head->list, list) {
+    list_for_each_entry(client, head->list.prev, list) {
         if (!dawn_macs_are_equal(client->bssid, bssid)) {
             break;
         }
@@ -242,7 +246,7 @@ void request_beacon_reports(dawn_mac_t bssid, int id)
         if (client->rrm_enabled_capa & (WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE |
                                         WLAN_RRM_CAPS_BEACON_REPORT_ACTIVE |
                                         WLAN_RRM_CAPS_BEACON_REPORT_TABLE)) {
-            ubus_request_beacon_report(client->address, id);
+            ubus_request_beacon_report(client->client_addr, id);
         }
     }
 
@@ -254,12 +258,12 @@ void request_beacon_reports(dawn_mac_t bssid, int id)
 void build_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid)
 {
     void *neighbors = blobmsg_open_array(b, "list");
-    ap_t *ap;
 
     pthread_mutex_lock(&ap_set_mutex);
 
+    ap_t *ap;
     list_for_each_entry(ap, &ap_set, list) {
-        if (dawn_macs_are_equal(own_bssid, ap->bssid)) {
+        if (dawn_macs_are_equal(ap->bssid, own_bssid)) {
             /* Hostapd handles own entry neighbor report by itself. */
             continue;
         }
@@ -305,13 +309,13 @@ void build_hearing_map(struct blob_buf *b)
                 }
 
                 char client_mac_buf[20];
-                sprintf(client_mac_buf, MACSTR, MAC2STR(probe->address.u8));
+                sprintf(client_mac_buf, MACSTR, MAC2STR(probe->client_addr.u8));
                 void *client_list = blobmsg_open_table(b, client_mac_buf);
 
                 /* ... and add to the report every AP that got probe from this client. */
                 probe_entry_t *probe_sender, *probe_sender_head = probe;
                 list_for_each_entry(probe_sender, &probe_sender_head->list, list) {
-                    if (!dawn_macs_are_equal(probe_sender->address, probe->address)) {
+                    if (!dawn_macs_are_equal(probe_sender->client_addr, probe->client_addr)) {
                         break;
                     }
 
@@ -405,13 +409,13 @@ void build_network_overview(struct blob_buf *b)
 
         /* ... with all the clients connected. */
         client_t *head = client_set_get_entry(ap->bssid, dawn_mac_null, true, false), *client;
-        list_for_each_entry(client, &head->list, list) {
+        list_for_each_entry(client, head->list.prev, list) {
             if (!dawn_macs_are_equal(ap->bssid, client->bssid)) {
                 break;
             }
 
             char client_mac_buf[20];
-            sprintf(client_mac_buf, MACSTR, MAC2STR(client->address.u8));
+            sprintf(client_mac_buf, MACSTR, MAC2STR(client->client_addr.u8));
             void *client_list = blobmsg_open_table(b, client_mac_buf);
 
             if (strlen(client->signature) != 0) {
@@ -424,7 +428,7 @@ void build_network_overview(struct blob_buf *b)
             blobmsg_add_u8(b, "vht", client->vht);
             blobmsg_add_u32(b, "collision_count", ap_get_collision_count(ap->collision_domain));
 
-            probe_entry_t *probe = probe_set_get(client->bssid, client->address);
+            probe_entry_t *probe = probe_set_get(client->bssid, client->client_addr);
             if (probe != NULL) {
                 blobmsg_add_u32(b, "signal", probe->signal);
             }
@@ -451,19 +455,24 @@ void update_iw_info(dawn_mac_t bssid)
     DAWN_LOG_INFO("Updating info for clients at " MACSTR " AP", MAC2STR(bssid.u8));
 
     client_t *head = client_set_get_entry(bssid, dawn_mac_null, true, false), *client;
-    list_for_each_entry(client, &head->list, list) {
+    if (head == NULL) {
+        goto cleanup;
+    }
+
+    list_for_each_entry(client, head->list.prev, list) {
         if (!macs_are_equal(client->bssid.u8, bssid.u8)) {
             break;
         }
 
-        int rssi = iwinfo_get_rssi(client->address);
+        int rssi = iwinfo_get_rssi(client->client_addr);
         if (rssi != INT_MIN) {
-            if (!probe_set_update_rssi(client->bssid, client->address, rssi)) {
-                DAWN_LOG_ERROR("Failed to update rssi");
+            if (!probe_set_update_rssi(client->bssid, client->client_addr, rssi)) {
+                DAWN_LOG_WARNING("Failed to update rssi");
             }
         }
     }
 
+cleanup:
     pthread_mutex_unlock(&probe_set_mutex);
     pthread_mutex_unlock(&client_set_mutex);
 }
@@ -471,12 +480,12 @@ void update_iw_info(dawn_mac_t bssid)
 bool probe_set_update_all_probe_count(dawn_mac_t client_addr, uint32_t probe_count)
 {
     bool updated = false;
-    probe_entry_t *probe;
 
     pthread_mutex_lock(&probe_set_mutex);
 
+    probe_entry_t *probe;
     list_for_each_entry(probe, &probe_set, list) {
-        if (dawn_macs_are_equal(client_addr, probe->address)) {
+        if (dawn_macs_are_equal(client_addr, probe->client_addr)) {
             DAWN_LOG_DEBUG("Setting probe count for " MACSTR " to %d",
                            MAC2STR(client_addr.u8), probe_count);
             probe->counter = probe_count;
@@ -513,59 +522,65 @@ probe_entry_t *probe_set_get(dawn_mac_t bssid, dawn_mac_t client_mac)
     return i;
 }
 
-probe_entry_t *probe_set_insert(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry)
+probe_entry_t *probe_set_insert(probe_entry_t *probe, bool inc_counter, bool save_80211k, bool is_beacon, time_t expiry)
 {
     pthread_mutex_lock(&probe_set_mutex);
 
-    probe_entry_t *existing_entry = probe_set_get_entry(entry->address, entry->bssid, true);
+    probe_entry_t *tmp_probe = probe_set_get_entry(probe->client_addr, probe->bssid, true);
 
-    if (existing_entry != NULL) {
+    if (tmp_probe != NULL) {
         if (inc_counter) {
-            existing_entry->counter++;
+            tmp_probe->counter++;
         }
 
-        if (entry->signal) {
-            existing_entry->signal = entry->signal;
+        if (probe->signal) {
+            tmp_probe->signal = probe->signal;
         }
 
-        if (entry->ht_capabilities) {
-            existing_entry->ht_capabilities = entry->ht_capabilities;
+        if (probe->ht_capabilities) {
+            tmp_probe->ht_capabilities = probe->ht_capabilities;
         }
 
-        if (entry->vht_capabilities) {
-            existing_entry->vht_capabilities = entry->vht_capabilities;
+        if (probe->vht_capabilities) {
+            tmp_probe->vht_capabilities = probe->vht_capabilities;
         }
 
-        if (save_80211k && entry->rcpi != -1) {
-            existing_entry->rcpi = entry->rcpi;
+        if (save_80211k && probe->rcpi != -1) {
+            tmp_probe->rcpi = probe->rcpi;
         }
 
-        if (save_80211k && entry->rsni != -1) {
-            existing_entry->rsni = entry->rsni;
+        if (save_80211k && probe->rsni != -1) {
+            tmp_probe->rsni = probe->rsni;
         }
 
-        entry = existing_entry;
+        probe = tmp_probe;
     }
     else {
-        entry->counter = !!inc_counter;
+        probe->counter = !!inc_counter;
 
-        list_add(&entry->list, &probe_set);
+        /* Probe set has to be sorted by client address, skip some entries... */
+        list_for_each_entry(tmp_probe, &probe_set, list) {
+            if (dawn_macs_compare(tmp_probe->client_addr, probe->client_addr) > 0) {
+                break;
+            }
+        }
+
+        list_add_tail(&probe->list, &tmp_probe->list);
     }
 
-    entry->expiry = expiry;
+    probe->expiry = expiry;
 
     pthread_mutex_unlock(&probe_set_mutex);
 
     /* Return pointer to what we used, which may not be what was passed in. */
-    return entry;
+    return probe;
 }
 
-auth_entry_t *denied_req_set_insert(auth_entry_t *entry, int inc_counter, time_t expiry)
+auth_entry_t *denied_req_set_insert(auth_entry_t *entry, time_t expiry)
 {
     pthread_mutex_lock(&denied_req_set_mutex);
 
-    auth_entry_t *i = denied_req_set_get_entry(entry->bssid, entry->address);
-
+    auth_entry_t *i = denied_req_set_get_entry(entry->bssid, entry->client_addr);
     if (i != NULL) {
         entry = i;
         entry->counter++;
@@ -629,28 +644,24 @@ client_t *client_set_insert(client_t *client, time_t expiry)
 {
     pthread_mutex_lock(&client_set_mutex);
 
-    client_t *client_tmp = client_set_get_entry(client->bssid, client->address, true, true);
-
+    client_t *client_tmp = client_set_get_entry(client->bssid, client->client_addr, true, true);
     if (client_tmp == NULL) {
         client->kick_count = 0;
-        client->expiry = expiry;
-        client_set_insert_entry(client, NULL);
-        client = client_tmp;
+        client_set_insert_entry(client);
+        client_tmp = client;
     }
 
-    client->expiry = expiry;
+    client_tmp->expiry = expiry;
 
     pthread_mutex_unlock(&client_set_mutex);
 
-    return client;
+    return client_tmp;
 }
 
-client_t *client_set_delete(client_t *client)
+void client_set_delete(client_t *client)
 {
     list_del(&client->list);
     dawn_free(client);
-
-    return client;
 }
 
 void mac_set_insert_from_file(void)
@@ -691,7 +702,7 @@ void mac_set_insert_from_file(void)
     DAWN_LOG_DEBUG("Printing MAC list:");
     mac_entry_t *i;
     list_for_each_entry(i, &mac_set, list) {
-        DAWN_LOG_DEBUG(" - "MACSTR, MAC2STR(i->mac.u8));
+        DAWN_LOG_DEBUG(" - " MACSTR, MAC2STR(i->mac.u8));
     }
 
 cleanup:
@@ -706,7 +717,6 @@ cleanup:
 bool mac_set_insert(dawn_mac_t mac)
 {
     mac_entry_t *i = mac_set_get_entry(mac);
-
     if (i != NULL) {
         return false;
     }
@@ -731,13 +741,12 @@ bool mac_set_contains(dawn_mac_t mac)
 
 void remove_old_probe_entries(time_t current_time, uint32_t threshold)
 {
-    probe_entry_t *probe, *next_probe;
-
     pthread_mutex_lock(&probe_set_mutex);
 
+    probe_entry_t *probe, *next_probe;
     list_for_each_entry_safe(probe, next_probe, &probe_set, list) {
-        if (current_time > next_probe->expiry + threshold &&
-                !is_connected(next_probe->bssid, next_probe->address)) {
+        if (current_time > probe->expiry + threshold &&
+                !is_connected(probe->bssid, probe->client_addr)) {
             probe_set_delete_entry(probe);
         }
     }
@@ -745,25 +754,22 @@ void remove_old_probe_entries(time_t current_time, uint32_t threshold)
     pthread_mutex_unlock(&probe_set_mutex);
 }
 
-void remove_old_denied_req_entries(time_t current_time, uint32_t threshold, int logmac)
+void remove_old_denied_req_entries(time_t current_time, uint32_t threshold)
 {
-    auth_entry_t *i, *next;
-
     pthread_mutex_lock(&denied_req_set_mutex);
 
+    auth_entry_t *i, *next;
     list_for_each_entry_safe(i, next, &denied_req_set, list) {
-        /* Check counter. Check timer */
         if (current_time > i->expiry + threshold) {
-            /* Client is not connected for a given time threshold! */
-            if (logmac && !is_connected_somehwere(i->address)) {
-                DAWN_LOG_WARNING("Client probably has a bad driver");
+            if (!is_connected_somehwere(i->client_addr)) {
+                DAWN_LOG_WARNING(MACSTR " probably has a bad driver", MAC2STR(i->client_addr.u8));
                 /* Problem that somehow station will land into this list
                  * maybe delete again? */
-                if (mac_set_insert(i->address)) {
-                    send_add_mac(i->address);
+                if (mac_set_insert(i->client_addr)) {
+                    send_add_mac(i->client_addr);
                     /* TODO: File can grow arbitarily large.  Resource consumption risk. */
                     /* TODO: Consolidate use of file across source: shared resource for name, single point of access? */
-                    write_mac_to_file("/tmp/dawn_mac_list", i->address);
+                    write_mac_to_file("/tmp/dawn_mac_list", i->client_addr);
                 }
             }
             /* TODO: Add unlink function to save rescan to find element */
@@ -776,13 +782,13 @@ void remove_old_denied_req_entries(time_t current_time, uint32_t threshold, int 
 
 void remove_old_ap_entries(time_t current_time, uint32_t threshold)
 {
-    ap_t *i, *next;
 
     pthread_mutex_lock(&ap_set_mutex);
 
-    list_for_each_entry_safe(i, next, &ap_set, list) {
-        if (current_time > i->expiry + threshold) {
-            ap_set_delete_entry(i);
+    ap_t *ap, *next_ap;
+    list_for_each_entry_safe(ap, next_ap, &ap_set, list) {
+        if (current_time > ap->expiry + threshold) {
+            ap_set_delete_entry(ap);
         }
     }
 
@@ -794,7 +800,6 @@ void remove_old_client_entries(time_t current_time, uint32_t threshold)
     pthread_mutex_lock(&client_set_mutex);
 
     client_t *client, *next_client;
-
     list_for_each_entry_safe(client, next_client, &client_set, list) {
         if (current_time > client->expiry + threshold) {
             client_set_delete(client);
@@ -807,6 +812,7 @@ void remove_old_client_entries(time_t current_time, uint32_t threshold)
 void print_probe_array(void)
 {
     pthread_mutex_lock(&probe_set_mutex);
+
     probe_entry_t *probe;
     DAWN_LOG_DEBUG("Printing probe array");
     list_for_each_entry(probe, &probe_set, list) {
@@ -820,7 +826,7 @@ void print_probe_entry(probe_entry_t *probe)
 {
     DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", signal: %d, "
                    "freq: %d, counter: %d, vht: %d",
-                   MAC2STR(probe->bssid.u8), MAC2STR(probe->address.u8),
+                   MAC2STR(probe->bssid.u8), MAC2STR(probe->client_addr.u8),
                    probe->signal, probe->freq, probe->counter, probe->vht_capabilities);
 }
 
@@ -828,16 +834,7 @@ void print_auth_entry(const char *header, auth_entry_t *entry)
 {
     DAWN_LOG_DEBUG(header);
     DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", signal: %d, freq: %d",
-                   MAC2STR(entry->bssid.u8), MAC2STR(entry->address.u8), entry->signal, entry->freq);
-}
-
-void print_ap_entry(ap_t *ap)
-{
-    DAWN_LOG_DEBUG(" - ssid: %s, bssid: " MACSTR ", freq: %d, ht: %d, vht: %d, "
-                   "chan_util: %d, col_d: %d, bandwidth: %d, col_count: %d neighbor_report: %s",
-                   ap->ssid, MAC2STR(ap->bssid.u8), ap->freq, ap->ht_support, ap->vht_support,
-                   ap->channel_utilization, ap->collision_domain, ap->bandwidth,
-                   ap_get_collision_count(ap->collision_domain), ap->neighbor_report);
+                   MAC2STR(entry->bssid.u8), MAC2STR(entry->client_addr.u8), entry->signal, entry->freq);
 }
 
 void print_ap_array(void)
@@ -847,6 +844,15 @@ void print_ap_array(void)
     list_for_each_entry(ap, &ap_set, list) {
         print_ap_entry(ap);
     }
+}
+
+void print_ap_entry(ap_t *ap)
+{
+    DAWN_LOG_DEBUG(" - ssid: %s, bssid: " MACSTR ", freq: %d, ht: %d, vht: %d, "
+                   "chan_util: %d, col_d: %d, bandwidth: %d, col_count: %d neighbor_report: %s",
+                   ap->ssid, MAC2STR(ap->bssid.u8), ap->freq, ap->ht_support, ap->vht_support,
+                   ap->channel_utilization, ap->collision_domain, ap->bandwidth,
+                   ap_get_collision_count(ap->collision_domain), ap->neighbor_report);
 }
 
 void print_client_array(void)
@@ -862,16 +868,16 @@ void print_client_entry(client_t *client)
 {
     DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", freq: %d, "
                    "ht_supported: %d, vht_supported: %d, ht: %d, vht: %d, kick: %d",
-                   MAC2STR(client->bssid.u8), MAC2STR(client->address.u8), client->freq,
+                   MAC2STR(client->bssid.u8), MAC2STR(client->client_addr.u8), client->freq,
                    client->ht_supported, client->vht_supported, client->ht, client->vht, client->kick_count);
 }
 
-static bool kick_client(ap_t *kicking_ap, client_t *client_entry, char *neighbor_report)
+static bool kick_client(ap_t *kicking_ap, client_t *client, char *neighbor_report)
 {
     bool kick = false;
 
-    if (!mac_set_contains(client_entry->address)) {
-        kick = better_ap_available(kicking_ap, client_entry->address, neighbor_report);
+    if (!mac_set_contains(client->client_addr)) {
+        kick = better_ap_available(kicking_ap, client->client_addr, neighbor_report);
     }
 
     return kick;
@@ -898,7 +904,7 @@ static int eval_probe_metric(probe_entry_t *probe, ap_t *ap)
     score += (probe->signal <= metric_config.low_rssi_val)? metric_config.low_rssi : 0;
 
     DAWN_LOG_DEBUG("The score of " MACSTR " for " MACSTR " is %d",
-                   MAC2STR(probe->address.u8), MAC2STR(ap->bssid.u8), score);
+                   MAC2STR(probe->client_addr.u8), MAC2STR(ap->bssid.u8), score);
 
     return score;
 }
@@ -929,9 +935,8 @@ static bool station_count_imbalance_detected(ap_t *own_ap, ap_t *ap_to_compare, 
 static probe_entry_t *probe_set_get_entry(dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid)
 {
     probe_entry_t *probe;
-
     list_for_each_entry(probe, &probe_set, list) {
-        bool found = dawn_macs_are_equal(probe->address, client_mac);
+        bool found = dawn_macs_are_equal(probe->client_addr, client_mac);
 
         if (found && check_bssid) {
             found = dawn_macs_are_equal(probe->bssid, bssid);
@@ -955,7 +960,7 @@ static bool probe_set_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uint
 {
     bool updated = false;
 
-    probe_entry_t *i = probe_set_get(bssid, client_addr);
+    probe_entry_t *i = probe_set_get_entry(client_addr, bssid, true);
     if (i != NULL) {
         i->signal = rssi;
         updated = true;
@@ -969,9 +974,8 @@ static bool probe_set_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uint
 static auth_entry_t *denied_req_set_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac)
 {
     auth_entry_t *i;
-
     list_for_each_entry(i, &denied_req_set, list) {
-        if (dawn_macs_are_equal(i->bssid, bssid) && dawn_macs_are_equal(i->address, client_mac)) {
+        if (dawn_macs_are_equal(i->bssid, bssid) && dawn_macs_are_equal(i->client_addr, client_mac)) {
             return i;
         }
     }
@@ -982,7 +986,6 @@ static auth_entry_t *denied_req_set_get_entry(dawn_mac_t bssid, dawn_mac_t clien
 static ap_t *ap_set_get_entry(dawn_mac_t bssid)
 {
     ap_t *ap;
-
     list_for_each_entry(ap, &ap_set, list) {
         if (dawn_macs_are_equal(ap->bssid, bssid)) {
             return ap;
@@ -996,17 +999,15 @@ static ap_t *ap_set_get_entry(dawn_mac_t bssid)
  * as quick if we're not using an optimised search. */
 static void ap_set_insert_entry(ap_t *ap)
 {
-    ap_t *i;
-
-    list_for_each_entry(i, &ap_set, list) {
-        /* TODO: Not sure these tests are right way around to ensure SSID / MAC ordering */
-        /* TODO: Do we do any SSID checks elsewhere? */
-        int sc = strcmp((char *) ap->ssid, (char *) i->ssid);
-        if ((sc < 0) || (sc == 0 && dawn_macs_compare(ap->bssid, i->bssid) < 0)) {
-            list_add(&ap->list, &i->list);
+    ap_t *insertion_candidate;
+    list_for_each_entry(insertion_candidate, &ap_set, list) {
+        int sc = strcmp((char *) insertion_candidate->ssid, (char *) ap->ssid);
+        if (sc > 0 || (sc == 0 && dawn_macs_compare(insertion_candidate->bssid, ap->bssid) > 0)) {
             break;
         }
     }
+
+    list_add_tail(&ap->list, &insertion_candidate->list);
 }
 
 static void ap_set_delete_entry(ap_t *ap)
@@ -1019,13 +1020,12 @@ static void ap_set_delete_entry(ap_t *ap)
 static int ap_get_collision_count(int col_domain)
 {
     int ret_sta_count = 0;
-    ap_t *i;
 
     pthread_mutex_lock(&ap_set_mutex);
-
-    list_for_each_entry(i, &ap_set, list) {
-        if (i->collision_domain == col_domain) {
-            ret_sta_count += i->station_count;
+    ap_t *ap;
+    list_for_each_entry(ap, &ap_set, list) {
+        if (ap->collision_domain == col_domain) {
+            ret_sta_count += ap->station_count;
         }
     }
 
@@ -1042,7 +1042,7 @@ static client_t *client_set_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac, b
         bool found = check_bssid? dawn_macs_are_equal(client->bssid, bssid) : true;
 
         if (found && check_client) {
-            found = dawn_macs_are_equal(client->address, client_mac);
+            found = dawn_macs_are_equal(client->client_addr, client_mac);
         }
 
         if (found) {
@@ -1053,15 +1053,36 @@ static client_t *client_set_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac, b
     return NULL;
 }
 
-static void client_set_insert_entry(client_t *client, client_t **insert_pos)
+static void client_set_insert_entry(client_t *client)
 {
-    list_add(&client->list, &client_set);
+    client_t *insert_candidate;
+
+    /* Client list is double sorted, first - by BSSID... */
+    list_for_each_entry(insert_candidate, &client_set, list) {
+        int cmp = dawn_macs_compare(insert_candidate->bssid, client->bssid);
+        if (cmp >= 0) {
+            if (cmp == 0) {
+                /* ... second - by client address. */
+                client_t *tmp_client;
+                list_for_each_entry(tmp_client, &insert_candidate->list, list) {
+                    if (dawn_macs_compare(tmp_client->client_addr, client->client_addr) > 0) {
+                        break;
+                    }
+                }
+
+                insert_candidate = tmp_client;
+            }
+
+            break;
+        }
+    }
+
+    list_add_tail(&client->list, &insert_candidate->list);
 }
 
 static mac_entry_t *mac_set_get_entry(dawn_mac_t mac)
 {
     mac_entry_t *i;
-
     list_for_each_entry(i, &mac_set, list) {
         if (dawn_macs_are_equal(i->mac, mac)) {
             return i;
@@ -1071,11 +1092,9 @@ static mac_entry_t *mac_set_get_entry(dawn_mac_t mac)
     return NULL;
 }
 
-static mac_entry_t *mac_set_insert_entry(mac_entry_t *entry)
+static void mac_set_insert_entry(mac_entry_t *mac)
 {
-    list_add(&entry->list, &mac_set);
-
-    return entry;
+    list_add(&mac->list, &mac_set);
 }
 
 static bool is_connected(dawn_mac_t bssid, dawn_mac_t client_mac)

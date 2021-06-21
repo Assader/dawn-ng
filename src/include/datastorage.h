@@ -80,7 +80,7 @@ extern behaviour_config_t behaviour_config;
 typedef struct {
     struct list_head list;
 
-    dawn_mac_t address;
+    dawn_mac_t client_addr;
     dawn_mac_t bssid;
     dawn_mac_t target_addr; /* TODO: Never evaluated? */
     uint32_t signal;
@@ -97,7 +97,7 @@ typedef struct {
     struct list_head list;
 
     dawn_mac_t bssid;
-    dawn_mac_t address;
+    dawn_mac_t client_addr;
     dawn_mac_t target_addr; /* TODO: Never evaluated? */
     uint32_t signal;             /* TODO: Never evaluated? */
     uint32_t freq;               /* TODO: Never evaluated? */
@@ -140,7 +140,7 @@ typedef struct {
 typedef struct {
     struct list_head list;
 
-    dawn_mac_t address;
+    dawn_mac_t client_addr;
     dawn_mac_t bssid;
     char signature[SIGNATURE_LEN]; /* TODO: Never evaluated? */
     uint8_t ht_supported;          /* TODO: Never evaluated? */
@@ -178,9 +178,9 @@ void update_iw_info(dawn_mac_t bssid);
 bool probe_set_update_all_probe_count(dawn_mac_t client_addr, uint32_t probe_count);
 bool probe_set_update_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rcpi, uint32_t rsni);
 probe_entry_t *probe_set_get(dawn_mac_t bssid, dawn_mac_t client_addr);
-probe_entry_t *probe_set_insert(probe_entry_t *entry, int inc_counter, int save_80211k, int is_beacon, time_t expiry);
+probe_entry_t *probe_set_insert(probe_entry_t *probe, bool inc_counter, bool save_80211k, bool is_beacon, time_t expiry);
 
-auth_entry_t *denied_req_set_insert(auth_entry_t *entry, int inc_counter, time_t expiry);
+auth_entry_t *denied_req_set_insert(auth_entry_t *entry, time_t expiry);
 void denied_req_array_delete(auth_entry_t *entry);
 
 ap_t *ap_set_get(dawn_mac_t bssid);
@@ -188,14 +188,14 @@ ap_t *ap_set_insert(ap_t *ap, time_t expiry);
 
 client_t *client_set_get(dawn_mac_t client_addr);
 client_t *client_set_insert(client_t *client, time_t expiry);
-client_t *client_set_delete(client_t *client);
+void client_set_delete(client_t *client);
 
 void mac_set_insert_from_file(void);
 bool mac_set_insert(dawn_mac_t mac);
 bool mac_set_contains(dawn_mac_t mac);
 
 void remove_old_probe_entries(time_t current_time, uint32_t threshold);
-void remove_old_denied_req_entries(time_t current_time, uint32_t threshold, int logmac);
+void remove_old_denied_req_entries(time_t current_time, uint32_t threshold);
 void remove_old_ap_entries(time_t current_time, uint32_t threshold);
 void remove_old_client_entries(time_t current_time, uint32_t threshold);
 

@@ -21,7 +21,7 @@ probe_entry_t *handle_hostapd_probe_request(struct blob_attr *message);
  * @param id - ubus id.
  * @return
  */
-bool handle_hostapd_clients_message(struct blob_attr *msg, int do_kick, uint32_t id);
+bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uint32_t id);
 
 /**
  * Handle network messages.
@@ -30,6 +30,6 @@ bool handle_hostapd_clients_message(struct blob_attr *msg, int do_kick, uint32_t
  */
 bool handle_network_message(const char *message);
 
-int handle_hostapd_deauth_request(struct blob_attr *msg);
+int handle_hostapd_deauth_request(struct blob_attr *message);
 
 #endif /* DAWN_MSGHANDLER_H */

@@ -8,7 +8,7 @@
 
 typedef struct {
     dawn_mac_t bssid;
-    dawn_mac_t address;
+    dawn_mac_t client_addr;
 } hostapd_notify_entry_t;
 
 static struct blob_buf network_buf;
@@ -183,7 +183,7 @@ bool handle_network_message(const char *message)
     }
     else if (strcmp(method, "clients") == 0) {
         DAWN_LOG_INFO("Handling `clients' message");
-        handle_hostapd_clients_message(data_buf.head, 0, 0);
+        handle_hostapd_clients_message(data_buf.head, false, 0);
     }
     else if (strcmp(method, "deauth") == 0) {
         DAWN_LOG_INFO("Handling `deauth' message");
@@ -245,7 +245,7 @@ probe_entry_t *handle_hostapd_probe_request(struct blob_attr *message)
         goto error;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[PROBE_CLIENT_ADDR]), probe_req->address.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[PROBE_CLIENT_ADDR]), probe_req->client_addr.u8)) {
         goto error;
     }
 
@@ -291,23 +291,23 @@ error:
     return NULL;
 }
 
-int handle_hostapd_deauth_request(struct blob_attr *msg)
+int handle_hostapd_deauth_request(struct blob_attr *message)
 {
     hostapd_notify_entry_t notify_req;
 
-    handle_hostapd_notify(msg, &notify_req);
+    handle_hostapd_notify(message, &notify_req);
 
-    client_t *client_entry = client_set_get(notify_req.address);
+    client_t *client_entry = client_set_get(notify_req.client_addr);
     if (client_entry != NULL) {
         DAWN_LOG_INFO("Client " MACSTR " deauth from " MACSTR,
-                      MAC2STR(client_entry->address.u8), MAC2STR(client_entry->bssid.u8));
+                      MAC2STR(client_entry->client_addr.u8), MAC2STR(client_entry->bssid.u8));
         client_set_delete(client_entry);
     }
 
     return 0;
 }
 
-bool handle_hostapd_clients_message(struct blob_attr *message, int do_kick, uint32_t id)
+bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uint32_t id)
 {
     struct blob_attr *tb[__CLIENT_TABLE_MAX];
     bool result = false;
@@ -408,7 +408,7 @@ static void handle_set_probe(struct blob_attr *message)
 
     handle_hostapd_notify(message, &notify_req);
 
-    probe_set_update_all_probe_count(notify_req.address, behaviour_config.min_probe_count);
+    probe_set_update_all_probe_count(notify_req.client_addr, behaviour_config.min_probe_count);
 }
 
 static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry_t *notify_req)
@@ -425,7 +425,7 @@ static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entr
         return false;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->address.u8)) {
+    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->client_addr.u8)) {
         return false;
     }
 
@@ -459,70 +459,70 @@ static void dump_client(struct blob_attr **tb, dawn_mac_t client_addr,
                         const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
                         uint8_t vht_supported)
 {
-    client_t *client_entry;
+    client_t *client;
 
-    client_entry = dawn_calloc(1, sizeof (client_t));
-    if (client_entry == NULL) {
+    client = dawn_calloc(1, sizeof (client_t));
+    if (client == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
         return;
     }
 
-    hwaddr_aton(bssid_addr, client_entry->bssid.u8);
-    client_entry->address = client_addr;
-    client_entry->freq = freq;
-    client_entry->ht_supported = ht_supported;
-    client_entry->vht_supported = vht_supported;
+    hwaddr_aton(bssid_addr, client->bssid.u8);
+    client->client_addr = client_addr;
+    client->freq = freq;
+    client->ht_supported = ht_supported;
+    client->vht_supported = vht_supported;
 
     if (tb[CLIENT_AUTH]) {
-        client_entry->auth = blobmsg_get_u8(tb[CLIENT_AUTH]);
+        client->auth = blobmsg_get_u8(tb[CLIENT_AUTH]);
     }
     if (tb[CLIENT_ASSOC]) {
-        client_entry->assoc = blobmsg_get_u8(tb[CLIENT_ASSOC]);
+        client->assoc = blobmsg_get_u8(tb[CLIENT_ASSOC]);
     }
     if (tb[CLIENT_AUTHORIZED]) {
-        client_entry->authorized = blobmsg_get_u8(tb[CLIENT_AUTHORIZED]);
+        client->authorized = blobmsg_get_u8(tb[CLIENT_AUTHORIZED]);
     }
     if (tb[CLIENT_PREAUTH]) {
-        client_entry->preauth = blobmsg_get_u8(tb[CLIENT_PREAUTH]);
+        client->preauth = blobmsg_get_u8(tb[CLIENT_PREAUTH]);
     }
     if (tb[CLIENT_WDS]) {
-        client_entry->wds = blobmsg_get_u8(tb[CLIENT_WDS]);
+        client->wds = blobmsg_get_u8(tb[CLIENT_WDS]);
     }
     if (tb[CLIENT_WMM]) {
-        client_entry->wmm = blobmsg_get_u8(tb[CLIENT_WMM]);
+        client->wmm = blobmsg_get_u8(tb[CLIENT_WMM]);
     }
     if (tb[CLIENT_HT]) {
-        client_entry->ht = blobmsg_get_u8(tb[CLIENT_HT]);
+        client->ht = blobmsg_get_u8(tb[CLIENT_HT]);
     }
     if (tb[CLIENT_VHT]) {
-        client_entry->vht = blobmsg_get_u8(tb[CLIENT_VHT]);
+        client->vht = blobmsg_get_u8(tb[CLIENT_VHT]);
     }
     if (tb[CLIENT_WPS]) {
-        client_entry->wps = blobmsg_get_u8(tb[CLIENT_WPS]);
+        client->wps = blobmsg_get_u8(tb[CLIENT_WPS]);
     }
     if (tb[CLIENT_MFP]) {
-        client_entry->mfp = blobmsg_get_u8(tb[CLIENT_MFP]);
+        client->mfp = blobmsg_get_u8(tb[CLIENT_MFP]);
     }
     if (tb[CLIENT_AID]) {
-        client_entry->aid = blobmsg_get_u32(tb[CLIENT_AID]);
+        client->aid = blobmsg_get_u32(tb[CLIENT_AID]);
     }
     /* RRM Caps */
     if (tb[CLIENT_RRM]) {
         /* Get the first byte from rrm array
         ap_entry.ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_RRM]); */
-        client_entry->rrm_enabled_capa =
+        client->rrm_enabled_capa =
                 dump_rrm_table(blobmsg_data(tb[CLIENT_RRM]),
                                blobmsg_data_len(tb[CLIENT_RRM]));
     }
 
     /* Copy signature */
     if (tb[CLIENT_SIGNATURE]) {
-        strncpy(client_entry->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN);
+        strncpy(client->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN);
     }
 
     /* If entry was already in list, it won't be added, so free memory */
-    if (client_entry != client_set_insert(client_entry, time(NULL))) {
-        dawn_free(client_entry);
+    if (client != client_set_insert(client, time(NULL))) {
+        dawn_free(client);
     }
 }
 

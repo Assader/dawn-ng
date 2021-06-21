@@ -53,7 +53,7 @@ bool tcp_run_server(uint16_t port)
 {
     char port_str[12];
 
-    DAWN_LOG_DEBUG("Adding socket");
+    DAWN_LOG_DEBUG("Starting tcp server");
 
     sprintf(port_str, "%u", port);
 

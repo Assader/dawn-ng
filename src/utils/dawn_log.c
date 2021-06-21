@@ -8,12 +8,14 @@
 
 static int dawn_log_level = DAWN_LOG_LEVEL_WARNING;
 
+#ifndef DAWN_LOG_TO_SYSLOG
 static char log_level_symbol[] = {
     [DAWN_LOG_LEVEL_DEBUG]   = 'D',
     [DAWN_LOG_LEVEL_INFO]    = 'I',
     [DAWN_LOG_LEVEL_WARNING] = 'W',
     [DAWN_LOG_LEVEL_ERROR]   = 'E',
 };
+#endif
 
 #ifdef DAWN_VERBOSE_LOGS
 void dawn_log(int log_level, const char *file, const char *function, int line, const char *format, ...)
