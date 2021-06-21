@@ -89,9 +89,11 @@ exit:
 
 void dawn_network_deinit(void)
 {
-    pthread_cancel(listener_thread_handler);
-    pthread_join(listener_thread_handler, NULL);
-    close(sock);
+    if (general_config.network_proto != DAWN_SOCKET_TCP) {
+        pthread_cancel(listener_thread_handler);
+        pthread_join(listener_thread_handler, NULL);
+        close(sock);
+    }
 }
 
 static int udp_send(const char *message, size_t msglen)

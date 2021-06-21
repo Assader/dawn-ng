@@ -13,6 +13,9 @@
 
 #include "mac_utils.h"
 
+#define list_for_each_entry_first(pointer, first, field) \
+    list_for_each_entry(pointer, first->list.prev, field)
+
 typedef struct {
     int network_proto;
     char network_ip[INET_ADDRSTRLEN];
@@ -159,49 +162,49 @@ typedef struct {
     uint32_t aid;                  /* TODO: Never evaluated? */
     time_t expiry;
     uint32_t kick_count;
-    uint8_t rrm_enabled_capa;
+    uint8_t rrm_capability;
 } client_t;
 
 int kick_clients(ap_t *kicking_ap, uint32_t id);
-int better_ap_available(ap_t *kicking_ap, dawn_mac_t client_addr, char *neighbor_report);
+bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_addr, char *neighbor_report);
 
 void request_beacon_reports(dawn_mac_t bssid, int id);
 void build_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid);
 void build_hearing_map(struct blob_buf *b);
 void build_network_overview(struct blob_buf *b);
 
-void update_iw_info(dawn_mac_t bssid);
+void iwinfo_update_clients(dawn_mac_t bssid);
 
-bool probe_set_update_all_probe_count(dawn_mac_t client_addr, uint32_t probe_count);
-bool probe_set_update_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rcpi, uint32_t rsni);
-probe_entry_t *probe_set_get(dawn_mac_t bssid, dawn_mac_t client_addr);
-probe_entry_t *probe_set_insert(probe_entry_t *probe, bool inc_counter, bool save_80211k, bool is_beacon, time_t expiry);
+bool probe_list_set_probe_count(dawn_mac_t client_addr, uint32_t probe_count);
+bool probe_list_set_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rcpi, uint32_t rsni);
+probe_entry_t *probe_list_get(dawn_mac_t bssid, dawn_mac_t client_addr);
+probe_entry_t *probe_list_insert(probe_entry_t *probe, bool inc_counter, bool save_80211k, time_t expiry);
 
-auth_entry_t *denied_req_set_insert(auth_entry_t *entry, time_t expiry);
-void denied_req_array_delete(auth_entry_t *entry);
+auth_entry_t *denied_req_list_insert(auth_entry_t *entry, time_t expiry);
+void denied_req_list_delete(auth_entry_t *entry);
 
-ap_t *ap_set_get(dawn_mac_t bssid);
-ap_t *ap_set_insert(ap_t *ap, time_t expiry);
+ap_t *ap_list_get(dawn_mac_t bssid);
+ap_t *ap_list_insert(ap_t *ap, time_t expiry);
 
-client_t *client_set_get(dawn_mac_t client_addr);
-client_t *client_set_insert(client_t *client, time_t expiry);
-void client_set_delete(client_t *client);
+client_t *client_list_get(dawn_mac_t client_addr);
+client_t *client_list_insert(client_t *client, time_t expiry);
+void client_list_delete(client_t *client);
 
-void mac_set_insert_from_file(void);
-bool mac_set_insert(dawn_mac_t mac);
-bool mac_set_contains(dawn_mac_t mac);
+void allow_list_load(void);
+bool allow_list_insert(dawn_mac_t mac);
+bool allow_list_contains(dawn_mac_t mac);
 
 void remove_old_probe_entries(time_t current_time, uint32_t threshold);
 void remove_old_denied_req_entries(time_t current_time, uint32_t threshold);
 void remove_old_ap_entries(time_t current_time, uint32_t threshold);
 void remove_old_client_entries(time_t current_time, uint32_t threshold);
 
-void print_probe_array(void);
+void print_probe_list(void);
 void print_probe_entry(probe_entry_t *probe);
 void print_auth_entry(const char *header, auth_entry_t *entry);
-void print_ap_array(void);
+void print_ap_list(void);
 void print_ap_entry(ap_t *ap);
-void print_client_array(void);
+void print_client_list(void);
 void print_client_entry(client_t *client);
 
 #endif /* DAWN_DATASTORAGE_H */

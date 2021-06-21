@@ -1,4 +1,4 @@
-#include <stdio.h>
+﻿#include <stdio.h>
 
 #include "dawn_iwinfo.h"
 #include "dawn_log.h"
@@ -28,35 +28,31 @@ typedef struct {
     dawn_mac_t mac;
 } mac_entry_t;
 
-static LIST_HEAD(probe_set);
-
-static LIST_HEAD(denied_req_set);
-
-static LIST_HEAD(ap_set);
-
+static LIST_HEAD(probe_list);
+static LIST_HEAD(denied_req_list);
+static LIST_HEAD(ap_list);
 /* Ordered by BSSID + client MAC. */
-static LIST_HEAD(client_set);
+static LIST_HEAD(client_list);
+static LIST_HEAD(allow_list);
 
-static LIST_HEAD(mac_set);
-
-/* Used as a filler where a value is required but not used functionally */
-static const dawn_mac_t dawn_mac_null = {.u8 = {0, 0, 0, 0, 0, 0}};
+/* Used as a filler where a value is required but not used functionally. */
+static const dawn_mac_t dawn_mac_null = {0};
 
 static bool kick_client(ap_t *kicking_ap, client_t *client, char *neighbor_report);
 static int eval_probe_metric(probe_entry_t *probe, ap_t *ap);
 static bool station_count_imbalance_detected(ap_t *own_ap, ap_t *ap_to_compare, dawn_mac_t client_addr);
-static probe_entry_t *probe_set_get_entry(dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid);
-static void probe_set_delete_entry(probe_entry_t *probe);
-static bool probe_set_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rssi);
-static auth_entry_t *denied_req_set_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac);
-static ap_t *ap_set_get_entry(dawn_mac_t bssid);
-static void ap_set_insert_entry(ap_t *ap);
-static void ap_set_delete_entry(ap_t *ap);
+static probe_entry_t *probe_list_get_entry(dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid);
+static void probe_list_delete_entry(probe_entry_t *probe);
+static bool probe_list_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rssi);
+static auth_entry_t *denied_req_list_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac);
+static ap_t *ap_list_get_entry(dawn_mac_t bssid);
+static void ap_list_insert_entry(ap_t *ap);
+static void ap_list_delete_entry(ap_t *ap);
 static int ap_get_collision_count(int col_domain);
-static client_t *client_set_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac, bool check_bssid, bool check_client);
-static void client_set_insert_entry(client_t *client);
-static mac_entry_t *mac_set_get_entry(dawn_mac_t mac);
-static void mac_set_insert_entry(mac_entry_t *mac);
+static client_t *client_list_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac, bool check_bssid, bool check_client);
+static void client_list_insert_entry(client_t *client);
+static mac_entry_t *allow_list_get_entry(dawn_mac_t mac);
+static void allow_list_insert_entry(mac_entry_t *mac);
 static bool is_connected(dawn_mac_t bssid, dawn_mac_t client_mac);
 static bool is_connected_somehwere(dawn_mac_t client_addr);
 
@@ -66,22 +62,19 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
 
     DAWN_LOG_INFO("Kicking clients from " MACSTR " AP", MAC2STR(kicking_ap->bssid.u8));
 
-    client_t *head = client_set_get_entry(kicking_ap->bssid, dawn_mac_null, true, false), *client;
-    if (head == NULL) {
-        DAWN_LOG_WARNING("Client set for this AP is empty");
-        goto cleanup;
+    client_t *first = client_list_get_entry(kicking_ap->bssid, dawn_mac_null, true, false), *client;
+    if (first == NULL) {
+        goto exit;
     }
 
-    list_for_each_entry(client, head->list.prev, list) {
+    list_for_each_entry_first(client, first, list) {
+        /* Loop through all clients at given AP. */
         if (!dawn_macs_are_equal(client->bssid, kicking_ap->bssid)) {
-            DAWN_LOG_WARNING("End of list");
             break;
         }
 
         char neighbor_report[NEIGHBOR_REPORT_LEN + 1] = {""};
         bool do_kick = kick_client(kicking_ap, client, neighbor_report);
-
-        DAWN_LOG_DEBUG("Chosen AP %s", neighbor_report);
 
         /* Better ap available. */
         if (do_kick) {
@@ -93,7 +86,10 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
             DAWN_LOG_INFO(MACSTR " kick count is %d", MAC2STR(client->client_addr.u8), client->kick_count);
             if (client->kick_count >= behaviour_config.min_kick_count) {
                 float rx_rate, tx_rate;
+                /* TODO: refactor iwinfo_get_bw. There is no need to go throu all interfaces as soon as we know BSSID. */
                 if (!iwinfo_get_bandwidth(client->client_addr, &rx_rate, &tx_rate)) {
+                    DAWN_LOG_WARNING("Failed to get bandwidth for client " MACSTR
+                                     ". Unable to decide if it is transmitting or not.", MAC2STR(client->client_addr.u8));
                     continue;
                 }
 
@@ -124,21 +120,21 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
         }
     }
 
-cleanup:
-
+exit:
     return kicked_clients;
 }
 
 /* neighbor_report could be NULL if we only want to know if there is a better AP.
  If the pointer is set, it will be filled with neighbor report of the best AP. */
-int better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor_report)
+bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor_report)
 {
     bool kick = false;
 
-    probe_entry_t *own_probe = probe_set_get_entry(client_mac, kicking_ap->bssid, true);
+    probe_entry_t *own_probe = probe_list_get_entry(client_mac, kicking_ap->bssid, true);
     if (own_probe == NULL) {
-        DAWN_LOG_WARNING("Current AP not found in probe array");
-        goto cleanup;
+        DAWN_LOG_WARNING(MACSTR " sent no probe to " MACSTR ". Unable to evaluate metric",
+                         MAC2STR(client_mac.u8), MAC2STR(kicking_ap->bssid.u8));
+        goto exit;
     }
 
     int own_score = eval_probe_metric(own_probe, kicking_ap);
@@ -146,22 +142,23 @@ int better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor_
                   MAC2STR(client_mac.u8), MAC2STR(kicking_ap->bssid.u8), own_score);
 
     int max_score = own_score;
-    /* Now carry on through entries for this client looking for better score. */
+    /* Iterate through probe set... */
     probe_entry_t *probe;
-    list_for_each_entry(probe, &probe_set, list) {
+    list_for_each_entry(probe, &probe_list, list) {
+        /* ... picking probes from the client to every AP... */
         if (!dawn_macs_are_equal(probe->client_addr, client_mac)) {
             continue;
         }
-
+        /* ... (except our own)... */
         if (probe == own_probe) {
             continue;
         }
 
-        ap_t *candidate_ap = ap_set_get(probe->bssid);
+        ap_t *candidate_ap = ap_list_get(probe->bssid);
         if (candidate_ap == NULL) {
             continue;
         }
-
+        /* ... and calculate score from the client to this AP. */
         int candidate_ap_score = eval_probe_metric(probe, candidate_ap);
         DAWN_LOG_INFO(MACSTR " score to " MACSTR " AP is %d", MAC2STR(client_mac.u8),
                       MAC2STR(candidate_ap->bssid.u8), candidate_ap_score);
@@ -190,26 +187,25 @@ int better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor_
         }
     }
 
-cleanup:
-
+exit:
     return kick;
 }
 
 void request_beacon_reports(dawn_mac_t bssid, int id)
 {
-    client_t *head = client_set_get_entry(bssid, dawn_mac_null, true, false), *client;
-    if (head == NULL) {
+    client_t *first = client_list_get_entry(bssid, dawn_mac_null, true, false), *client;
+    if (first == NULL) {
         return;
     }
 
-    list_for_each_entry(client, head->list.prev, list) {
+    list_for_each_entry_first(client, first, list) {
         if (!dawn_macs_are_equal(client->bssid, bssid)) {
             break;
         }
 
-        if (client->rrm_enabled_capa & (WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE |
-                                        WLAN_RRM_CAPS_BEACON_REPORT_ACTIVE |
-                                        WLAN_RRM_CAPS_BEACON_REPORT_TABLE)) {
+        if (client->rrm_capability & (WLAN_RRM_CAPS_BEACON_REPORT_PASSIVE |
+                                      WLAN_RRM_CAPS_BEACON_REPORT_ACTIVE |
+                                      WLAN_RRM_CAPS_BEACON_REPORT_TABLE)) {
             ubus_request_beacon_report(client->client_addr, id);
         }
     }
@@ -222,7 +218,7 @@ void build_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid)
     void *neighbors = blobmsg_open_array(b, "list");
 
     ap_t *ap;
-    list_for_each_entry(ap, &ap_set, list) {
+    list_for_each_entry(ap, &ap_list, list) {
         if (dawn_macs_are_equal(ap->bssid, own_bssid)) {
             /* Hostapd handles own entry neighbor report by itself. */
             continue;
@@ -244,44 +240,44 @@ void build_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid)
 void build_hearing_map(struct blob_buf *b)
 {
     bool same_ssid = false;
-    void *ssid_list;
+    void *ssid_table;
 
-    print_probe_array();
+    print_probe_list();
 
     blob_buf_init(b, 0);
 
     ap_t *ap, *next_ap;
-    list_for_each_entry_safe(ap, next_ap, &ap_set, list) {
+    list_for_each_entry_safe(ap, next_ap, &ap_list, list) {
         /* Iterating through every unique SSID... */
         if (!same_ssid) {
-            ssid_list = blobmsg_open_table(b, (char *) ap->ssid);
+            ssid_table = blobmsg_open_table(b, (char *) ap->ssid);
 
             /* ... we pick clients... */
             probe_entry_t *probe;
-            list_for_each_entry(probe, &probe_set, list) {
-                if (ap_set_get_entry(probe->bssid) == NULL) {
+            list_for_each_entry(probe, &probe_list, list) {
+                if (ap_list_get_entry(probe->bssid) == NULL) {
                     continue;
                 }
 
-                char client_mac_buf[20];
-                sprintf(client_mac_buf, MACSTR, MAC2STR(probe->client_addr.u8));
-                void *client_list = blobmsg_open_table(b, client_mac_buf);
+                char client_mac_str[20];
+                sprintf(client_mac_str, MACSTR, MAC2STR(probe->client_addr.u8));
+                void *client_table = blobmsg_open_table(b, client_mac_str);
 
                 /* ... and add to the report every AP that got probe from this client. */
-                probe_entry_t *probe_sender, *probe_sender_head = probe;
-                list_for_each_entry(probe_sender, &probe_sender_head->list, list) {
+                probe_entry_t *probe_sender, *probe_sender_first = probe;
+                list_for_each_entry_first(probe_sender, probe_sender_first, list) {
                     if (!dawn_macs_are_equal(probe_sender->client_addr, probe->client_addr)) {
                         break;
                     }
 
-                    ap_t *probe_receiver = ap_set_get_entry(probe_sender->bssid);
+                    ap_t *probe_receiver = ap_list_get_entry(probe_sender->bssid);
                     if (probe_receiver == NULL) {
                         continue;
                     }
 
-                    char ap_mac_buf[20];
-                    sprintf(ap_mac_buf, MACSTR, MAC2STR(probe_sender->bssid.u8));
-                    void *ap_list = blobmsg_open_table(b, ap_mac_buf);
+                    char ap_mac_str[20];
+                    sprintf(ap_mac_str, MACSTR, MAC2STR(probe_sender->bssid.u8));
+                    void *ap_table = blobmsg_open_table(b, ap_mac_str);
 
                     blobmsg_add_u32(b, "signal", probe_sender->signal);
                     blobmsg_add_u32(b, "rcpi", probe_sender->rcpi);
@@ -296,22 +292,20 @@ void build_hearing_map(struct blob_buf *b)
                     blobmsg_add_u8(b, "vht_support", probe_receiver->vht_support);
 
                     blobmsg_add_u32(b, "score", eval_probe_metric(probe_sender, probe_receiver));
-                    blobmsg_close_table(b, ap_list);
+
+                    blobmsg_close_table(b, ap_table);
                 }
 
-                blobmsg_close_table(b, client_list);
+                blobmsg_close_table(b, client_table);
 
-                /* TODO: Change this so that i and k are single loop? */
+                /* Change this so that probe and probe_sender are single loop? */
                 probe = probe_sender;
             }
         }
 
-        if (strcmp((char *) ap->ssid, (char *) next_ap->ssid) != 0) {
-            blobmsg_close_table(b, ssid_list);
-            same_ssid = false;
-        }
-        else {
-            same_ssid = true;
+        same_ssid = strcmp((char *) ap->ssid, (char *) next_ap->ssid) == 0;
+        if (!same_ssid) {
+            blobmsg_close_table(b, ssid_table);
         }
     }
 }
@@ -319,22 +313,22 @@ void build_hearing_map(struct blob_buf *b)
 void build_network_overview(struct blob_buf *b)
 {
     bool add_ssid = true;
-    void *ssid_list;
+    void *ssid_table;
 
     blob_buf_init(b, 0);
 
     ap_t *ap, *next_ap;
-    list_for_each_entry_safe(ap, next_ap, &ap_set, list) {
+    list_for_each_entry_safe(ap, next_ap, &ap_list, list) {
         /* Grouping by SSID... */
         if (add_ssid) {
-            ssid_list = blobmsg_open_table(b, (char *) ap->ssid);
+            ssid_table = blobmsg_open_table(b, (char *) ap->ssid);
             add_ssid = false;
         }
 
         /* ... we list every AP (BSSID)... */
-        char ap_mac_buf[20];
-        sprintf(ap_mac_buf, MACSTR, MAC2STR(ap->bssid.u8));
-        void *ap_list = blobmsg_open_table(b, ap_mac_buf);
+        char ap_mac_str[20];
+        sprintf(ap_mac_str, MACSTR, MAC2STR(ap->bssid.u8));
+        void *ap_table = blobmsg_open_table(b, ap_mac_str);
 
         blobmsg_add_u32(b, "freq", ap->freq);
         blobmsg_add_u32(b, "channel_utilization", ap->channel_utilization);
@@ -343,88 +337,90 @@ void build_network_overview(struct blob_buf *b)
         blobmsg_add_u8(b, "vht_support", ap->vht_support);
         blobmsg_add_u8(b, "local", ap_is_local(ap->bssid));
 
-        char *neighbor_report;
-        neighbor_report = blobmsg_alloc_string_buffer(b, "neighbor_report", NEIGHBOR_REPORT_LEN);
+        char *neighbor_report = blobmsg_alloc_string_buffer(b, "neighbor_report", NEIGHBOR_REPORT_LEN);
         strncpy(neighbor_report, ap->neighbor_report, NEIGHBOR_REPORT_LEN);
         blobmsg_add_string_buffer(b);
 
-        char *iface;
-        iface = blobmsg_alloc_string_buffer(b, "iface", IFNAMSIZ);
+        char *iface = blobmsg_alloc_string_buffer(b, "iface", IFNAMSIZ);
         strncpy(iface, ap->iface, IFNAMSIZ);
         blobmsg_add_string_buffer(b);
 
-        char *hostname;
-        hostname = blobmsg_alloc_string_buffer(b, "hostname", HOST_NAME_MAX);
+        char *hostname = blobmsg_alloc_string_buffer(b, "hostname", HOST_NAME_MAX);
         strncpy(hostname, ap->hostname, HOST_NAME_MAX);
         blobmsg_add_string_buffer(b);
 
         /* ... with all the clients connected. */
-        client_t *head = client_set_get_entry(ap->bssid, dawn_mac_null, true, false), *client;
-        list_for_each_entry(client, head->list.prev, list) {
+        client_t *first = client_list_get_entry(ap->bssid, dawn_mac_null, true, false), *client;
+        if (first == NULL) {
+            goto next;
+        }
+
+        list_for_each_entry_first(client, first, list) {
             if (!dawn_macs_are_equal(ap->bssid, client->bssid)) {
                 break;
             }
 
-            char client_mac_buf[20];
-            sprintf(client_mac_buf, MACSTR, MAC2STR(client->client_addr.u8));
-            void *client_list = blobmsg_open_table(b, client_mac_buf);
+            char client_mac_str[20];
+            sprintf(client_mac_str, MACSTR, MAC2STR(client->client_addr.u8));
+            void *client_table = blobmsg_open_table(b, client_mac_str);
 
-            if (strlen(client->signature) != 0) {
-                char *s;
-                s = blobmsg_alloc_string_buffer(b, "signature", 1024);
-                sprintf(s, "%s", client->signature);
+            if (client->signature[0] != '\0') {
+                char *signature = blobmsg_alloc_string_buffer(b, "signature", SIGNATURE_LEN);
+                strncpy(signature, client->signature, SIGNATURE_LEN);
                 blobmsg_add_string_buffer(b);
             }
             blobmsg_add_u8(b, "ht", client->ht);
             blobmsg_add_u8(b, "vht", client->vht);
             blobmsg_add_u32(b, "collision_count", ap_get_collision_count(ap->collision_domain));
 
-            probe_entry_t *probe = probe_set_get(client->bssid, client->client_addr);
+            probe_entry_t *probe = probe_list_get(client->bssid, client->client_addr);
             if (probe != NULL) {
                 blobmsg_add_u32(b, "signal", probe->signal);
             }
 
-            blobmsg_close_table(b, client_list);
+            blobmsg_close_table(b, client_table);
         }
 
-        blobmsg_close_table(b, ap_list);
+next:
+        blobmsg_close_table(b, ap_table);
 
         if (strcmp((char *) ap->ssid, (char *) next_ap->ssid) != 0) {
-            blobmsg_close_table(b, ssid_list);
+            blobmsg_close_table(b, ssid_table);
             add_ssid = true;
         }
     }
 }
 
-void update_iw_info(dawn_mac_t bssid)
+void iwinfo_update_clients(dawn_mac_t bssid)
 {
     DAWN_LOG_INFO("Updating info for clients at " MACSTR " AP", MAC2STR(bssid.u8));
 
-    client_t *head = client_set_get_entry(bssid, dawn_mac_null, true, false), *client;
-    if (head == NULL) {
+    client_t *first = client_list_get_entry(bssid, dawn_mac_null, true, false), *client;
+    if (first == NULL) {
         return;
     }
 
-    list_for_each_entry(client, head->list.prev, list) {
-        if (!macs_are_equal(client->bssid.u8, bssid.u8)) {
+    list_for_each_entry_first(client, first, list) {
+        if (!dawn_macs_are_equal(client->bssid, bssid)) {
             break;
         }
 
         int rssi = iwinfo_get_rssi(client->client_addr);
         if (rssi != INT_MIN) {
-            if (!probe_set_update_rssi(client->bssid, client->client_addr, rssi)) {
-                DAWN_LOG_WARNING("Failed to update rssi");
+            if (!probe_list_update_rssi(client->bssid, client->client_addr, rssi)) {
+                DAWN_LOG_WARNING("Found no probe from " MACSTR " to " MACSTR,
+                                 MAC2STR(client->client_addr.u8), MAC2STR(client->bssid.u8));
             }
         }
     }
 }
 
-bool probe_set_update_all_probe_count(dawn_mac_t client_addr, uint32_t probe_count)
+bool probe_list_set_probe_count(dawn_mac_t client_addr, uint32_t probe_count)
 {
     bool updated = false;
 
     probe_entry_t *probe;
-    list_for_each_entry(probe, &probe_set, list) {
+    list_for_each_entry(probe, &probe_list, list) {
         if (dawn_macs_are_equal(client_addr, probe->client_addr)) {
             DAWN_LOG_DEBUG("Setting probe count for " MACSTR " to %d",
                            MAC2STR(client_addr.u8), probe_count);
@@ -436,11 +432,11 @@ bool probe_set_update_all_probe_count(dawn_mac_t client_addr, uint32_t probe_cou
     return updated;
 }
 
-bool probe_set_update_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rcpi, uint32_t rsni)
+bool probe_list_set_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rcpi, uint32_t rsni)
 {
     bool updated = false;
 
-    probe_entry_t *probe = probe_set_get(bssid, client_addr);
+    probe_entry_t *probe = probe_list_get(bssid, client_addr);
     if (probe != NULL) {
         probe->rcpi = rcpi;
         probe->rsni = rsni;
@@ -452,15 +448,14 @@ bool probe_set_update_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32
     return updated;
 }
 
-probe_entry_t *probe_set_get(dawn_mac_t bssid, dawn_mac_t client_mac)
+probe_entry_t *probe_list_get(dawn_mac_t bssid, dawn_mac_t client_mac)
 {
-    probe_entry_t *i = probe_set_get_entry(client_mac, bssid, true);
-    return i;
+    return probe_list_get_entry(client_mac, bssid, true);
 }
 
-probe_entry_t *probe_set_insert(probe_entry_t *probe, bool inc_counter, bool save_80211k, bool is_beacon, time_t expiry)
+probe_entry_t *probe_list_insert(probe_entry_t *probe, bool inc_counter, bool save_80211k, time_t expiry)
 {
-    probe_entry_t *tmp_probe = probe_set_get_entry(probe->client_addr, probe->bssid, true);
+    probe_entry_t *tmp_probe = probe_list_get_entry(probe->client_addr, probe->bssid, true);
 
     if (tmp_probe != NULL) {
         if (inc_counter) {
@@ -490,10 +485,10 @@ probe_entry_t *probe_set_insert(probe_entry_t *probe, bool inc_counter, bool sav
         probe = tmp_probe;
     }
     else {
-        probe->counter = !!inc_counter;
+        probe->counter = inc_counter;
 
         /* Probe set has to be sorted by client address, skip some entries... */
-        list_for_each_entry(tmp_probe, &probe_set, list) {
+        list_for_each_entry(tmp_probe, &probe_list, list) {
             if (dawn_macs_compare(tmp_probe->client_addr, probe->client_addr) > 0) {
                 break;
             }
@@ -508,9 +503,9 @@ probe_entry_t *probe_set_insert(probe_entry_t *probe, bool inc_counter, bool sav
     return probe;
 }
 
-auth_entry_t *denied_req_set_insert(auth_entry_t *entry, time_t expiry)
+auth_entry_t *denied_req_list_insert(auth_entry_t *entry, time_t expiry)
 {
-    auth_entry_t *i = denied_req_set_get_entry(entry->bssid, entry->client_addr);
+    auth_entry_t *i = denied_req_list_get_entry(entry->bssid, entry->client_addr);
     if (i != NULL) {
         entry = i;
         entry->counter++;
@@ -518,7 +513,7 @@ auth_entry_t *denied_req_set_insert(auth_entry_t *entry, time_t expiry)
     else {
         entry->counter = 1;
 
-        list_add(&entry->list, &denied_req_set);
+        list_add(&entry->list, &denied_req_list);
     }
 
     entry->expiry = expiry;
@@ -526,47 +521,43 @@ auth_entry_t *denied_req_set_insert(auth_entry_t *entry, time_t expiry)
     return entry;
 }
 
-void denied_req_array_delete(auth_entry_t *entry)
+void denied_req_list_delete(auth_entry_t *entry)
 {
     list_del(&entry->list);
     dawn_free(entry);
 }
 
-ap_t *ap_set_get(dawn_mac_t bssid)
+ap_t *ap_list_get(dawn_mac_t bssid)
 {
-    ap_t *ret = ap_set_get_entry(bssid);
-
-    return ret;
+    return ap_list_get_entry(bssid);
 }
 
-ap_t *ap_set_insert(ap_t *ap, time_t expiry)
+ap_t *ap_list_insert(ap_t *ap, time_t expiry)
 {
     /* TODO: Why do we delete and add here? */
-    ap_t *old_entry = ap_set_get_entry(ap->bssid);
+    ap_t *old_entry = ap_list_get_entry(ap->bssid);
     if (old_entry != NULL) {
-        ap_set_delete_entry(old_entry);
+        ap_list_delete_entry(old_entry);
     }
 
     ap->expiry = expiry;
 
-    ap_set_insert_entry(ap);
+    ap_list_insert_entry(ap);
 
     return ap;
 }
 
-client_t *client_set_get(dawn_mac_t client_addr)
+client_t *client_list_get(dawn_mac_t client_addr)
 {
-    client_t *i = client_set_get_entry(dawn_mac_null, client_addr, false, true);
-
-    return i;
+    return client_list_get_entry(dawn_mac_null, client_addr, false, true);
 }
 
-client_t *client_set_insert(client_t *client, time_t expiry)
+client_t *client_list_insert(client_t *client, time_t expiry)
 {
-    client_t *client_tmp = client_set_get_entry(client->bssid, client->client_addr, true, true);
+    client_t *client_tmp = client_list_get_entry(client->bssid, client->client_addr, true, true);
     if (client_tmp == NULL) {
         client->kick_count = 0;
-        client_set_insert_entry(client);
+        client_list_insert_entry(client);
         client_tmp = client;
     }
 
@@ -575,13 +566,13 @@ client_t *client_set_insert(client_t *client, time_t expiry)
     return client_tmp;
 }
 
-void client_set_delete(client_t *client)
+void client_list_delete(client_t *client)
 {
     list_del(&client->list);
     dawn_free(client);
 }
 
-void mac_set_insert_from_file(void)
+void allow_list_load(void)
 {
     char *line = NULL, *old_line = NULL;
     size_t len = 0;
@@ -613,12 +604,12 @@ void mac_set_insert_from_file(void)
 
         sscanf(line, DAWNMACSTR, STR2MAC(new_mac->mac.u8));
 
-        mac_set_insert_entry(new_mac);
+        allow_list_insert_entry(new_mac);
     }
 
     DAWN_LOG_DEBUG("Printing MAC list:");
     mac_entry_t *i;
-    list_for_each_entry(i, &mac_set, list) {
+    list_for_each_entry(i, &allow_list, list) {
         DAWN_LOG_DEBUG(" - " MACSTR, MAC2STR(i->mac.u8));
     }
 
@@ -631,9 +622,9 @@ cleanup:
 }
 
 /* TODO: This list only ever seems to get longer. Why do we need it? */
-bool mac_set_insert(dawn_mac_t mac)
+bool allow_list_insert(dawn_mac_t mac)
 {
-    mac_entry_t *i = mac_set_get_entry(mac);
+    mac_entry_t *i = allow_list_get_entry(mac);
     if (i != NULL) {
         return false;
     }
@@ -645,47 +636,47 @@ bool mac_set_insert(dawn_mac_t mac)
     }
 
     new_mac->mac = mac;
-    mac_set_insert_entry(new_mac);
+    allow_list_insert_entry(new_mac);
 
     return true;
 }
 
 /* TODO: How big is it in a large network? */
-bool mac_set_contains(dawn_mac_t mac)
+bool allow_list_contains(dawn_mac_t mac)
 {
-    return mac_set_get_entry(mac) != NULL;
+    return allow_list_get_entry(mac) != NULL;
 }
 
 void remove_old_probe_entries(time_t current_time, uint32_t threshold)
 {
     probe_entry_t *probe, *next_probe;
-    list_for_each_entry_safe(probe, next_probe, &probe_set, list) {
+    list_for_each_entry_safe(probe, next_probe, &probe_list, list) {
         if (current_time > probe->expiry + threshold &&
                 !is_connected(probe->bssid, probe->client_addr)) {
-            probe_set_delete_entry(probe);
+            probe_list_delete_entry(probe);
         }
     }
-
 }
 
 void remove_old_denied_req_entries(time_t current_time, uint32_t threshold)
 {
     auth_entry_t *i, *next;
-    list_for_each_entry_safe(i, next, &denied_req_set, list) {
+    list_for_each_entry_safe(i, next, &denied_req_list, list) {
         if (current_time > i->expiry + threshold) {
             if (!is_connected_somehwere(i->client_addr)) {
-                DAWN_LOG_WARNING(MACSTR " probably has a bad driver", MAC2STR(i->client_addr.u8));
+                DAWN_LOG_WARNING(MACSTR " was unable to connect to the best AP after we "
+                                 "denied association. Placing it to the allow list", MAC2STR(i->client_addr.u8));
                 /* Problem that somehow station will land into this list
                  * maybe delete again? */
-                if (mac_set_insert(i->client_addr)) {
+                if (allow_list_insert(i->client_addr)) {
                     send_add_mac(i->client_addr);
                     /* TODO: File can grow arbitarily large.  Resource consumption risk. */
                     /* TODO: Consolidate use of file across source: shared resource for name, single point of access? */
-                    write_mac_to_file("/tmp/dawn_mac_list", i->client_addr);
+                    append_allow_list_in_file("/tmp/dawn_mac_list", i->client_addr);
                 }
             }
-            /* TODO: Add unlink function to save rescan to find element */
-            denied_req_array_delete(i);
+
+            denied_req_list_delete(i);
         }
     }
 
@@ -693,37 +684,31 @@ void remove_old_denied_req_entries(time_t current_time, uint32_t threshold)
 
 void remove_old_ap_entries(time_t current_time, uint32_t threshold)
 {
-
     ap_t *ap, *next_ap;
-    list_for_each_entry_safe(ap, next_ap, &ap_set, list) {
+    list_for_each_entry_safe(ap, next_ap, &ap_list, list) {
         if (current_time > ap->expiry + threshold) {
-            ap_set_delete_entry(ap);
+            ap_list_delete_entry(ap);
         }
     }
-
 }
 
 void remove_old_client_entries(time_t current_time, uint32_t threshold)
 {
-
     client_t *client, *next_client;
-    list_for_each_entry_safe(client, next_client, &client_set, list) {
+    list_for_each_entry_safe(client, next_client, &client_list, list) {
         if (current_time > client->expiry + threshold) {
-            client_set_delete(client);
+            client_list_delete(client);
         }
     }
-
 }
 
-void print_probe_array(void)
+void print_probe_list(void)
 {
-
     probe_entry_t *probe;
     DAWN_LOG_DEBUG("Printing probe array");
-    list_for_each_entry(probe, &probe_set, list) {
+    list_for_each_entry(probe, &probe_list, list) {
         print_probe_entry(probe);
     }
-
 }
 
 void print_probe_entry(probe_entry_t *probe)
@@ -741,11 +726,11 @@ void print_auth_entry(const char *header, auth_entry_t *entry)
                    MAC2STR(entry->bssid.u8), MAC2STR(entry->client_addr.u8), entry->signal, entry->freq);
 }
 
-void print_ap_array(void)
+void print_ap_list(void)
 {
     ap_t *ap;
     DAWN_LOG_DEBUG("Printing APs array");
-    list_for_each_entry(ap, &ap_set, list) {
+    list_for_each_entry(ap, &ap_list, list) {
         print_ap_entry(ap);
     }
 }
@@ -759,11 +744,11 @@ void print_ap_entry(ap_t *ap)
                    ap_get_collision_count(ap->collision_domain), ap->neighbor_report);
 }
 
-void print_client_array(void)
+void print_client_list(void)
 {
     client_t *client;
     DAWN_LOG_DEBUG("Printing clients array");
-    list_for_each_entry(client, &client_set, list) {
+    list_for_each_entry(client, &client_list, list) {
         print_client_entry(client);
     }
 }
@@ -778,13 +763,8 @@ void print_client_entry(client_t *client)
 
 static bool kick_client(ap_t *kicking_ap, client_t *client, char *neighbor_report)
 {
-    bool kick = false;
-
-    if (!mac_set_contains(client->client_addr)) {
-        kick = better_ap_available(kicking_ap, client->client_addr, neighbor_report);
-    }
-
-    return kick;
+    return allow_list_contains(client->client_addr)?
+                false : better_ap_available(kicking_ap, client->client_addr, neighbor_report);
 }
 
 static int eval_probe_metric(probe_entry_t *probe, ap_t *ap)
@@ -823,12 +803,12 @@ static bool station_count_imbalance_detected(ap_t *own_ap, ap_t *ap_to_compare, 
 
     if (is_connected(own_ap->bssid, client_addr)) {
         DAWN_LOG_DEBUG("Client is connected to our AP. Decrease counter");
-        sta_count--;
+        --sta_count;
     }
 
     if (is_connected(ap_to_compare->bssid, client_addr)) {
         DAWN_LOG_DEBUG("Client is connected to AP we're comparing to. Decrease counter");
-        sta_count_to_compare--;
+        --sta_count_to_compare;
     }
 
     DAWN_LOG_INFO("Comparing own station count %d to %d", sta_count, sta_count_to_compare);
@@ -836,10 +816,10 @@ static bool station_count_imbalance_detected(ap_t *own_ap, ap_t *ap_to_compare, 
     return (sta_count - sta_count_to_compare) > behaviour_config.max_station_diff;
 }
 
-static probe_entry_t *probe_set_get_entry(dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid)
+static probe_entry_t *probe_list_get_entry(dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid)
 {
     probe_entry_t *probe;
-    list_for_each_entry(probe, &probe_set, list) {
+    list_for_each_entry(probe, &probe_list, list) {
         bool found = dawn_macs_are_equal(probe->client_addr, client_mac);
 
         if (found && check_bssid) {
@@ -854,31 +834,31 @@ static probe_entry_t *probe_set_get_entry(dawn_mac_t client_mac, dawn_mac_t bssi
     return NULL;
 }
 
-static void probe_set_delete_entry(probe_entry_t *probe)
+static void probe_list_delete_entry(probe_entry_t *probe)
 {
     list_del(&probe->list);
     dawn_free(probe);
 }
 
-static bool probe_set_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rssi)
+static bool probe_list_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rssi)
 {
     bool updated = false;
 
-    probe_entry_t *i = probe_set_get_entry(client_addr, bssid, true);
-    if (i != NULL) {
-        i->signal = rssi;
+    probe_entry_t *probe = probe_list_get_entry(client_addr, bssid, true);
+    if (probe != NULL) {
+        probe->signal = rssi;
         updated = true;
 
-        ubus_send_probe_via_network(i);
+        ubus_send_probe_via_network(probe);
     }
 
     return updated;
 }
 
-static auth_entry_t *denied_req_set_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac)
+static auth_entry_t *denied_req_list_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac)
 {
     auth_entry_t *i;
-    list_for_each_entry(i, &denied_req_set, list) {
+    list_for_each_entry(i, &denied_req_list, list) {
         if (dawn_macs_are_equal(i->bssid, bssid) && dawn_macs_are_equal(i->client_addr, client_mac)) {
             return i;
         }
@@ -887,10 +867,10 @@ static auth_entry_t *denied_req_set_get_entry(dawn_mac_t bssid, dawn_mac_t clien
     return NULL;
 }
 
-static ap_t *ap_set_get_entry(dawn_mac_t bssid)
+static ap_t *ap_list_get_entry(dawn_mac_t bssid)
 {
     ap_t *ap;
-    list_for_each_entry(ap, &ap_set, list) {
+    list_for_each_entry(ap, &ap_list, list) {
         if (dawn_macs_are_equal(ap->bssid, bssid)) {
             return ap;
         }
@@ -899,12 +879,10 @@ static ap_t *ap_set_get_entry(dawn_mac_t bssid)
     return NULL;
 }
 
-/* TODO: Do we need to order this set?  Scan of randomly arranged elements is just
- * as quick if we're not using an optimised search. */
-static void ap_set_insert_entry(ap_t *ap)
+static void ap_list_insert_entry(ap_t *ap)
 {
     ap_t *insertion_candidate;
-    list_for_each_entry(insertion_candidate, &ap_set, list) {
+    list_for_each_entry(insertion_candidate, &ap_list, list) {
         int sc = strcmp((char *) insertion_candidate->ssid, (char *) ap->ssid);
         if (sc > 0 || (sc == 0 && dawn_macs_compare(insertion_candidate->bssid, ap->bssid) > 0)) {
             break;
@@ -914,7 +892,7 @@ static void ap_set_insert_entry(ap_t *ap)
     list_add_tail(&ap->list, &insertion_candidate->list);
 }
 
-static void ap_set_delete_entry(ap_t *ap)
+static void ap_list_delete_entry(ap_t *ap)
 {
     list_del(&ap->list);
     dawn_free(ap);
@@ -923,23 +901,22 @@ static void ap_set_delete_entry(ap_t *ap)
 /* TODO: What is collision domain used for? */
 static int ap_get_collision_count(int col_domain)
 {
-    int ret_sta_count = 0;
+    int sta_count = 0;
 
     ap_t *ap;
-    list_for_each_entry(ap, &ap_set, list) {
+    list_for_each_entry(ap, &ap_list, list) {
         if (ap->collision_domain == col_domain) {
-            ret_sta_count += ap->station_count;
+            sta_count += ap->station_count;
         }
     }
 
-    return ret_sta_count;
+    return sta_count;
 }
 
-static client_t *client_set_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac, bool check_bssid, bool check_client)
+static client_t *client_list_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac, bool check_bssid, bool check_client)
 {
     client_t *client;
-
-    list_for_each_entry(client, &client_set, list) {
+    list_for_each_entry(client, &client_list, list) {
         bool found = check_bssid? dawn_macs_are_equal(client->bssid, bssid) : true;
 
         if (found && check_client) {
@@ -954,18 +931,17 @@ static client_t *client_set_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac, b
     return NULL;
 }
 
-static void client_set_insert_entry(client_t *client)
+static void client_list_insert_entry(client_t *client)
 {
     client_t *insert_candidate;
-
     /* Client list is double sorted, first - by BSSID... */
-    list_for_each_entry(insert_candidate, &client_set, list) {
+    list_for_each_entry(insert_candidate, &client_list, list) {
         int cmp = dawn_macs_compare(insert_candidate->bssid, client->bssid);
         if (cmp >= 0) {
             if (cmp == 0) {
                 /* ... second - by client address. */
                 client_t *tmp_client;
-                list_for_each_entry(tmp_client, &insert_candidate->list, list) {
+                list_for_each_entry_first(tmp_client, insert_candidate, list) {
                     if (dawn_macs_compare(tmp_client->client_addr, client->client_addr) > 0) {
                         break;
                     }
@@ -981,10 +957,10 @@ static void client_set_insert_entry(client_t *client)
     list_add_tail(&client->list, &insert_candidate->list);
 }
 
-static mac_entry_t *mac_set_get_entry(dawn_mac_t mac)
+static mac_entry_t *allow_list_get_entry(dawn_mac_t mac)
 {
     mac_entry_t *i;
-    list_for_each_entry(i, &mac_set, list) {
+    list_for_each_entry(i, &allow_list, list) {
         if (dawn_macs_are_equal(i->mac, mac)) {
             return i;
         }
@@ -993,18 +969,18 @@ static mac_entry_t *mac_set_get_entry(dawn_mac_t mac)
     return NULL;
 }
 
-static void mac_set_insert_entry(mac_entry_t *mac)
+static void allow_list_insert_entry(mac_entry_t *mac)
 {
-    list_add(&mac->list, &mac_set);
+    list_add(&mac->list, &allow_list);
 }
 
 static bool is_connected(dawn_mac_t bssid, dawn_mac_t client_mac)
 {
-    return client_set_get_entry(bssid, client_mac, true, true) != NULL;
+    return client_list_get_entry(bssid, client_mac, true, true) != NULL;
 }
 
 static bool is_connected_somehwere(dawn_mac_t client_addr)
 {
-    return client_set_get_entry(dawn_mac_null, client_addr, false, true) != NULL;
+    return client_list_get_entry(dawn_mac_null, client_addr, false, true) != NULL;
 }
 

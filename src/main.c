@@ -46,7 +46,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    mac_set_insert_from_file();
+    allow_list_load();
 
     dawn_run_uloop();
 
@@ -87,7 +87,6 @@ static void signal_handler(int sig)
 
 static void dawn_shutdown(void)
 {
-    dawn_network_deinit();
     dawn_uci_deinit();
     uloop_end();
 }

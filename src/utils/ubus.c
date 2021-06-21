@@ -75,7 +75,6 @@ static struct uloop_timeout client_timeout = {
     .cb = remove_client_array_cb
 };
 
-
 typedef struct {
     struct list_head list;
 
@@ -252,7 +251,7 @@ static bool proceed_operation(probe_entry_t *request, int request_type);
 static void ubus_enable_bss_management(uint32_t id);
 static void ubus_get_own_neighbor_report(uint32_t id);
 static void ubus_get_own_neighbor_report_cb(struct ubus_request *request, int type, struct blob_attr *message);
-static int parse_to_beacon_rep(struct blob_attr *message);
+static int parse_beacon_report(struct blob_attr *message);
 static bool parse_to_assoc_request(struct blob_attr *message, assoc_entry_t *assoc_request);
 static bool parse_to_auth_request(struct blob_attr *message, auth_entry_t *auth_request);
 static int ubus_get_clients(void);
@@ -260,7 +259,6 @@ static void ubus_get_clients_cb(struct ubus_request *request, int type, struct b
 static void ubus_set_neighbor_report(void);
 static int ubus_call_umdns(void);
 static void ubus_umdns_cb(struct ubus_request *request, int type, struct blob_attr *message);
-//static void respond_to_notify(uint32_t id);
 static int uci_send_via_network(void);
 static int send_blob_attr_via_network(struct blob_attr *message, char *method);
 static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, dawn_mac_t addr);
@@ -336,6 +334,7 @@ void ubus_request_beacon_report(dawn_mac_t client, int id)
     }
 }
 
+/* WNM = wireless network management, == 802.11v. */
 int wnm_disassoc_imminent(uint32_t id, dawn_mac_t client_addr, char *dest_ap, uint32_t duration)
 {
     hostapd_instance_t *sub;
@@ -403,6 +402,8 @@ int parse_add_mac_to_file(struct blob_attr *message)
 {
     struct blob_attr *tb[__ADD_DEL_MAC_MAX], *attr;
 
+    DAWN_LOG_INFO("Handling `addmac' message");
+
     blobmsg_parse(add_del_policy, __ADD_DEL_MAC_MAX, tb, blob_data(message), blob_len(message));
 
     if (!tb[MAC_ADDR]) {
@@ -418,10 +419,8 @@ int parse_add_mac_to_file(struct blob_attr *message)
 
         hwaddr_aton(blobmsg_data(attr), addr.u8);
 
-        if (mac_set_insert(addr)) {
-            /* TODO: File can grow arbitarily large.  Resource consumption risk. */
-            /* TODO: Consolidate use of file across source: shared resource for name, single point of access? */
-            write_mac_to_file("/tmp/dawn_mac_list", addr);
+        if (allow_list_insert(addr)) {
+            append_allow_list_in_file("/tmp/dawn_mac_list", addr);
         }
     }
 
@@ -636,7 +635,7 @@ static int handle_probe_request(struct blob_attr *message)
             *probe_req_updated = NULL;
 
     if (probe_req != NULL) {
-        probe_req_updated = probe_set_insert(probe_req, true, true, false, time(NULL));
+        probe_req_updated = probe_list_insert(probe_req, true, true, time(NULL));
         if (probe_req != probe_req_updated) {
             /* Insert found an existing entry, rather than linking in our new one
              * send new probe req because we want to stay synced. */
@@ -659,7 +658,7 @@ static int handle_auth_request(struct blob_attr *message)
     int ret = WLAN_STATUS_SUCCESS;
     bool discard_entry = true;
 
-    print_probe_array();
+    print_probe_list();
 
     auth_entry_t *auth_req = dawn_malloc(sizeof (auth_entry_t));
     if (auth_req == NULL) {
@@ -675,8 +674,8 @@ static int handle_auth_request(struct blob_attr *message)
 
     print_auth_entry("Authentication entry:", auth_req);
 
-    if (!mac_set_contains(auth_req->client_addr)) {
-        probe_entry_t *tmp = probe_set_get(auth_req->bssid, auth_req->client_addr);
+    if (!allow_list_contains(auth_req->client_addr)) {
+        probe_entry_t *tmp = probe_list_get(auth_req->bssid, auth_req->client_addr);
 
         /* Block if entry was not found in probe database. */
         if (tmp == NULL || !proceed_operation(tmp, REQUEST_TYPE_AUTH)) {
@@ -685,7 +684,7 @@ static int handle_auth_request(struct blob_attr *message)
             }
 
             if (behaviour_config.use_driver_recog) {
-                if (auth_req == denied_req_set_insert(auth_req, time(NULL))) {
+                if (auth_req == denied_req_list_insert(auth_req, time(NULL))) {
                     discard_entry = false;
                 }
             }
@@ -710,7 +709,7 @@ static int handle_assoc_request(struct blob_attr *message)
     int ret = WLAN_STATUS_SUCCESS;
     int discard_entry = true;
 
-    print_probe_array();
+    print_probe_list();
 
     assoc_entry_t *assoc_req = dawn_malloc(sizeof (assoc_entry_t));
     if (assoc_req == NULL) {
@@ -726,8 +725,8 @@ static int handle_assoc_request(struct blob_attr *message)
 
     print_auth_entry("Association entry:", assoc_req);
 
-    if (!mac_set_contains(assoc_req->client_addr)) {
-        probe_entry_t *tmp = probe_set_get(assoc_req->bssid, assoc_req->client_addr);
+    if (!allow_list_contains(assoc_req->client_addr)) {
+        probe_entry_t *tmp = probe_list_get(assoc_req->bssid, assoc_req->client_addr);
 
         /* Block if entry was not found in probe database. */
         if (tmp == NULL || !proceed_operation(tmp, REQUEST_TYPE_ASSOC)) {
@@ -736,7 +735,7 @@ static int handle_assoc_request(struct blob_attr *message)
             }
 
             if (behaviour_config.use_driver_recog) {
-                if (assoc_req == denied_req_set_insert(assoc_req, time(NULL))) {
+                if (assoc_req == denied_req_list_insert(assoc_req, time(NULL))) {
                     discard_entry = false;
                 }
             }
@@ -757,7 +756,7 @@ static int handle_assoc_request(struct blob_attr *message)
 
 static int handle_beacon_report(struct blob_attr *message)
 {
-    if (parse_to_beacon_rep(message) == 0) {
+    if (parse_beacon_report(message) == 0) {
         /* insert_to_array(beacon_rep, 1); */
         /* send_blob_attr_via_network(msg, "beacon-report"); */
     }
@@ -767,7 +766,7 @@ static int handle_beacon_report(struct blob_attr *message)
 
 static bool proceed_operation(probe_entry_t *request, int request_type)
 {
-    if (mac_set_contains(request->client_addr)) {
+    if (allow_list_contains(request->client_addr)) {
         return true;
     }
 
@@ -787,7 +786,7 @@ static bool proceed_operation(probe_entry_t *request, int request_type)
         return true;
     }
 
-    ap_t *this_ap = ap_set_get(request->bssid);
+    ap_t *this_ap = ap_list_get(request->bssid);
     if (this_ap != NULL && better_ap_available(this_ap, request->client_addr, NULL)) {
         return false;
     }
@@ -861,10 +860,10 @@ static void ubus_get_own_neighbor_report_cb(struct ubus_request *request, int ty
     }
 }
 
-static int parse_to_beacon_rep(struct blob_attr *message)
+static int parse_beacon_report(struct blob_attr *message)
 {
     struct blob_attr *tb[__BEACON_REP_MAX];
-    dawn_mac_t msg_bssid, msg_client;
+    dawn_mac_t bssid, client_mac;
 
     blobmsg_parse(beacon_rep_policy, __BEACON_REP_MAX, tb, blob_data(message), blob_len(message));
 
@@ -874,11 +873,11 @@ static int parse_to_beacon_rep(struct blob_attr *message)
         return -1;
     }
 
-    hwaddr_aton(blobmsg_data(tb[BEACON_REP_BSSID]), msg_bssid.u8);
-    hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), msg_client.u8);
+    hwaddr_aton(blobmsg_data(tb[BEACON_REP_BSSID]), bssid.u8);
+    hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), client_mac.u8);
 
-    ap_t *ap_entry_rep = ap_set_get(msg_bssid);
-    if (ap_entry_rep == NULL) {
+    ap_t *ap = ap_list_get(bssid);
+    if (ap == NULL) {
         DAWN_LOG_INFO("Beacon report does not belong to our network, ignoring");
         return -1;
     }
@@ -887,7 +886,7 @@ static int parse_to_beacon_rep(struct blob_attr *message)
     int rsni = blobmsg_get_u16(tb[BEACON_REP_RSNI]);
 
     DAWN_LOG_DEBUG("Trying to update RCPI and RSNI for beacon report");
-    if (!probe_set_update_rcpi_rsni(msg_bssid, msg_client, rcpi, rsni)) {
+    if (!probe_list_set_rcpi_rsni(bssid, client_mac, rcpi, rsni)) {
         probe_entry_t *beacon_rep, *beacon_rep_updated = NULL;
 
         DAWN_LOG_DEBUG("Creating new probe entry");
@@ -898,20 +897,19 @@ static int parse_to_beacon_rep(struct blob_attr *message)
             return -1;
         }
 
-        beacon_rep->bssid = msg_bssid;
-        beacon_rep->client_addr = msg_client;
+        beacon_rep->bssid = bssid;
+        beacon_rep->client_addr = client_mac;
         beacon_rep->counter = behaviour_config.min_probe_count;
-        beacon_rep->target_addr = msg_client;
+        beacon_rep->target_addr = client_mac;
         beacon_rep->signal = 0;
-        beacon_rep->freq = ap_entry_rep->freq;
+        beacon_rep->freq = ap->freq;
         beacon_rep->rcpi = rcpi;
         beacon_rep->rsni = rsni;
 
         beacon_rep->ht_capabilities = false;  /* That is very problematic!!! */
         beacon_rep->vht_capabilities = false; /* That is very problematic!!! */
 
-        /* Use 802.11k values */
-        beacon_rep_updated = probe_set_insert(beacon_rep, false, false, true, time(NULL));
+        beacon_rep_updated = probe_list_insert(beacon_rep, false, true, time(NULL));
         if (beacon_rep != beacon_rep_updated) {
             dawn_free(beacon_rep);
         }
@@ -935,6 +933,7 @@ static bool parse_to_auth_request(struct blob_attr *message, auth_entry_t *auth_
     blobmsg_parse(auth_policy, __AUTH_MAX, tb, blob_data(message), blob_len(message));
 
     if (!tb[AUTH_BSSID] || !tb[AUTH_CLIENT_ADDR] || !tb[AUTH_TARGET_ADDR]) {
+        DAWN_LOG_ERROR("Hostapd auth/assoc request is missing essential data");
         goto exit;
     }
 
@@ -1015,8 +1014,8 @@ static void ubus_get_clients_cb(struct ubus_request *request, int type, struct b
     send_blob_attr_via_network(b_domain.head, "clients");
     handle_hostapd_clients_message(b_domain.head, true, request->peer);
 
-    print_client_array();
-    print_ap_array();
+    print_client_list();
+    print_ap_list();
 }
 
 static void ubus_set_neighbor_report(void)
@@ -1219,24 +1218,6 @@ static int reload_config(struct ubus_context *context, struct ubus_object *objec
     return 0;
 }
 
-/* This is needed to respond to the ubus notify ...
- * Maybe we need to disable on shutdown...
- * But it is not possible when we disable the notify that other daemons are running that relay on this notify... */
-#if 0
-static void respond_to_notify(uint32_t id)
-{
-    int err;
-
-    blob_buf_init(&b, 0);
-    blobmsg_add_u32(&b, "notify_response", 1);
-
-    err = ubus_invoke(ctx, id, "notify_response", b.head, NULL, NULL, 1000);
-    if (err != 0) {
-        DAWN_LOG_ERROR("Failed to invoke: %s", ubus_strerror(err));
-    }
-}
-#endif
-
 static int uci_send_via_network(void)
 {
     void *metric, *intervals, *behaviour;
@@ -1319,19 +1300,16 @@ static void denied_req_array_cb(struct uloop_timeout *t)
 
 static int send_blob_attr_via_network(struct blob_attr *message, char *method)
 {
-    char *data_str, *str;
-    int err = -1;
-
-    data_str = blobmsg_format_json(message, true);
+    char *data_str = blobmsg_format_json(message, true);
     dawn_regmem(data_str);
     blob_buf_init(&b_send_network, 0);
     blobmsg_add_string(&b_send_network, "method", method);
     blobmsg_add_string(&b_send_network, "data", data_str);
 
-    str = blobmsg_format_json(b_send_network.head, true);
+    char *str = blobmsg_format_json(b_send_network.head, true);
     dawn_regmem(str);
 
-    err = dawn_network_send(str);
+    int err = dawn_network_send(str);
 
     dawn_free(str);
     dawn_free(data_str);
@@ -1341,9 +1319,9 @@ static int send_blob_attr_via_network(struct blob_attr *message, char *method)
 
 static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, dawn_mac_t addr)
 {
-    char *s;
+    char *str;
 
-    s = blobmsg_alloc_string_buffer(buf, name, 20);
-    sprintf(s, MACSTR, MAC2STR(addr.u8));
+    str = blobmsg_alloc_string_buffer(buf, name, 20);
+    sprintf(str, MACSTR, MAC2STR(addr.u8));
     blobmsg_add_string_buffer(buf);
 }

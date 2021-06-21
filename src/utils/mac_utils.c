@@ -53,11 +53,11 @@ int hwaddr_aton(const char *txt, uint8_t *addr)
     return 0;
 }
 
-void write_mac_to_file(const char *path, dawn_mac_t addr)
+void append_allow_list_in_file(const char *path, dawn_mac_t addr)
 {
     FILE *f = fopen(path, "a");
     if (f == NULL) {
-        DAWN_LOG_ERROR("Failed to open mac file");
+        DAWN_LOG_ERROR("Failed to open allow list file");
         return;
     }
 

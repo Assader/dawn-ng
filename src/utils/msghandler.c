@@ -132,11 +132,11 @@ static const struct blobmsg_policy client_policy[__CLIENT_MAX] = {
 static void handle_set_probe(struct blob_attr *message);
 static int handle_uci_config(struct blob_attr *message);
 static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry_t *notify_req);
-static uint8_t dump_rrm_table(struct blob_attr *head, int len);
-static uint8_t dump_rrm_data(void *data, int len, int type);
-static int dump_client_table(struct blob_attr *head, int len, const char *bssid,
+static uint8_t get_rrm_capability(struct blob_attr *head, int len);
+static uint8_t get_rrm_capability_first_byte(void *data, int len, int type);
+static int parse_clients_message(struct blob_attr *head, int len, const char *bssid,
                              uint32_t freq, uint8_t ht_supported, uint8_t vht_supported);
-static void dump_client(struct blob_attr **tb, dawn_mac_t client_addr,
+static void create_client_from_hostapd_message(struct blob_attr **tb, dawn_mac_t client_addr,
                         const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
                         uint8_t vht_supported);
 
@@ -172,37 +172,27 @@ bool handle_network_message(const char *message)
     /* Add inactive death... */
 
     if (strcmp(method, "probe") == 0) {
-        DAWN_LOG_INFO("Handling `probe' message");
         probe_entry_t *entry = handle_hostapd_probe_request(data_buf.head);
         if (entry != NULL) {
-            if (entry != probe_set_insert(entry, false, true, false, time(NULL))) { /* Use 802.11k values */
+            if (entry != probe_list_insert(entry, false, true, time(NULL))) {
                 /* Insert found an existing entry, rather than linking in our new one */
                 dawn_free(entry);
             }
         }
     }
     else if (strcmp(method, "clients") == 0) {
-        DAWN_LOG_INFO("Handling `clients' message");
         handle_hostapd_clients_message(data_buf.head, false, 0);
     }
     else if (strcmp(method, "deauth") == 0) {
-        DAWN_LOG_INFO("Handling `deauth' message");
         handle_hostapd_deauth_request(data_buf.head);
     }
     else if (strcmp(method, "setprobe") == 0) {
-        DAWN_LOG_INFO("Handling `setprobe' message");
         handle_set_probe(data_buf.head);
     }
     else if (strcmp(method, "addmac") == 0) {
-        DAWN_LOG_INFO("Handling `addmac' message");
-        parse_add_mac_to_file(data_buf.head);
-    }
-    else if (strcmp(method, "macfile") == 0) {
-        DAWN_LOG_INFO("Handling `macfile' message");
         parse_add_mac_to_file(data_buf.head);
     }
     else if (strcmp(method, "uci") == 0) {
-        DAWN_LOG_INFO("Handling `uci' message");
         handle_uci_config(data_buf.head);
     }
     else if (strcmp(method, "beacon-report") == 0) {
@@ -229,6 +219,8 @@ probe_entry_t *handle_hostapd_probe_request(struct blob_attr *message)
     struct blob_attr *tb[__PROBE_MAX];
     probe_entry_t *probe_req;
 
+    DAWN_LOG_INFO("Handling `probe' message");
+
     probe_req = dawn_calloc(1, sizeof (probe_entry_t));
     if (probe_req == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
@@ -238,6 +230,7 @@ probe_entry_t *handle_hostapd_probe_request(struct blob_attr *message)
     blobmsg_parse(probe_policy, __PROBE_MAX, tb, blob_data(message), blob_len(message));
 
     if (!tb[PROBE_BSSID] || !tb[PROBE_CLIENT_ADDR] || !tb[PROBE_TARGET_ADDR]) {
+        DAWN_LOG_ERROR("Failed to parse the message");
         goto error;
     }
 
@@ -295,13 +288,15 @@ int handle_hostapd_deauth_request(struct blob_attr *message)
 {
     hostapd_notify_entry_t notify_req;
 
+    DAWN_LOG_INFO("Handling `deauth' message");
+
     handle_hostapd_notify(message, &notify_req);
 
-    client_t *client_entry = client_set_get(notify_req.client_addr);
+    client_t *client_entry = client_list_get(notify_req.client_addr);
     if (client_entry != NULL) {
-        DAWN_LOG_INFO("Client " MACSTR " deauth from " MACSTR,
+        DAWN_LOG_INFO(MACSTR " deauth from " MACSTR,
                       MAC2STR(client_entry->client_addr.u8), MAC2STR(client_entry->bssid.u8));
-        client_set_delete(client_entry);
+        client_list_delete(client_entry);
     }
 
     return 0;
@@ -311,6 +306,8 @@ bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uin
 {
     struct blob_attr *tb[__CLIENT_TABLE_MAX];
     bool result = false;
+
+    DAWN_LOG_INFO("Handling `clients' message");
 
     if (message == NULL || blob_data(message) == NULL || blob_len(message) <= 0) {
         DAWN_LOG_ERROR("Failed to parse hostapd clients message");
@@ -325,7 +322,7 @@ bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uin
     }
 
     int num_stations =
-            dump_client_table(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
+            parse_clients_message(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
                               blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
                               blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
 
@@ -390,10 +387,10 @@ bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uin
         strncpy(ap_entry->hostname, blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]), HOST_NAME_MAX);
     }
 
-    ap_set_insert(ap_entry, time(NULL));
+    ap_list_insert(ap_entry, time(NULL));
 
     if (do_kick && behaviour_config.kicking) {
-        update_iw_info(ap_entry->bssid);
+        iwinfo_update_clients(ap_entry->bssid);
         kick_clients(ap_entry, id);
     }
 
@@ -406,9 +403,11 @@ static void handle_set_probe(struct blob_attr *message)
 {
     hostapd_notify_entry_t notify_req;
 
+    DAWN_LOG_INFO("Handling `setprobe' message");
+
     handle_hostapd_notify(message, &notify_req);
 
-    probe_set_update_all_probe_count(notify_req.client_addr, behaviour_config.min_probe_count);
+    probe_list_set_probe_count(notify_req.client_addr, behaviour_config.min_probe_count);
 }
 
 static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry_t *notify_req)
@@ -432,7 +431,7 @@ static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entr
     return true;
 }
 
-static int dump_client_table(struct blob_attr *head, int len, const char *bssid,
+static int parse_clients_message(struct blob_attr *head, int len, const char *bssid,
                              uint32_t freq, uint8_t ht_supported, uint8_t vht_supported)
 {
     struct blob_attr *tb[__CLIENT_MAX], *attr;
@@ -444,18 +443,17 @@ static int dump_client_table(struct blob_attr *head, int len, const char *bssid,
 
         blobmsg_parse(client_policy, __CLIENT_MAX, tb, blobmsg_data(attr), blobmsg_len(attr));
 
-        dawn_mac_t tmp_mac;
-        sscanf((char *) hdr->name, DAWNMACSTR, STR2MAC(tmp_mac.u8));
+        dawn_mac_t client_mac;
+        sscanf((char *) hdr->name, DAWNMACSTR, STR2MAC(client_mac.u8));
 
-        dump_client(tb, tmp_mac, bssid, freq, ht_supported, vht_supported);
+        create_client_from_hostapd_message(tb, client_mac, bssid, freq, ht_supported, vht_supported);
         ++station_count;
     }
 
     return station_count;
 }
 
-/* TOOD: Refactor this! */
-static void dump_client(struct blob_attr **tb, dawn_mac_t client_addr,
+static void create_client_from_hostapd_message(struct blob_attr **tb, dawn_mac_t client_addr,
                         const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
                         uint8_t vht_supported)
 {
@@ -506,32 +504,27 @@ static void dump_client(struct blob_attr **tb, dawn_mac_t client_addr,
     if (tb[CLIENT_AID]) {
         client->aid = blobmsg_get_u32(tb[CLIENT_AID]);
     }
-    /* RRM Caps */
     if (tb[CLIENT_RRM]) {
-        /* Get the first byte from rrm array
-        ap_entry.ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_RRM]); */
-        client->rrm_enabled_capa =
-                dump_rrm_table(blobmsg_data(tb[CLIENT_RRM]),
-                               blobmsg_data_len(tb[CLIENT_RRM]));
+        client->rrm_capability =
+                get_rrm_capability(blobmsg_data(tb[CLIENT_RRM]),
+                                   blobmsg_data_len(tb[CLIENT_RRM]));
     }
-
-    /* Copy signature */
     if (tb[CLIENT_SIGNATURE]) {
         strncpy(client->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN);
     }
 
     /* If entry was already in list, it won't be added, so free memory */
-    if (client != client_set_insert(client, time(NULL))) {
+    if (client != client_list_insert(client, time(NULL))) {
         dawn_free(client);
     }
 }
 
-static uint8_t dump_rrm_table(struct blob_attr *head, int len)
+static uint8_t get_rrm_capability(struct blob_attr *head, int len)
 {
-    return dump_rrm_data(blobmsg_data(head), blobmsg_data_len(head), blob_id(head));
+    return get_rrm_capability_first_byte(blobmsg_data(head), blobmsg_data_len(head), blob_id(head));
 }
 
-static uint8_t dump_rrm_data(void *data, int len, int type)
+static uint8_t get_rrm_capability_first_byte(void *data, int len, int type)
 {
     uint8_t ret = 0;
 
@@ -658,6 +651,8 @@ static int handle_uci_config(struct blob_attr *message)
     struct blob_attr *tb[__UCI_TABLE_MAX], *tb_intervals[__UCI_INTERVALS_MAX],
             *tb_metric[__UCI_METRIC_MAX], *tb_behaviour[__UCI_BEHAVIOUR_MAX];
     char cmd_buffer[1024];
+
+    DAWN_LOG_INFO("Handling `uci' message");
 
     blobmsg_parse(uci_table_policy, __UCI_TABLE_MAX, tb, blob_data(message), blob_len(message));
     blobmsg_parse(uci_intervals_policy, __UCI_INTERVALS_MAX, tb_intervals,
