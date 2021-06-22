@@ -309,7 +309,7 @@ void dawn_reload_config(void)
     dawn_uci_get_behaviour(&behaviour_config);
 
     /* Allow setting timeout to 0. */
-    ((time_intervals_config.update_beacon_reports == 0)?
+    ((time_intervals_config.request_beacon_reports == 0)?
         uloop_timeout_cancel : uloop_timeout_add)(&beacon_reports_timer);
 
     uci_send_via_network();
@@ -450,7 +450,7 @@ static void uloop_add_data_callbacks(void)
     }
     uloop_timeout_add(&channel_utilization_timer);
     /* Allow setting timeout to 0. */
-    if (time_intervals_config.update_beacon_reports != 0) {
+    if (time_intervals_config.request_beacon_reports != 0) {
         uloop_timeout_add(&beacon_reports_timer);
     }
     uloop_timeout_add(&probe_timeout);
@@ -1065,7 +1065,7 @@ static void update_channel_utilization(struct uloop_timeout *t)
         }
     }
 
-    uloop_timeout_set(t, time_intervals_config.update_chan_util * 1000);
+    uloop_timeout_set(t, time_intervals_config.update_chan_utilisation * 1000);
 }
 
 static void update_beacon_reports(struct uloop_timeout *t)
@@ -1076,7 +1076,7 @@ static void update_beacon_reports(struct uloop_timeout *t)
         request_beacon_reports(sub->bssid, sub->id);
     }
 
-    uloop_timeout_set(t, time_intervals_config.update_beacon_reports * 1000);
+    uloop_timeout_set(t, time_intervals_config.request_beacon_reports * 1000);
 }
 
 static void __attribute__((__unused__)) del_client_all_interfaces(
@@ -1241,8 +1241,8 @@ static int uci_send_via_network(void)
     intervals = blobmsg_open_table(&b, "intervals");
     blobmsg_add_u32(&b, "update_client", time_intervals_config.update_client);
     blobmsg_add_u32(&b, "discover_dawn_instances", time_intervals_config.discover_dawn_instances);
-    blobmsg_add_u32(&b, "update_chan_util", time_intervals_config.update_chan_util);
-    blobmsg_add_u32(&b, "update_beacon_reports", time_intervals_config.update_beacon_reports);
+    blobmsg_add_u32(&b, "update_chan_utilisation", time_intervals_config.update_chan_utilisation);
+    blobmsg_add_u32(&b, "request_beacon_reports", time_intervals_config.request_beacon_reports);
     blobmsg_add_u32(&b, "remove_probe", time_intervals_config.remove_probe);
     blobmsg_add_u32(&b, "remove_ap", time_intervals_config.remove_ap);
     blobmsg_add_u32(&b, "denied_req_threshold", time_intervals_config.denied_req_threshold);

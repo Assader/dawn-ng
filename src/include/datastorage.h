@@ -28,8 +28,8 @@ typedef struct {
 typedef struct {
     uint32_t update_client;
     uint32_t discover_dawn_instances;
-    uint32_t update_chan_util;
-    uint32_t update_beacon_reports;
+    uint32_t update_chan_utilisation;
+    uint32_t request_beacon_reports;
     uint32_t remove_probe;
     uint32_t remove_ap;
     uint32_t denied_req_threshold;

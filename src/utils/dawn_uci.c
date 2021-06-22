@@ -102,8 +102,8 @@ bool dawn_uci_get_intervals(time_intervals_config_t *config)
 
     dawn_uci_lookup_interval(update_client, 10);
     dawn_uci_lookup_interval(discover_dawn_instances, 10);
-    dawn_uci_lookup_interval(update_chan_util, 5);
-    dawn_uci_lookup_interval(update_beacon_reports, 20);
+    dawn_uci_lookup_interval(update_chan_utilisation, 5);
+    dawn_uci_lookup_interval(request_beacon_reports, 20);
     dawn_uci_lookup_interval(remove_probe, 30);
     dawn_uci_lookup_interval(remove_ap, 460);
     dawn_uci_lookup_interval(denied_req_threshold, 30);
