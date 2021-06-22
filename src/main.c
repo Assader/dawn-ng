@@ -21,7 +21,7 @@ static void dawn_shutdown(void);
 int main(int argc, char *argv[])
 {
 #ifdef DAWN_LOG_TO_SYSLOG
-    openlog("dawn", LOG_PID, LOG_DAEMON);
+    openlog("dawn-ng", LOG_PID, LOG_DAEMON);
 #endif
 
     connect_signals();

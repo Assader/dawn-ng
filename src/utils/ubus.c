@@ -154,7 +154,7 @@ enum {
 };
 
 static const struct blobmsg_policy dawn_umdns_table_policy[__DAWN_UMDNS_TABLE_MAX] = {
-    [DAWN_UMDNS_TABLE] = {.name = "_dawn._tcp", .type = BLOBMSG_TYPE_TABLE},
+    [DAWN_UMDNS_TABLE] = {.name = "_dawn-ng._tcp", .type = BLOBMSG_TYPE_TABLE},
 };
 
 enum {
@@ -217,10 +217,10 @@ static const struct ubus_method dawn_methods[] = {
 };
 
 static struct ubus_object_type dawn_object_type =
-    UBUS_OBJECT_TYPE("dawn", dawn_methods);
+    UBUS_OBJECT_TYPE("dawn-ng", dawn_methods);
 
 static struct ubus_object dawn_object = {
-    .name = "dawn",
+    .name = "dawn-ng",
     .type = &dawn_object_type,
     .methods = dawn_methods,
     .n_methods = ARRAY_SIZE(dawn_methods),
