@@ -38,7 +38,7 @@ static LIST_HEAD(allow_list);
 /* Used as a filler where a value is required but not used functionally. */
 static const dawn_mac_t dawn_mac_null = {0};
 
-static bool kick_client(ap_t *kicking_ap, client_t *client, char *neighbor_report);
+static bool kick_client(ap_t *kicking_ap, client_t *client, char *neighbor_report, bool *bad_own_score);
 static int eval_probe_metric(probe_entry_t *probe, ap_t *ap);
 static bool station_count_imbalance_detected(ap_t *own_ap, ap_t *ap_to_compare, dawn_mac_t client_addr);
 static probe_entry_t *probe_list_get_entry(dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid);
@@ -74,7 +74,8 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
         }
 
         char neighbor_report[NEIGHBOR_REPORT_LEN + 1] = {""};
-        bool do_kick = kick_client(kicking_ap, client, neighbor_report);
+        bool bad_own_score = false,
+                do_kick = kick_client(kicking_ap, client, neighbor_report, &bad_own_score);
 
         /* Better ap available. */
         if (do_kick) {
@@ -93,10 +94,11 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
                     continue;
                 }
 
+                bool check_bandwidth = !(behaviour_config.aggressive_kicking && bad_own_score);
                 /* Only use rx_rate for indicating if transmission is going on
                  * <= 6MBits <- probably no transmission
                  * tx_rate has always some weird value so don't use it. */
-                if (rx_rate > behaviour_config.bandwidth_threshold) {
+                if (check_bandwidth && rx_rate > behaviour_config.bandwidth_threshold) {
                     DAWN_LOG_INFO(MACSTR " is probably in active transmisison. RxRate is: %f",
                                   MAC2STR(client->client_addr.u8), rx_rate);
                 }
@@ -126,7 +128,7 @@ exit:
 
 /* neighbor_report could be NULL if we only want to know if there is a better AP.
  If the pointer is set, it will be filled with neighbor report of the best AP. */
-bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor_report)
+bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor_report, bool *bad_own_score)
 {
     bool kick = false;
 
@@ -140,6 +142,9 @@ bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor
     int own_score = eval_probe_metric(own_probe, kicking_ap);
     DAWN_LOG_INFO(MACSTR " score to " MACSTR " AP is %d",
                   MAC2STR(client_mac.u8), MAC2STR(kicking_ap->bssid.u8), own_score);
+    if (bad_own_score != NULL && own_score < 0) {
+        *bad_own_score = true;
+    }
 
     int max_score = own_score;
     /* Iterate through probe set... */
@@ -759,10 +764,10 @@ void print_client_entry(client_t *client)
                    client->ht_supported, client->vht_supported, client->ht, client->vht, client->kick_count);
 }
 
-static bool kick_client(ap_t *kicking_ap, client_t *client, char *neighbor_report)
+static bool kick_client(ap_t *kicking_ap, client_t *client, char *neighbor_report, bool *bad_own_score)
 {
     return allow_list_contains(client->client_addr)?
-                false : better_ap_available(kicking_ap, client->client_addr, neighbor_report);
+                false : better_ap_available(kicking_ap, client->client_addr, neighbor_report, bad_own_score);
 }
 
 static int eval_probe_metric(probe_entry_t *probe, ap_t *ap)

@@ -548,13 +548,13 @@ enum {
 };
 
 enum {
-    UCI_UPDATE_CLIENT,
+    UCI_UPDATE_CLIENTS,
     UCI_DISCOVER_DAWN_INSTANCES,
     UCI_UPDATE_CHAN_UTILISATION,
     UCI_REQUEST_BEACON_REPORTS,
-    UCI_REMOVE_PROBE,
-    UCI_REMOVE_AP,
-    UCI_DENIED_REQ_THRESHOLD,
+    UCI_REMOVE_OLD_PROBES,
+    UCI_REMOVE_OLD_APS,
+    UCI_MOVE_TO_ALLOW_LIST,
     __UCI_INTERVALS_MAX,
 };
 
@@ -575,6 +575,7 @@ enum {
 
 enum {
     UCI_KICKING,
+    UCI_AGGRESSIVE_KICKING,
     UCI_MIN_KICK_COUNT,
     UCI_BANDWIDTH_THRESHOLD,
     UCI_USE_STATION_COUNT,
@@ -602,13 +603,13 @@ static const struct blobmsg_policy uci_table_policy[__UCI_TABLE_MAX] = {
 };
 
 static const struct blobmsg_policy uci_intervals_policy[__UCI_INTERVALS_MAX] = {
-    [UCI_UPDATE_CLIENT] = {.name = "update_client", .type = BLOBMSG_TYPE_INT32},
+    [UCI_UPDATE_CLIENTS] = {.name = "update_clients", .type = BLOBMSG_TYPE_INT32},
     [UCI_DISCOVER_DAWN_INSTANCES] = {.name = "discover_dawn_instances", .type = BLOBMSG_TYPE_INT32},
     [UCI_UPDATE_CHAN_UTILISATION] = {.name = "update_chan_utilisation", .type = BLOBMSG_TYPE_INT32},
     [UCI_REQUEST_BEACON_REPORTS] = {.name = "request_beacon_reports", .type = BLOBMSG_TYPE_INT32},
-    [UCI_REMOVE_PROBE] = {.name = "remove_probe", .type = BLOBMSG_TYPE_INT32},
-    [UCI_REMOVE_AP] = {.name = "remove_ap", .type = BLOBMSG_TYPE_INT32},
-    [UCI_DENIED_REQ_THRESHOLD] = {.name = "denied_req_threshold", .type = BLOBMSG_TYPE_INT32},
+    [UCI_REMOVE_OLD_PROBES] = {.name = "remove_old_probes", .type = BLOBMSG_TYPE_INT32},
+    [UCI_REMOVE_OLD_APS] = {.name = "remove_old_aps", .type = BLOBMSG_TYPE_INT32},
+    [UCI_MOVE_TO_ALLOW_LIST] = {.name = "move_to_allow_list", .type = BLOBMSG_TYPE_INT32},
 };
 
 static const struct blobmsg_policy uci_metric_policy[__UCI_METRIC_MAX] = {
@@ -627,6 +628,7 @@ static const struct blobmsg_policy uci_metric_policy[__UCI_METRIC_MAX] = {
 
 static const struct blobmsg_policy uci_behaviour_policy[__UCI_BEHAVIOUR_MAX] = {
     [UCI_KICKING] = {.name = "kicking", .type = BLOBMSG_TYPE_INT32},
+    [UCI_AGGRESSIVE_KICKING] = {.name = "aggressive_kicking", .type = BLOBMSG_TYPE_INT32},
     [UCI_MIN_KICK_COUNT] = {.name = "min_kick_count", .type = BLOBMSG_TYPE_INT32},
     [UCI_BANDWIDTH_THRESHOLD] = {.name = "bandwidth_threshold", .type = BLOBMSG_TYPE_INT32},
     [UCI_USE_STATION_COUNT] = {.name = "use_station_count", .type = BLOBMSG_TYPE_INT32},
@@ -667,13 +669,13 @@ static int handle_uci_config(struct blob_attr *message)
         struct blob_attr **tb;
         int tb_idx;
     } option_array[] = {
-    {"@intervals[0].update_client", tb_intervals, UCI_UPDATE_CLIENT},
+    {"@intervals[0].update_clients", tb_intervals, UCI_UPDATE_CLIENTS},
     {"@intervals[0].discover_dawn_instances", tb_intervals, UCI_DISCOVER_DAWN_INSTANCES},
     {"@intervals[0].update_chan_utilisation", tb_intervals, UCI_UPDATE_CHAN_UTILISATION},
     {"@intervals[0].request_beacon_reports", tb_intervals, UCI_REQUEST_BEACON_REPORTS},
-    {"@intervals[0].remove_probe", tb_intervals, UCI_REMOVE_PROBE},
-    {"@intervals[0].remove_ap", tb_intervals, UCI_REMOVE_AP},
-    {"@intervals[0].denied_req_threshold", tb_intervals, UCI_DENIED_REQ_THRESHOLD},
+    {"@intervals[0].remove_old_probes", tb_intervals, UCI_REMOVE_OLD_PROBES},
+    {"@intervals[0].remove_old_aps", tb_intervals, UCI_REMOVE_OLD_APS},
+    {"@intervals[0].move_to_allow_list", tb_intervals, UCI_MOVE_TO_ALLOW_LIST},
     {"@metric[0].ht_support", tb_metric, UCI_HT_SUPPORT},
     {"@metric[0].vht_support", tb_metric, UCI_VHT_SUPPORT},
     {"@metric[0].chan_util_val", tb_metric, UCI_CHAN_UTIL_VAL},
@@ -686,6 +688,7 @@ static int handle_uci_config(struct blob_attr *message)
     {"@metric[0].low_rssi_val", tb_metric, UCI_LOW_RSSI_VAL},
     {"@metric[0].low_rssi", tb_metric, UCI_LOW_RSSI},
     {"@behaviour[0].kicking", tb_behaviour, UCI_KICKING},
+    {"@behaviour[0].aggressive_kicking", tb_behaviour, UCI_AGGRESSIVE_KICKING},
     {"@behaviour[0].min_kick_count", tb_behaviour, UCI_MIN_KICK_COUNT},
     {"@behaviour[0].bandwidth_threshold", tb_behaviour, UCI_BANDWIDTH_THRESHOLD},
     {"@behaviour[0].use_station_count", tb_behaviour, UCI_USE_STATION_COUNT},

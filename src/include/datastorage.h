@@ -26,13 +26,13 @@ typedef struct {
 } general_config_t;
 
 typedef struct {
-    uint32_t update_client;
+    uint32_t update_clients;
     uint32_t discover_dawn_instances;
     uint32_t update_chan_utilisation;
     uint32_t request_beacon_reports;
-    uint32_t remove_probe;
-    uint32_t remove_ap;
-    uint32_t denied_req_threshold;
+    uint32_t remove_old_probes;
+    uint32_t remove_old_aps;
+    uint32_t move_to_allow_list;
 } time_intervals_config_t;
 
 typedef struct {
@@ -52,6 +52,7 @@ typedef struct {
 
 typedef struct {
     int kicking;
+    int aggressive_kicking;
     int min_kick_count;
     int bandwidth_threshold;
     int use_station_count;
@@ -166,7 +167,7 @@ typedef struct {
 } client_t;
 
 int kick_clients(ap_t *kicking_ap, uint32_t id);
-bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_addr, char *neighbor_report);
+bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_addr, char *neighbor_report, bool *bad_own_score);
 
 void request_beacon_reports(dawn_mac_t bssid, int id);
 void build_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid);

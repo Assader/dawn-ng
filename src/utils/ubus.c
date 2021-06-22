@@ -802,7 +802,7 @@ static bool proceed_operation(probe_entry_t *request, int request_type)
     }
 
     ap_t *this_ap = ap_list_get(request->bssid);
-    if (this_ap != NULL && better_ap_available(this_ap, request->client_addr, NULL)) {
+    if (this_ap != NULL && better_ap_available(this_ap, request->client_addr, NULL, NULL)) {
         return false;
     }
 
@@ -975,7 +975,7 @@ static void update_clients(struct uloop_timeout *t)
         ubus_set_neighbor_report();
     }
 
-    uloop_timeout_set(t, time_intervals_config.update_client * 1000);
+    uloop_timeout_set(t, time_intervals_config.update_clients * 1000);
 }
 
 static int ubus_get_clients(void)
@@ -1239,13 +1239,13 @@ static int uci_send_via_network(void)
 
     blob_buf_init(&b, 0);
     intervals = blobmsg_open_table(&b, "intervals");
-    blobmsg_add_u32(&b, "update_client", time_intervals_config.update_client);
+    blobmsg_add_u32(&b, "update_clients", time_intervals_config.update_clients);
     blobmsg_add_u32(&b, "discover_dawn_instances", time_intervals_config.discover_dawn_instances);
     blobmsg_add_u32(&b, "update_chan_utilisation", time_intervals_config.update_chan_utilisation);
     blobmsg_add_u32(&b, "request_beacon_reports", time_intervals_config.request_beacon_reports);
-    blobmsg_add_u32(&b, "remove_probe", time_intervals_config.remove_probe);
-    blobmsg_add_u32(&b, "remove_ap", time_intervals_config.remove_ap);
-    blobmsg_add_u32(&b, "denied_req_threshold", time_intervals_config.denied_req_threshold);
+    blobmsg_add_u32(&b, "remove_old_probes", time_intervals_config.remove_old_probes);
+    blobmsg_add_u32(&b, "remove_old_aps", time_intervals_config.remove_old_aps);
+    blobmsg_add_u32(&b, "move_to_allow_list", time_intervals_config.move_to_allow_list);
     blobmsg_close_table(&b, intervals);
 
     metric = blobmsg_open_table(&b, "metric");
@@ -1264,6 +1264,7 @@ static int uci_send_via_network(void)
 
     behaviour = blobmsg_open_table(&b, "behaviour");
     blobmsg_add_u32(&b, "kicking", behaviour_config.kicking);
+    blobmsg_add_u32(&b, "aggressive_kicking", behaviour_config.aggressive_kicking);
     blobmsg_add_u32(&b, "min_kick_count", behaviour_config.min_kick_count);
     blobmsg_add_u32(&b, "bandwidth_threshold", behaviour_config.bandwidth_threshold);
     blobmsg_add_u32(&b, "use_station_count", behaviour_config.use_station_count);
@@ -1288,29 +1289,29 @@ static int uci_send_via_network(void)
 
 static void remove_probe_list_cb(struct uloop_timeout *t)
 {
-    remove_old_probe_entries(time(NULL), time_intervals_config.remove_probe);
+    remove_old_probe_entries(time(NULL), time_intervals_config.remove_old_probes);
 
-    uloop_timeout_set(t, time_intervals_config.remove_probe * 1000);
+    uloop_timeout_set(t, time_intervals_config.remove_old_probes * 1000);
 }
 
 static void remove_client_list_cb(struct uloop_timeout *t)
 {
-    remove_old_client_entries(time(NULL), time_intervals_config.update_client);
+    remove_old_client_entries(time(NULL), time_intervals_config.update_clients);
 
-    uloop_timeout_set(t, time_intervals_config.update_client * 1000);
+    uloop_timeout_set(t, time_intervals_config.update_clients * 1000);
 }
 
 static void remove_ap_list_cb(struct uloop_timeout *t)
 {
-    remove_old_ap_entries(time(NULL), time_intervals_config.remove_ap);
+    remove_old_ap_entries(time(NULL), time_intervals_config.remove_old_aps);
 
-    uloop_timeout_set(t, time_intervals_config.remove_ap * 1000);
+    uloop_timeout_set(t, time_intervals_config.remove_old_aps * 1000);
 }
 static void denied_req_list_cb(struct uloop_timeout *t)
 {
-    remove_old_denied_req_entries(time(NULL), time_intervals_config.denied_req_threshold);
+    remove_old_denied_req_entries(time(NULL), time_intervals_config.move_to_allow_list);
 
-    uloop_timeout_set(t, time_intervals_config.denied_req_threshold * 1000);
+    uloop_timeout_set(t, time_intervals_config.move_to_allow_list * 1000);
 }
 
 static int send_blob_attr_via_network(struct blob_attr *message, const char *method)

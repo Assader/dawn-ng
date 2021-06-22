@@ -100,13 +100,13 @@ bool dawn_uci_get_intervals(time_intervals_config_t *config)
 #define dawn_uci_lookup_interval(option, def) \
     config->option = uci_lookup_option_int(uci_ctx, intervals, #option, def);
 
-    dawn_uci_lookup_interval(update_client, 10);
+    dawn_uci_lookup_interval(update_clients, 10);
     dawn_uci_lookup_interval(discover_dawn_instances, 10);
     dawn_uci_lookup_interval(update_chan_utilisation, 5);
     dawn_uci_lookup_interval(request_beacon_reports, 20);
-    dawn_uci_lookup_interval(remove_probe, 30);
-    dawn_uci_lookup_interval(remove_ap, 460);
-    dawn_uci_lookup_interval(denied_req_threshold, 30);
+    dawn_uci_lookup_interval(remove_old_probes, 30);
+    dawn_uci_lookup_interval(remove_old_aps, 460);
+    dawn_uci_lookup_interval(move_to_allow_list, 30);
 
     return true;
 }
@@ -152,6 +152,7 @@ bool dawn_uci_get_behaviour(behaviour_config_t *config)
     config->option = uci_lookup_option_int(uci_ctx, behaviour, #option, def);
 
     dawn_uci_lookup_behaviour(kicking, 0);
+    dawn_uci_lookup_behaviour(aggressive_kicking, 0);
     dawn_uci_lookup_behaviour(min_kick_count, 3);
     dawn_uci_lookup_behaviour(bandwidth_threshold, 6);
     dawn_uci_lookup_behaviour(use_station_count, 1);
