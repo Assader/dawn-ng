@@ -672,7 +672,6 @@ static int handle_probe_request(struct blob_attr *message)
 static int handle_auth_request(struct blob_attr *message)
 {
     int ret = WLAN_STATUS_SUCCESS;
-    bool discard_entry = true;
 
     print_probe_list();
 
@@ -700,9 +699,11 @@ static int handle_auth_request(struct blob_attr *message)
                                  MAC2STR(auth_req->client_addr.u8));
             }
 
+            DAWN_LOG_INFO(MACSTR " authentication request is denied", MAC2STR(auth_req->client_addr.u8));
+
             if (behaviour_config.use_driver_recog) {
-                if (auth_req == denied_req_list_insert(auth_req, time(NULL))) {
-                    discard_entry = false;
+                if (auth_req != denied_req_list_insert(auth_req, time(NULL))) {
+                    dawn_free(auth_req);
                 }
             }
 
@@ -710,12 +711,8 @@ static int handle_auth_request(struct blob_attr *message)
         }
         else {
             /* Maybe send here that the client is connected? */
-            DAWN_LOG_DEBUG("Allow authentication");
+            DAWN_LOG_INFO(MACSTR " authentication request is allowed", MAC2STR(auth_req->client_addr.u8));
         }
-    }
-
-    if (discard_entry) {
-        dawn_free(auth_req);
     }
 
     return ret;
@@ -724,7 +721,6 @@ static int handle_auth_request(struct blob_attr *message)
 static int handle_assoc_request(struct blob_attr *message)
 {
     int ret = WLAN_STATUS_SUCCESS;
-    int discard_entry = true;
 
     print_probe_list();
 
@@ -752,21 +748,19 @@ static int handle_assoc_request(struct blob_attr *message)
                                  MAC2STR(assoc_req->client_addr.u8));
             }
 
+            DAWN_LOG_INFO(MACSTR " association request is denied", MAC2STR(assoc_req->client_addr.u8));
+
             if (behaviour_config.use_driver_recog) {
-                if (assoc_req == denied_req_list_insert(assoc_req, time(NULL))) {
-                    discard_entry = false;
+                if (assoc_req != denied_req_list_insert(assoc_req, time(NULL))) {
+                    dawn_free(assoc_req);
                 }
             }
 
             ret = behaviour_config.deny_assoc_reason;
         }
         else {
-            DAWN_LOG_DEBUG("Allow association");
+            DAWN_LOG_INFO(MACSTR " association request is allowed", MAC2STR(assoc_req->client_addr.u8));
         }
-    }
-
-    if (discard_entry) {
-        dawn_free(assoc_req);
     }
 
     return ret;
