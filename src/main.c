@@ -16,7 +16,6 @@
 
 static void connect_signals(void);
 static void signal_handler(int sig);
-static void dawn_shutdown(void);
 
 int main(int argc, char *argv[])
 {
@@ -25,6 +24,10 @@ int main(int argc, char *argv[])
 #endif
 
     connect_signals();
+
+    if (!datastorage_mutex_init()) {
+        exit(EXIT_FAILURE);
+    }
 
     if (!dawn_uci_init()) {
         exit(EXIT_FAILURE);
@@ -57,6 +60,10 @@ int main(int argc, char *argv[])
 
     dawn_network_deinit();
 
+    dawn_uci_deinit();
+
+    datastorage_mutex_deinit();
+
     return 0;
 }
 
@@ -83,15 +90,10 @@ static void signal_handler(int sig)
         break;
     case SIGINT:
     case SIGTERM:
-        dawn_shutdown();
+        uloop_end();
         break;
     default:
         break;
     }
 }
 
-static void dawn_shutdown(void)
-{
-    dawn_uci_deinit();
-    uloop_end();
-}

@@ -166,6 +166,9 @@ typedef struct {
     uint8_t rrm_capability;
 } client_t;
 
+bool datastorage_mutex_init(void);
+void datastorage_mutex_deinit(void);
+
 int kick_clients(ap_t *kicking_ap, uint32_t id);
 bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_addr, char *neighbor_report, bool *bad_own_score);
 

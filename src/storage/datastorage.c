@@ -29,11 +29,16 @@ typedef struct {
 } mac_entry_t;
 
 static LIST_HEAD(probe_list);
+static pthread_mutex_t probe_list_mutex;
 static LIST_HEAD(denied_req_list);
+static pthread_mutex_t denied_req_list_mutex;
 static LIST_HEAD(ap_list);
+static pthread_mutex_t ap_list_mutex;
 /* Ordered by BSSID + client MAC. */
 static LIST_HEAD(client_list);
+static pthread_mutex_t client_list_mutex;
 static LIST_HEAD(allow_list);
+static pthread_mutex_t allow_list_mutex;
 
 /* Used as a filler where a value is required but not used functionally. */
 static const dawn_mac_t dawn_mac_null = {0};
@@ -56,15 +61,49 @@ static void allow_list_insert_entry(mac_entry_t *mac);
 static bool is_connected(dawn_mac_t bssid, dawn_mac_t client_mac);
 static bool is_connected_somehwere(dawn_mac_t client_addr);
 
+bool datastorage_mutex_init(void)
+{
+    pthread_mutexattr_t mutex_attr;
+    int err;
+
+    err  = pthread_mutexattr_init(&mutex_attr);
+    err |= pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
+
+    err |= pthread_mutex_init(&probe_list_mutex, &mutex_attr);
+    err |= pthread_mutex_init(&denied_req_list_mutex, &mutex_attr);
+    err |= pthread_mutex_init(&ap_list_mutex, &mutex_attr);
+    err |= pthread_mutex_init(&client_list_mutex, &mutex_attr);
+    err |= pthread_mutex_init(&allow_list_mutex, &mutex_attr);
+
+    pthread_mutexattr_destroy(&mutex_attr);
+
+    if (err != 0) {
+        DAWN_LOG_ERROR("Failed to initialize mutex");
+    }
+
+    return err == 0;
+}
+
+void datastorage_mutex_deinit(void)
+{
+    pthread_mutex_destroy(&probe_list_mutex);
+    pthread_mutex_destroy(&denied_req_list_mutex);
+    pthread_mutex_destroy(&ap_list_mutex);
+    pthread_mutex_destroy(&client_list_mutex);
+    pthread_mutex_destroy(&allow_list_mutex);
+}
+
 int kick_clients(ap_t *kicking_ap, uint32_t id)
 {
     int kicked_clients = 0;
 
     DAWN_LOG_INFO("Kicking clients from " MACSTR " AP", MAC2STR(kicking_ap->bssid.u8));
 
+    pthread_mutex_lock(&client_list_mutex);
+
     client_t *first = client_list_get_entry(kicking_ap->bssid, dawn_mac_null, true, false), *client;
     if (first == NULL) {
-        goto exit;
+        goto cleanup;
     }
 
     list_for_each_entry_first(client, first, list) {
@@ -122,7 +161,9 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
         }
     }
 
-exit:
+cleanup:
+    pthread_mutex_unlock(&client_list_mutex);
+
     return kicked_clients;
 }
 
@@ -132,11 +173,13 @@ bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor
 {
     bool kick = false;
 
+    pthread_mutex_lock(&probe_list_mutex);
+
     probe_entry_t *own_probe = probe_list_get_entry(client_mac, kicking_ap->bssid, true);
     if (own_probe == NULL) {
         DAWN_LOG_WARNING(MACSTR " sent no probe to " MACSTR ". Unable to evaluate metric",
                          MAC2STR(client_mac.u8), MAC2STR(kicking_ap->bssid.u8));
-        goto exit;
+        goto cleanup;
     }
 
     int own_score = eval_probe_metric(own_probe, kicking_ap);
@@ -192,15 +235,19 @@ bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor
         }
     }
 
-exit:
+cleanup:
+    pthread_mutex_unlock(&probe_list_mutex);
+
     return kick;
 }
 
 void request_beacon_reports(dawn_mac_t bssid, int id)
 {
+    pthread_mutex_lock(&client_list_mutex);
+
     client_t *first = client_list_get_entry(bssid, dawn_mac_null, true, false), *client;
     if (first == NULL) {
-        return;
+        goto cleanup;
     }
 
     list_for_each_entry_first(client, first, list) {
@@ -214,6 +261,9 @@ void request_beacon_reports(dawn_mac_t bssid, int id)
             ubus_request_beacon_report(client->client_addr, id);
         }
     }
+
+cleanup:
+    pthread_mutex_unlock(&client_list_mutex);
 }
 
 /* TODO: Does all APs constitute neighbor report? How about using list of AP connected
@@ -221,6 +271,8 @@ void request_beacon_reports(dawn_mac_t bssid, int id)
 void build_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid)
 {
     void *neighbors = blobmsg_open_array(b, "list");
+
+    pthread_mutex_lock(&ap_list_mutex);
 
     ap_t *ap;
     list_for_each_entry(ap, &ap_list, list) {
@@ -239,6 +291,8 @@ void build_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid)
         blobmsg_close_array(b, neighbor);
     }
 
+    pthread_mutex_unlock(&ap_list_mutex);
+
     blobmsg_close_array(b, neighbors);
 }
 
@@ -250,6 +304,9 @@ void build_hearing_map(struct blob_buf *b)
     print_probe_list();
 
     blob_buf_init(b, 0);
+
+    pthread_mutex_lock(&ap_list_mutex);
+    pthread_mutex_lock(&probe_list_mutex);
 
     ap_t *ap, *next_ap;
     list_for_each_entry_safe(ap, next_ap, &ap_list, list) {
@@ -313,6 +370,9 @@ void build_hearing_map(struct blob_buf *b)
             blobmsg_close_table(b, ssid_table);
         }
     }
+
+    pthread_mutex_unlock(&probe_list_mutex);
+    pthread_mutex_unlock(&ap_list_mutex);
 }
 
 void build_network_overview(struct blob_buf *b)
@@ -321,6 +381,10 @@ void build_network_overview(struct blob_buf *b)
     void *ssid_table;
 
     blob_buf_init(b, 0);
+
+    pthread_mutex_lock(&ap_list_mutex);
+    pthread_mutex_lock(&client_list_mutex);
+    pthread_mutex_lock(&probe_list_mutex);
 
     ap_t *ap, *next_ap;
     list_for_each_entry_safe(ap, next_ap, &ap_list, list) {
@@ -378,7 +442,7 @@ void build_network_overview(struct blob_buf *b)
             blobmsg_add_u8(b, "vht", client->vht);
             blobmsg_add_u32(b, "collision_count", ap_get_collision_count(ap->collision_domain));
 
-            probe_entry_t *probe = probe_list_get(client->bssid, client->client_addr);
+            probe_entry_t *probe = probe_list_get_entry(client->bssid, client->client_addr, true);
             if (probe != NULL) {
                 blobmsg_add_u32(b, "signal", probe->signal);
             }
@@ -394,15 +458,21 @@ next:
             add_ssid = true;
         }
     }
+
+    pthread_mutex_lock(&probe_list_mutex);
+    pthread_mutex_lock(&client_list_mutex);
+    pthread_mutex_unlock(&ap_list_mutex);
 }
 
 void iwinfo_update_clients(dawn_mac_t bssid)
 {
     DAWN_LOG_INFO("Updating info for clients at " MACSTR " AP", MAC2STR(bssid.u8));
 
+    pthread_mutex_lock(&client_list_mutex);
+
     client_t *first = client_list_get_entry(bssid, dawn_mac_null, true, false), *client;
     if (first == NULL) {
-        return;
+        goto cleanup;
     }
 
     list_for_each_entry_first(client, first, list) {
@@ -418,12 +488,16 @@ void iwinfo_update_clients(dawn_mac_t bssid)
             }
         }
     }
+
+cleanup:
+    pthread_mutex_lock(&client_list_mutex);
 }
 
 bool probe_list_set_probe_count(dawn_mac_t client_addr, uint32_t probe_count)
 {
     bool updated = false;
 
+    pthread_mutex_lock(&probe_list_mutex);
     probe_entry_t *probe;
     list_for_each_entry(probe, &probe_list, list) {
         if (dawn_macs_are_equal(client_addr, probe->client_addr)) {
@@ -433,6 +507,7 @@ bool probe_list_set_probe_count(dawn_mac_t client_addr, uint32_t probe_count)
             updated = true;
         }
     }
+    pthread_mutex_unlock(&probe_list_mutex);
 
     return updated;
 }
@@ -455,13 +530,17 @@ bool probe_list_set_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t
 
 probe_entry_t *probe_list_get(dawn_mac_t bssid, dawn_mac_t client_mac)
 {
-    return probe_list_get_entry(client_mac, bssid, true);
+    pthread_mutex_unlock(&probe_list_mutex);
+    probe_entry_t *probe = probe_list_get_entry(client_mac, bssid, true);
+    pthread_mutex_unlock(&probe_list_mutex);
+    return probe;
 }
 
 probe_entry_t *probe_list_insert(probe_entry_t *probe, bool inc_counter, bool save_80211k, time_t expiry)
 {
-    probe_entry_t *tmp_probe = probe_list_get_entry(probe->client_addr, probe->bssid, true);
+    pthread_mutex_lock(&probe_list_mutex);
 
+    probe_entry_t *tmp_probe = probe_list_get_entry(probe->client_addr, probe->bssid, true);
     if (tmp_probe != NULL) {
         if (inc_counter) {
             tmp_probe->counter++;
@@ -504,12 +583,15 @@ probe_entry_t *probe_list_insert(probe_entry_t *probe, bool inc_counter, bool sa
 
     probe->expiry = expiry;
 
-    /* Return pointer to what we used, which may not be what was passed in. */
+    pthread_mutex_unlock(&probe_list_mutex);
+
     return probe;
 }
 
 auth_entry_t *denied_req_list_insert(auth_entry_t *entry, time_t expiry)
 {
+    pthread_mutex_lock(&denied_req_list_mutex);
+
     auth_entry_t *i = denied_req_list_get_entry(entry->bssid, entry->client_addr);
     if (i != NULL) {
         entry = i;
@@ -522,6 +604,8 @@ auth_entry_t *denied_req_list_insert(auth_entry_t *entry, time_t expiry)
     }
 
     entry->expiry = expiry;
+
+    pthread_mutex_unlock(&denied_req_list_mutex);
 
     return entry;
 }
@@ -554,11 +638,16 @@ ap_t *ap_list_insert(ap_t *ap, time_t expiry)
 
 client_t *client_list_get(dawn_mac_t client_addr)
 {
-    return client_list_get_entry(dawn_mac_null, client_addr, false, true);
+    pthread_mutex_lock(&client_list_mutex);
+    client_t *client = client_list_get_entry(dawn_mac_null, client_addr, false, true);
+    pthread_mutex_unlock(&client_list_mutex);
+    return client;
 }
 
 client_t *client_list_insert(client_t *client, time_t expiry)
 {
+    pthread_mutex_lock(&client_list_mutex);
+
     client_t *client_tmp = client_list_get_entry(client->bssid, client->client_addr, true, true);
     if (client_tmp == NULL) {
         client->kick_count = 0;
@@ -567,6 +656,8 @@ client_t *client_list_insert(client_t *client, time_t expiry)
     }
 
     client_tmp->expiry = expiry;
+
+    pthread_mutex_unlock(&client_list_mutex);
 
     return client_tmp;
 }
@@ -588,6 +679,8 @@ void allow_list_load(void)
         return;
     }
     dawn_regmem(fp);
+
+    pthread_mutex_lock(&allow_list_mutex);
 
     while ((read = getline(&line, &len, fp)) != -1) {
         if (old_line != line) {
@@ -616,7 +709,9 @@ void allow_list_load(void)
         DAWN_LOG_DEBUG(" - " MACSTR, MAC2STR(i->mac.u8));
     }
 
+
 cleanup:
+    pthread_mutex_unlock(&allow_list_mutex);
     fclose(fp);
     dawn_unregmem(fp);
     if (line) {
@@ -627,6 +722,8 @@ cleanup:
 /* TODO: This list only ever seems to get longer. Why do we need it? */
 bool allow_list_insert(dawn_mac_t mac)
 {
+    pthread_mutex_lock(&allow_list_mutex);
+
     mac_entry_t *i = allow_list_get_entry(mac);
     if (i != NULL) {
         return false;
@@ -641,6 +738,8 @@ bool allow_list_insert(dawn_mac_t mac)
     new_mac->mac = mac;
     allow_list_insert_entry(new_mac);
 
+    pthread_mutex_unlock(&allow_list_mutex);
+
     return true;
 }
 
@@ -652,6 +751,7 @@ bool allow_list_contains(dawn_mac_t mac)
 
 void remove_old_probe_entries(time_t current_time, uint32_t threshold)
 {
+    pthread_mutex_lock(&probe_list_mutex);
     probe_entry_t *probe, *next_probe;
     list_for_each_entry_safe(probe, next_probe, &probe_list, list) {
         if (current_time > probe->expiry + threshold &&
@@ -659,10 +759,12 @@ void remove_old_probe_entries(time_t current_time, uint32_t threshold)
             probe_list_delete_entry(probe);
         }
     }
+    pthread_mutex_unlock(&probe_list_mutex);
 }
 
 void remove_old_denied_req_entries(time_t current_time, uint32_t threshold)
 {
+    pthread_mutex_lock(&denied_req_list_mutex);
     auth_entry_t *i, *next;
     list_for_each_entry_safe(i, next, &denied_req_list, list) {
         if (current_time > i->expiry + threshold) {
@@ -682,36 +784,42 @@ void remove_old_denied_req_entries(time_t current_time, uint32_t threshold)
             denied_req_list_delete(i);
         }
     }
-
+    pthread_mutex_unlock(&denied_req_list_mutex);
 }
 
 void remove_old_ap_entries(time_t current_time, uint32_t threshold)
 {
+    pthread_mutex_lock(&ap_list_mutex);
     ap_t *ap, *next_ap;
     list_for_each_entry_safe(ap, next_ap, &ap_list, list) {
         if (current_time > ap->expiry + threshold) {
             ap_list_delete_entry(ap);
         }
     }
+    pthread_mutex_unlock(&ap_list_mutex);
 }
 
 void remove_old_client_entries(time_t current_time, uint32_t threshold)
 {
+    pthread_mutex_lock(&client_list_mutex);
     client_t *client, *next_client;
     list_for_each_entry_safe(client, next_client, &client_list, list) {
         if (current_time > client->expiry + threshold) {
             client_list_delete(client);
         }
     }
+    pthread_mutex_unlock(&client_list_mutex);
 }
 
 void print_probe_list(void)
 {
-    probe_entry_t *probe;
+    pthread_mutex_lock(&probe_list_mutex);
     DAWN_LOG_DEBUG("Printing probe array");
+    probe_entry_t *probe;
     list_for_each_entry(probe, &probe_list, list) {
         print_probe_entry(probe);
     }
+    pthread_mutex_unlock(&probe_list_mutex);
 }
 
 void print_probe_entry(probe_entry_t *probe)
@@ -731,11 +839,13 @@ void print_auth_entry(const char *header, auth_entry_t *entry)
 
 void print_ap_list(void)
 {
+    pthread_mutex_lock(&ap_list_mutex);
     ap_t *ap;
     DAWN_LOG_DEBUG("Printing APs array");
     list_for_each_entry(ap, &ap_list, list) {
         print_ap_entry(ap);
     }
+    pthread_mutex_unlock(&ap_list_mutex);
 }
 
 void print_ap_entry(ap_t *ap)
@@ -749,11 +859,13 @@ void print_ap_entry(ap_t *ap)
 
 void print_client_list(void)
 {
+    pthread_mutex_lock(&client_list_mutex);
     client_t *client;
     DAWN_LOG_DEBUG("Printing clients array");
     list_for_each_entry(client, &client_list, list) {
         print_client_entry(client);
     }
+    pthread_mutex_unlock(&client_list_mutex);
 }
 
 void print_client_entry(client_t *client)
@@ -847,6 +959,8 @@ static bool probe_list_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uin
 {
     bool updated = false;
 
+    pthread_mutex_lock(&probe_list_mutex);
+
     probe_entry_t *probe = probe_list_get_entry(client_addr, bssid, true);
     if (probe != NULL) {
         probe->signal = rssi;
@@ -854,6 +968,8 @@ static bool probe_list_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uin
 
         ubus_send_probe_via_network(probe);
     }
+
+    pthread_mutex_unlock(&probe_list_mutex);
 
     return updated;
 }
@@ -884,6 +1000,8 @@ static ap_t *ap_list_get_entry(dawn_mac_t bssid)
 
 static void ap_list_insert_entry(ap_t *ap)
 {
+    pthread_mutex_lock(&ap_list_mutex);
+
     ap_t *insertion_candidate;
     list_for_each_entry(insertion_candidate, &ap_list, list) {
         int sc = strcmp((char *) insertion_candidate->ssid, (char *) ap->ssid);
@@ -893,6 +1011,8 @@ static void ap_list_insert_entry(ap_t *ap)
     }
 
     list_add_tail(&ap->list, &insertion_candidate->list);
+
+    pthread_mutex_unlock(&ap_list_mutex);
 }
 
 static void ap_list_delete_entry(ap_t *ap)
@@ -906,12 +1026,16 @@ static int ap_get_collision_count(int col_domain)
 {
     int sta_count = 0;
 
+    pthread_mutex_lock(&ap_list_mutex);
+
     ap_t *ap;
     list_for_each_entry(ap, &ap_list, list) {
         if (ap->collision_domain == col_domain) {
             sta_count += ap->station_count;
         }
     }
+
+    pthread_mutex_unlock(&ap_list_mutex);
 
     return sta_count;
 }
