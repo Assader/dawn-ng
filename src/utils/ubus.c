@@ -238,12 +238,12 @@ static void uloop_add_data_callbacks(void);
 static void subscribe_to_hostapd_interfaces(const char *hostapd_sock_path);
 static bool subscribe_to_hostapd_interface(const char *ifname);
 static int hostapd_handle_event(struct ubus_context *context, struct ubus_object *object,
-                          struct ubus_request_data *request, const char *method,
-                          struct blob_attr *message);
-static void hostapd_handle_remove(struct ubus_context *ctx,
-                                  struct ubus_subscriber *s, uint32_t id);
+                                struct ubus_request_data *request, const char *method,
+                                struct blob_attr *message);
+static void hostapd_handle_remove(struct ubus_context *context,
+                                  struct ubus_subscriber *subscriber, uint32_t id);
 static bool ubus_hostapd_subscribe(hostapd_instance_t *hostapd_entry);
-static void hostapd_set_response_mode(int id);
+static void hostapd_enable_response_mode(int id);
 static int handle_probe_request(struct blob_attr *message);
 static int handle_auth_request(struct blob_attr *message);
 static int handle_assoc_request(struct blob_attr *message);
@@ -534,7 +534,7 @@ static bool subscribe_to_hostapd_interface(const char *ifname)
         goto error;
     }
 
-    hostapd_set_response_mode(hostapd_entry->id);
+    hostapd_enable_response_mode(hostapd_entry->id);
 
     return true;
 error:
@@ -547,7 +547,7 @@ static int hostapd_handle_event(struct ubus_context *context, struct ubus_object
                           struct blob_attr *message)
 {
     struct ubus_subscriber *subscriber;
-    hostapd_instance_t *entry;
+    hostapd_instance_t *hostapd_instance;
     struct blob_attr *cur;
     char *str;
     int rem;
@@ -558,15 +558,15 @@ static int hostapd_handle_event(struct ubus_context *context, struct ubus_object
     dawn_free(str);
 
     subscriber = container_of(object, struct ubus_subscriber, obj);
-    entry = container_of(subscriber, hostapd_instance_t, subscriber);
+    hostapd_instance = container_of(subscriber, hostapd_instance_t, subscriber);
 
     blob_buf_init(&b_notify, 0);
     blobmsg_for_each_attr(cur, message, rem) {
         blobmsg_add_blob(&b_notify, cur);
     }
 
-    blobmsg_add_macaddr(&b_notify, "bssid", entry->bssid);
-    blobmsg_add_string(&b_notify, "ssid", entry->ssid);
+    blobmsg_add_macaddr(&b_notify, "bssid", hostapd_instance->bssid);
+    blobmsg_add_string(&b_notify, "ssid", hostapd_instance->ssid);
 
     if (strcmp(method, "probe") == 0) {
         return handle_probe_request(b_notify.head);
@@ -588,17 +588,20 @@ static int hostapd_handle_event(struct ubus_context *context, struct ubus_object
     return 0;
 }
 
-static void hostapd_handle_remove(struct ubus_context *ctx,
-                                  struct ubus_subscriber *s, uint32_t id)
+static void hostapd_handle_remove(struct ubus_context *context,
+                                  struct ubus_subscriber *subscriber, uint32_t id)
 {
 
-    hostapd_instance_t *hostapd_sock =
-            container_of(s, hostapd_instance_t, subscriber);
+    hostapd_instance_t *hostapd_instance =
+            container_of(subscriber, hostapd_instance_t, subscriber);
 
-    DAWN_LOG_INFO("Ubus hostapd object for the interface `%s' is removed", hostapd_sock->iface_name);
+    DAWN_LOG_INFO("Ubus hostapd object for the interface `%s' is removed", hostapd_instance->iface_name);
 
-    list_del(&hostapd_sock->list);
-    dawn_free(hostapd_sock);
+    ubus_unsubscribe(context, &hostapd_instance->subscriber, hostapd_instance->id);
+    ubus_unregister_subscriber(context, &hostapd_instance->subscriber);
+
+    list_del(&hostapd_instance->list);
+    dawn_free(hostapd_instance);
 }
 
 static bool ubus_hostapd_subscribe(hostapd_instance_t *hostapd_entry)
@@ -631,7 +634,7 @@ static bool ubus_hostapd_subscribe(hostapd_instance_t *hostapd_entry)
     return true;
 }
 
-static void hostapd_set_response_mode(int id)
+static void hostapd_enable_response_mode(int id)
 {
     int err;
 
