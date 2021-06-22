@@ -549,7 +549,7 @@ enum {
 
 enum {
     UCI_UPDATE_CLIENT,
-    UCI_UPDATE_TCP_CON,
+    UCI_DISCOVER_DAWN_INSTANCES,
     UCI_UPDATE_CHAN_UTIL,
     UCI_UPDATE_BEACON_REPORTS,
     UCI_REMOVE_PROBE,
@@ -603,7 +603,7 @@ static const struct blobmsg_policy uci_table_policy[__UCI_TABLE_MAX] = {
 
 static const struct blobmsg_policy uci_intervals_policy[__UCI_INTERVALS_MAX] = {
     [UCI_UPDATE_CLIENT] = {.name = "update_client", .type = BLOBMSG_TYPE_INT32},
-    [UCI_UPDATE_TCP_CON] = {.name = "update_tcp_con", .type = BLOBMSG_TYPE_INT32},
+    [UCI_DISCOVER_DAWN_INSTANCES] = {.name = "discover_dawn_instances", .type = BLOBMSG_TYPE_INT32},
     [UCI_UPDATE_CHAN_UTIL] = {.name = "update_chan_util", .type = BLOBMSG_TYPE_INT32},
     [UCI_UPDATE_BEACON_REPORTS] = {.name = "update_beacon_reports", .type = BLOBMSG_TYPE_INT32},
     [UCI_REMOVE_PROBE] = {.name = "remove_probe", .type = BLOBMSG_TYPE_INT32},
@@ -668,7 +668,7 @@ static int handle_uci_config(struct blob_attr *message)
         int tb_idx;
     } option_array[] = {
     {"@intervals[0].update_client", tb_intervals, UCI_UPDATE_CLIENT},
-    {"@intervals[0].update_tcp_con", tb_intervals, UCI_UPDATE_TCP_CON},
+    {"@intervals[0].discover_dawn_instances", tb_intervals, UCI_DISCOVER_DAWN_INSTANCES},
     {"@intervals[0].update_chan_util", tb_intervals, UCI_UPDATE_CHAN_UTIL},
     {"@intervals[0].update_beacon_reports", tb_intervals, UCI_UPDATE_BEACON_REPORTS},
     {"@intervals[0].remove_probe", tb_intervals, UCI_REMOVE_PROBE},

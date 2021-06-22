@@ -1116,7 +1116,7 @@ static void __attribute__((__unused__)) del_client_interface(
 static void discover_new_dawn_instances(struct uloop_timeout *t)
 {
     ubus_call_umdns();
-    uloop_timeout_set(t, time_intervals_config.update_tcp_con * 1000);
+    uloop_timeout_set(t, time_intervals_config.discover_dawn_instances * 1000);
 }
 
 static int ubus_call_umdns(void)
@@ -1240,7 +1240,7 @@ static int uci_send_via_network(void)
     blob_buf_init(&b, 0);
     intervals = blobmsg_open_table(&b, "intervals");
     blobmsg_add_u32(&b, "update_client", time_intervals_config.update_client);
-    blobmsg_add_u32(&b, "update_tcp_con", time_intervals_config.update_tcp_con);
+    blobmsg_add_u32(&b, "discover_dawn_instances", time_intervals_config.discover_dawn_instances);
     blobmsg_add_u32(&b, "update_chan_util", time_intervals_config.update_chan_util);
     blobmsg_add_u32(&b, "update_beacon_reports", time_intervals_config.update_beacon_reports);
     blobmsg_add_u32(&b, "remove_probe", time_intervals_config.remove_probe);

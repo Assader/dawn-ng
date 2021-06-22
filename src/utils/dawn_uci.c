@@ -101,7 +101,7 @@ bool dawn_uci_get_intervals(time_intervals_config_t *config)
     config->option = uci_lookup_option_int(uci_ctx, intervals, #option, def);
 
     dawn_uci_lookup_interval(update_client, 10);
-    dawn_uci_lookup_interval(update_tcp_con, 10);
+    dawn_uci_lookup_interval(discover_dawn_instances, 10);
     dawn_uci_lookup_interval(update_chan_util, 5);
     dawn_uci_lookup_interval(update_beacon_reports, 20);
     dawn_uci_lookup_interval(remove_probe, 30);

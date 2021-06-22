@@ -27,7 +27,7 @@ typedef struct {
 
 typedef struct {
     uint32_t update_client;
-    uint32_t update_tcp_con;
+    uint32_t discover_dawn_instances;
     uint32_t update_chan_util;
     uint32_t update_beacon_reports;
     uint32_t remove_probe;
