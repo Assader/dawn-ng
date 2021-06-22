@@ -1,21 +1,14 @@
 ![DAWN PICTURE](https://image.ibb.co/nbmNfJ/dawn_bla.png)
 
-# DAWN
-Decentralized WiFi Controller
+# dawn-ng
+This is a fork of DAWN(https://github.com/berlin-open-wireless-lab/DAWN) Decentralized WiFi Controller. The code is refactored, some bugs are fixed, custom features added...
+The controller provides 802.11 k/v features over OpenWRT.
 
 ## Installation
 
 **You need full wpad installation and not wpad-basic**.
 
 See [installation](INSTALL.md).
-
-## LuCI App
-There is an luci app called [luci-app-dawn](https://github.com/openwrt/luci/tree/master/applications/luci-app-dawn).
-
-## Setting up Routers
-
-You can find a good guide to configure your router is [here](https://gist.github.com/braian87b/bba9da3a7ac23c35b7f1eecafecdd47d).
-I setup the OpenWRT Router as dumb APs.
 
 ## Configuration
 
@@ -78,7 +71,7 @@ To get an overview of all connected Clients sorted by the SSID.
 		    }
 	    },
 	    "Free-Cookies_5G": {
-    		
+
 	    }
     }
 To get the hearing map you can use:
@@ -112,10 +105,4 @@ To get the hearing map you can use:
 		    }
 	    }
     }
-
-
-##  OpenWrt in a Nutshell
-
-![OpenWrtInANuthshell](https://raw.githubusercontent.com/PolynomialDivision/upload_stuff/master/dawn_pictures/openwrt_in_a_nutshell_dawn.png)
-
 

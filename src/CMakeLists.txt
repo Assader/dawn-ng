@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 2.6)
-PROJECT(dawn)
+PROJECT(dawn-ng)
 
 INCLUDE_DIRECTORIES(include)
 
@@ -29,9 +29,9 @@ SET(SOURCES
 SET(LIBS
         ubox ubus json-c blobmsg_json uci gcrypt iwinfo pthread)
 
-ADD_EXECUTABLE(dawn ${SOURCES})
+ADD_EXECUTABLE(dawn-ng ${SOURCES})
 
-TARGET_LINK_LIBRARIES(dawn ${LIBS})
+TARGET_LINK_LIBRARIES(dawn-ng ${LIBS})
 
-INSTALL(TARGETS dawn
+INSTALL(TARGETS dawn-ng
         RUNTIME DESTINATION /usr/sbin/)
