@@ -577,10 +577,8 @@ void allow_list_load(void)
     char *line = NULL, *old_line = NULL;
     size_t len = 0;
     ssize_t read;
-    FILE *fp;
 
-    /* TODO: Loading to array is not constrained by array checks. Buffer overrun can occur. */
-    fp = fopen("/tmp/dawn_mac_list", "r");
+    FILE *fp = fopen("/tmp/dawn_allow_list", "r");
     if (fp == NULL) {
         return;
     }
@@ -672,7 +670,7 @@ void remove_old_denied_req_entries(time_t current_time, uint32_t threshold)
                     send_add_mac(i->client_addr);
                     /* TODO: File can grow arbitarily large.  Resource consumption risk. */
                     /* TODO: Consolidate use of file across source: shared resource for name, single point of access? */
-                    append_allow_list_in_file("/tmp/dawn_mac_list", i->client_addr);
+                    append_allow_list_in_file("/tmp/dawn_allow_list", i->client_addr);
                 }
             }
 

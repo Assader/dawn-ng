@@ -420,7 +420,7 @@ int parse_add_mac_to_file(struct blob_attr *message)
         hwaddr_aton(blobmsg_data(attr), addr.u8);
 
         if (allow_list_insert(addr)) {
-            append_allow_list_in_file("/tmp/dawn_mac_list", addr);
+            append_allow_list_in_file("/tmp/dawn_allow_list", addr);
         }
     }
 
@@ -680,7 +680,8 @@ static int handle_auth_request(struct blob_attr *message)
         /* Block if entry was not found in probe database. */
         if (tmp == NULL || !proceed_operation(tmp, REQUEST_TYPE_AUTH)) {
             if (tmp == NULL) {
-                DAWN_LOG_WARNING("Client made an attempt to authenticate but sent no probe request first");
+                DAWN_LOG_WARNING(MACSTR " made an attempt to authenticate but sent no probe request first",
+                                 MAC2STR(auth_req->client_addr.u8));
             }
 
             if (behaviour_config.use_driver_recog) {
@@ -728,10 +729,11 @@ static int handle_assoc_request(struct blob_attr *message)
     if (!allow_list_contains(assoc_req->client_addr)) {
         probe_entry_t *tmp = probe_list_get(assoc_req->bssid, assoc_req->client_addr);
 
-        /* Block if entry was not found in probe database. */
+        /* Block if entry was not found in probe list. */
         if (tmp == NULL || !proceed_operation(tmp, REQUEST_TYPE_ASSOC)) {
             if (tmp == NULL) {
-                DAWN_LOG_WARNING("Client made an attempt to associate but sent no probe request first");
+                DAWN_LOG_WARNING(MACSTR " made an attempt to associate but sent no probe request first",
+                                 MAC2STR(assoc_req->client_addr.u8));
             }
 
             if (behaviour_config.use_driver_recog) {
