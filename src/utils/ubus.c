@@ -243,6 +243,7 @@ static int hostapd_handle_event(struct ubus_context *context, struct ubus_object
 static void hostapd_handle_remove(struct ubus_context *ctx,
                                   struct ubus_subscriber *s, uint32_t id);
 static bool ubus_hostapd_subscribe(hostapd_instance_t *hostapd_entry);
+static void hostapd_set_response_mode(int id);
 static int handle_probe_request(struct blob_attr *message);
 static int handle_auth_request(struct blob_attr *message);
 static int handle_assoc_request(struct blob_attr *message);
@@ -533,6 +534,8 @@ static bool subscribe_to_hostapd_interface(const char *ifname)
         goto error;
     }
 
+    hostapd_set_response_mode(hostapd_entry->id);
+
     return true;
 error:
     dawn_free(hostapd_entry);
@@ -626,6 +629,19 @@ static bool ubus_hostapd_subscribe(hostapd_instance_t *hostapd_entry)
     DAWN_LOG_INFO("Subscribed to %s", ubus_object_name);
 
     return true;
+}
+
+static void hostapd_set_response_mode(int id)
+{
+    int err;
+
+    blob_buf_init(&b, 0);
+    blobmsg_add_u32(&b, "notify_response", 1);
+
+    err = ubus_invoke(ctx, id, "notify_response", b.head, NULL, NULL, 1000);
+    if (err != 0) {
+        DAWN_LOG_ERROR("Failed to set notification response mode to hostapd instance");
+    }
 }
 
 static int handle_probe_request(struct blob_attr *message)
