@@ -2,6 +2,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <syslog.h>
 #include <unistd.h>
 
 #include "crypto.h"
@@ -19,6 +20,10 @@ static void dawn_shutdown(void);
 
 int main(int argc, char *argv[])
 {
+#ifdef DAWN_LOG_TO_SYSLOG
+    openlog("dawn", LOG_PID, LOG_DAEMON);
+#endif
+
     connect_signals();
 
     if (!dawn_uci_init()) {
