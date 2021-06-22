@@ -940,6 +940,10 @@ static void client_list_insert_entry(client_t *client)
                 /* ... second - by client address. */
                 client_t *tmp_client;
                 list_for_each_entry_first(tmp_client, insert_candidate, list) {
+                    if (!dawn_macs_are_equal(tmp_client->bssid, insert_candidate->bssid)) {
+                        break;
+                    }
+
                     if (dawn_macs_compare(tmp_client->client_addr, client->client_addr) > 0) {
                         break;
                     }
