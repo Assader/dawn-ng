@@ -1,4 +1,4 @@
-#include <dirent.h>
+﻿#include <dirent.h>
 #include <libubox/blobmsg_json.h>
 
 #include "dawn_iwinfo.h"
@@ -45,10 +45,10 @@ static void update_clients(struct uloop_timeout *t);
 static void discover_new_dawn_instances(struct uloop_timeout *t);
 static void update_channel_utilization(struct uloop_timeout *t);
 static void update_beacon_reports(struct uloop_timeout *t);
-static void remove_ap_array_cb(struct uloop_timeout *t);
-static void denied_req_array_cb(struct uloop_timeout *t);
-static void remove_client_array_cb(struct uloop_timeout *t);
-static void remove_probe_array_cb(struct uloop_timeout *t);
+static void remove_ap_list_cb(struct uloop_timeout *t);
+static void denied_req_list_cb(struct uloop_timeout *t);
+static void remove_client_list_cb(struct uloop_timeout *t);
+static void remove_probe_list_cb(struct uloop_timeout *t);
 
 static struct uloop_timeout client_timer = {
     .cb = update_clients
@@ -63,16 +63,16 @@ static struct uloop_timeout beacon_reports_timer = {
     .cb = update_beacon_reports
 };
 static struct uloop_timeout probe_timeout = {
-    .cb = remove_probe_array_cb
+    .cb = remove_probe_list_cb
 };
 static struct uloop_timeout denied_req_timeout = {
-    .cb = denied_req_array_cb
+    .cb = denied_req_list_cb
 };
 static struct uloop_timeout ap_timeout = {
-    .cb = remove_ap_array_cb
+    .cb = remove_ap_list_cb
 };
 static struct uloop_timeout client_timeout = {
-    .cb = remove_client_array_cb
+    .cb = remove_client_list_cb
 };
 
 typedef struct {
@@ -188,17 +188,17 @@ static const struct blobmsg_policy ubus_add_object_policy[__DAWN_UBUS_MAX] = {
 };
 
 enum {
-    MAC_ADDR,
-    __ADD_DEL_MAC_MAX
+    ALLOWED_MAC_ARRAY,
+    __ALLOW_LIST_MAX
 };
 
-static const struct blobmsg_policy add_del_policy[__ADD_DEL_MAC_MAX] = {
-    [MAC_ADDR] = {"addrs", BLOBMSG_TYPE_ARRAY},
+static const struct blobmsg_policy append_allow_list_policy[__ALLOW_LIST_MAX] = {
+    [ALLOWED_MAC_ARRAY] = {"allowed_macs", BLOBMSG_TYPE_ARRAY},
 };
 
-static int add_mac(struct ubus_context *context, struct ubus_object *object,
-                   struct ubus_request_data *request, const char *method,
-                   struct blob_attr *message);
+static int append_allow_list(struct ubus_context *context, struct ubus_object *object,
+                             struct ubus_request_data *request, const char *method,
+                             struct blob_attr *message);
 static int get_hearing_map(struct ubus_context *context, struct ubus_object *object,
                            struct ubus_request_data *request, const char *method,
                            struct blob_attr *message);
@@ -210,7 +210,7 @@ static int reload_config(struct ubus_context *context, struct ubus_object *objec
                          struct blob_attr *message);
 
 static const struct ubus_method dawn_methods[] = {
-    UBUS_METHOD("add_mac", add_mac, add_del_policy),
+    UBUS_METHOD("append_allow_list", append_allow_list, append_allow_list_policy),
     UBUS_METHOD_NOARG("get_hearing_map", get_hearing_map),
     UBUS_METHOD_NOARG("get_network", get_network),
     UBUS_METHOD_NOARG("reload_config", reload_config),
@@ -261,7 +261,7 @@ static void ubus_set_neighbor_report(void);
 static int ubus_call_umdns(void);
 static void ubus_umdns_cb(struct ubus_request *request, int type, struct blob_attr *message);
 static int uci_send_via_network(void);
-static int send_blob_attr_via_network(struct blob_attr *message, char *method);
+static int send_blob_attr_via_network(struct blob_attr *message, const char *method);
 static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, dawn_mac_t addr);
 
 static void del_client_all_interfaces(dawn_mac_t client_addr, uint32_t reason, uint8_t deauth, uint32_t ban_time);
@@ -401,21 +401,21 @@ int send_add_mac(dawn_mac_t client_addr)
 
 int parse_add_mac_to_file(struct blob_attr *message)
 {
-    struct blob_attr *tb[__ADD_DEL_MAC_MAX], *attr;
+    struct blob_attr *tb[__ALLOW_LIST_MAX], *attr;
 
     DAWN_LOG_INFO("Handling `addmac' message");
 
-    blobmsg_parse(add_del_policy, __ADD_DEL_MAC_MAX, tb, blob_data(message), blob_len(message));
+    blobmsg_parse(append_allow_list_policy, __ALLOW_LIST_MAX, tb, blob_data(message), blob_len(message));
 
-    if (!tb[MAC_ADDR]) {
-        DAWN_LOG_ERROR("Failed to parse request to add mac to file");
+    if (!tb[ALLOWED_MAC_ARRAY]) {
+        DAWN_LOG_ERROR("Failed to parse request to add mac to allow list");
         return -1;
     }
 
-    int len = blobmsg_data_len(tb[MAC_ADDR]);
-    DAWN_LOG_DEBUG("Length of array maclist: %d", len);
+    int len = blobmsg_data_len(tb[ALLOWED_MAC_ARRAY]);
+    DAWN_LOG_DEBUG("Length of allow list: %d", len);
 
-    __blob_for_each_attr(attr, blobmsg_data(tb[MAC_ADDR]), len) {
+    __blob_for_each_attr(attr, blobmsg_data(tb[ALLOWED_MAC_ARRAY]), len) {
         dawn_mac_t addr;
 
         hwaddr_aton(blobmsg_data(attr), addr.u8);
@@ -1181,7 +1181,7 @@ static void ubus_umdns_cb(struct ubus_request *request, int type, struct blob_at
     }
 }
 
-static int add_mac(struct ubus_context *context, struct ubus_object *object,
+static int append_allow_list(struct ubus_context *context, struct ubus_object *object,
                    struct ubus_request_data *request, const char *method,
                    struct blob_attr *message)
 {
@@ -1286,38 +1286,40 @@ static int uci_send_via_network(void)
     return send_blob_attr_via_network(b.head, "uci");
 }
 
-static void remove_probe_array_cb(struct uloop_timeout *t)
+static void remove_probe_list_cb(struct uloop_timeout *t)
 {
     remove_old_probe_entries(time(NULL), time_intervals_config.remove_probe);
 
     uloop_timeout_set(t, time_intervals_config.remove_probe * 1000);
 }
 
-static void remove_client_array_cb(struct uloop_timeout *t)
+static void remove_client_list_cb(struct uloop_timeout *t)
 {
     remove_old_client_entries(time(NULL), time_intervals_config.update_client);
 
     uloop_timeout_set(t, time_intervals_config.update_client * 1000);
 }
 
-static void remove_ap_array_cb(struct uloop_timeout *t)
+static void remove_ap_list_cb(struct uloop_timeout *t)
 {
     remove_old_ap_entries(time(NULL), time_intervals_config.remove_ap);
 
     uloop_timeout_set(t, time_intervals_config.remove_ap * 1000);
 }
-static void denied_req_array_cb(struct uloop_timeout *t)
+static void denied_req_list_cb(struct uloop_timeout *t)
 {
     remove_old_denied_req_entries(time(NULL), time_intervals_config.denied_req_threshold);
 
     uloop_timeout_set(t, time_intervals_config.denied_req_threshold * 1000);
 }
 
-static int send_blob_attr_via_network(struct blob_attr *message, char *method)
+static int send_blob_attr_via_network(struct blob_attr *message, const char *method)
 {
     char *data_str = blobmsg_format_json(message, true);
     dawn_regmem(data_str);
+
     blob_buf_init(&b_send_network, 0);
+
     blobmsg_add_string(&b_send_network, "method", method);
     blobmsg_add_string(&b_send_network, "data", data_str);
 
@@ -1334,9 +1336,7 @@ static int send_blob_attr_via_network(struct blob_attr *message, char *method)
 
 static void blobmsg_add_macaddr(struct blob_buf *buf, const char *name, dawn_mac_t addr)
 {
-    char *str;
-
-    str = blobmsg_alloc_string_buffer(buf, name, 20);
+    char *str = blobmsg_alloc_string_buffer(buf, name, 20);
     sprintf(str, MACSTR, MAC2STR(addr.u8));
     blobmsg_add_string_buffer(buf);
 }
