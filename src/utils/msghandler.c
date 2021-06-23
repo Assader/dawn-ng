@@ -194,7 +194,6 @@ bool handle_network_message(const char *message)
         handle_uci_config(data_buf.head);
     }
     else if (strcmp(method, "beacon-report") == 0) {
-        DAWN_LOG_INFO("Handling `beacon-report' message");
         /* TODO: Check beacon report stuff */
 
         /*printf("HANDLING BEACON REPORT NETWORK!\n");

@@ -768,6 +768,8 @@ static int handle_assoc_request(struct blob_attr *message)
 
 static int handle_beacon_report(struct blob_attr *message)
 {
+    DAWN_LOG_INFO("Handling `beacon-report' message");
+
     if (parse_beacon_report(message) == 0) {
         /* insert_to_array(beacon_rep, 1); */
         /* send_blob_attr_via_network(msg, "beacon-report"); */
@@ -901,7 +903,8 @@ static int parse_beacon_report(struct blob_attr *message)
     if (!probe_list_set_rcpi_rsni(bssid, client_mac, rcpi, rsni)) {
         probe_entry_t *beacon_rep, *beacon_rep_updated = NULL;
 
-        DAWN_LOG_DEBUG("Creating new probe entry");
+        DAWN_LOG_INFO("Creating new probe entry for " MACSTR " client to " MACSTR " AP from beacon report",
+                      MAC2STR(client_mac.u8), MAC2STR(bssid.u8));
 
         beacon_rep = dawn_malloc(sizeof (probe_entry_t));
         if (beacon_rep == NULL) {
