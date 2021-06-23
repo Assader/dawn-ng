@@ -32,7 +32,6 @@ bool dawn_network_init(const char *ip, uint16_t port, int sock_type)
 
     if (sock_type == DAWN_SOCKET_TCP) {
         success = tcp_run_server(port);
-        /* TODO: eliminate server_ip */
         if (success && strcmp(general_config.network_ip, "") != 0) {
             success = tcp_add_conncection(general_config.network_ip, port);
         }
@@ -116,6 +115,8 @@ _Noreturn static void *listener_thread(void *args)
             DAWN_LOG_ERROR("Failed to receive message: %s", strerror(errno));
             continue;
         }
+
+        DAWN_LOG_DEBUG("Got %d bytes from network socket", rcv_len);
 
         if (general_config.use_encryption) {
             if (!gcrypt_decrypt_msg(msg, rcv_len)) {

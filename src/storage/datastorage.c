@@ -460,8 +460,8 @@ next:
         }
     }
 
-    pthread_mutex_lock(&probe_list_mutex);
-    pthread_mutex_lock(&client_list_mutex);
+    pthread_mutex_unlock(&probe_list_mutex);
+    pthread_mutex_unlock(&client_list_mutex);
     pthread_mutex_unlock(&ap_list_mutex);
 }
 
@@ -491,7 +491,7 @@ void iwinfo_update_clients(dawn_mac_t bssid)
     }
 
 cleanup:
-    pthread_mutex_lock(&client_list_mutex);
+    pthread_mutex_unlock(&client_list_mutex);
 }
 
 bool probe_list_set_probe_count(dawn_mac_t client_addr, uint32_t probe_count)
@@ -619,12 +619,15 @@ void denied_req_list_delete(auth_entry_t *entry)
 
 ap_t *ap_list_get(dawn_mac_t bssid)
 {
-    return ap_list_get_entry(bssid);
+    pthread_mutex_lock(&ap_list_mutex);
+    ap_t *ap = ap_list_get_entry(bssid);
+    pthread_mutex_unlock(&ap_list_mutex);
+    return ap;
 }
 
 ap_t *ap_list_insert(ap_t *ap, time_t expiry)
 {
-    /* TODO: Why do we delete and add here? */
+    pthread_mutex_lock(&ap_list_mutex);
     ap_t *old_entry = ap_list_get_entry(ap->bssid);
     if (old_entry != NULL) {
         ap_list_delete_entry(old_entry);
@@ -633,6 +636,8 @@ ap_t *ap_list_insert(ap_t *ap, time_t expiry)
     ap->expiry = expiry;
 
     ap_list_insert_entry(ap);
+
+    pthread_mutex_unlock(&ap_list_mutex);
 
     return ap;
 }
@@ -1000,8 +1005,6 @@ static ap_t *ap_list_get_entry(dawn_mac_t bssid)
 
 static void ap_list_insert_entry(ap_t *ap)
 {
-    pthread_mutex_lock(&ap_list_mutex);
-
     ap_t *insertion_candidate;
     list_for_each_entry(insertion_candidate, &ap_list, list) {
         int sc = strcmp((char *) insertion_candidate->ssid, (char *) ap->ssid);
@@ -1011,8 +1014,6 @@ static void ap_list_insert_entry(ap_t *ap)
     }
 
     list_add_tail(&ap->list, &insertion_candidate->list);
-
-    pthread_mutex_unlock(&ap_list_mutex);
 }
 
 static void ap_list_delete_entry(ap_t *ap)
