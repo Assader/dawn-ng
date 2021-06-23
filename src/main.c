@@ -86,7 +86,9 @@ static void signal_handler(int sig)
         dawn_memory_audit();
         break;
     case SIGUSR2:
-        dawn_reload_config();
+        print_probe_list();
+        print_ap_list();
+        print_client_list();
         break;
     case SIGINT:
     case SIGTERM:

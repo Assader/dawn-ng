@@ -677,8 +677,6 @@ static int handle_auth_request(struct blob_attr *message)
 {
     int ret = WLAN_STATUS_SUCCESS;
 
-    print_probe_list();
-
     auth_entry_t *auth_req = dawn_malloc(sizeof (auth_entry_t));
     if (auth_req == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
@@ -725,8 +723,6 @@ static int handle_auth_request(struct blob_attr *message)
 static int handle_assoc_request(struct blob_attr *message)
 {
     int ret = WLAN_STATUS_SUCCESS;
-
-    print_probe_list();
 
     assoc_entry_t *assoc_req = dawn_malloc(sizeof (assoc_entry_t));
     if (assoc_req == NULL) {
@@ -1029,9 +1025,6 @@ static void ubus_get_clients_cb(struct ubus_request *request, int type, struct b
 
     send_blob_attr_via_network(b_domain.head, "clients");
     handle_hostapd_clients_message(b_domain.head, true, request->peer);
-
-    print_client_list();
-    print_ap_list();
 }
 
 static void ubus_set_neighbor_report(void)

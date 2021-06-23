@@ -204,11 +204,8 @@ void remove_old_ap_entries(time_t current_time, uint32_t threshold);
 void remove_old_client_entries(time_t current_time, uint32_t threshold);
 
 void print_probe_list(void);
-void print_probe_entry(probe_entry_t *probe);
 void print_auth_entry(const char *header, auth_entry_t *entry);
 void print_ap_list(void);
-void print_ap_entry(ap_t *ap);
 void print_client_list(void);
-void print_client_entry(client_t *client);
 
 #endif /* DAWN_DATASTORAGE_H */

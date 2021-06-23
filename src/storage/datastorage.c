@@ -58,6 +58,9 @@ static client_t *client_list_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac, 
 static void client_list_insert_entry(client_t *client);
 static mac_entry_t *allow_list_get_entry(dawn_mac_t mac);
 static void allow_list_insert_entry(mac_entry_t *mac);
+static void print_probe_entry(probe_entry_t *probe);
+static void print_ap_entry(ap_t *ap);
+static void print_client_entry(client_t *client);
 static bool is_connected(dawn_mac_t bssid, dawn_mac_t client_mac);
 static bool is_connected_somehwere(dawn_mac_t client_addr);
 
@@ -300,8 +303,6 @@ void build_hearing_map(struct blob_buf *b)
 {
     bool same_ssid = false;
     void *ssid_table;
-
-    print_probe_list();
 
     blob_buf_init(b, 0);
 
@@ -813,7 +814,7 @@ void remove_old_client_entries(time_t current_time, uint32_t threshold)
 void print_probe_list(void)
 {
     pthread_mutex_lock(&probe_list_mutex);
-    DAWN_LOG_DEBUG("Printing probe array");
+    DAWN_LOG_INFO("Printing probe array");
     probe_entry_t *probe;
     list_for_each_entry(probe, &probe_list, list) {
         print_probe_entry(probe);
@@ -821,12 +822,12 @@ void print_probe_list(void)
     pthread_mutex_unlock(&probe_list_mutex);
 }
 
-void print_probe_entry(probe_entry_t *probe)
+static void print_probe_entry(probe_entry_t *probe)
 {
-    DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", signal: %d, "
-                   "freq: %d, counter: %d, vht: %d",
-                   MAC2STR(probe->bssid.u8), MAC2STR(probe->client_addr.u8),
-                   probe->signal, probe->freq, probe->counter, probe->vht_capabilities);
+    DAWN_LOG_INFO(" - bssid: " MACSTR ", client_addr: " MACSTR ", signal: %d, "
+                  "freq: %d, counter: %d, vht: %d",
+                  MAC2STR(probe->bssid.u8), MAC2STR(probe->client_addr.u8),
+                  probe->signal, probe->freq, probe->counter, probe->vht_capabilities);
 }
 
 void print_auth_entry(const char *header, auth_entry_t *entry)
@@ -840,39 +841,39 @@ void print_ap_list(void)
 {
     pthread_mutex_lock(&ap_list_mutex);
     ap_t *ap;
-    DAWN_LOG_DEBUG("Printing APs array");
+    DAWN_LOG_INFO("Printing APs array");
     list_for_each_entry(ap, &ap_list, list) {
         print_ap_entry(ap);
     }
     pthread_mutex_unlock(&ap_list_mutex);
 }
 
-void print_ap_entry(ap_t *ap)
+static void print_ap_entry(ap_t *ap)
 {
-    DAWN_LOG_DEBUG(" - ssid: %s, bssid: " MACSTR ", freq: %d, ht: %d, vht: %d, "
-                   "chan_util: %d, col_d: %d, bandwidth: %d, col_count: %d neighbor_report: %s",
-                   ap->ssid, MAC2STR(ap->bssid.u8), ap->freq, ap->ht_support, ap->vht_support,
-                   ap->channel_utilization, ap->collision_domain, ap->bandwidth,
-                   ap_get_collision_count(ap->collision_domain), ap->neighbor_report);
+    DAWN_LOG_INFO(" - ssid: %s, bssid: " MACSTR ", freq: %d, ht: %d, vht: %d, "
+                  "chan_util: %d, col_d: %d, bandwidth: %d, col_count: %d neighbor_report: %s",
+                  ap->ssid, MAC2STR(ap->bssid.u8), ap->freq, ap->ht_support, ap->vht_support,
+                  ap->channel_utilization, ap->collision_domain, ap->bandwidth,
+                  ap_get_collision_count(ap->collision_domain), ap->neighbor_report);
 }
 
 void print_client_list(void)
 {
     pthread_mutex_lock(&client_list_mutex);
     client_t *client;
-    DAWN_LOG_DEBUG("Printing clients array");
+    DAWN_LOG_INFO("Printing clients array");
     list_for_each_entry(client, &client_list, list) {
         print_client_entry(client);
     }
     pthread_mutex_unlock(&client_list_mutex);
 }
 
-void print_client_entry(client_t *client)
+static void print_client_entry(client_t *client)
 {
-    DAWN_LOG_DEBUG(" - bssid: " MACSTR ", client_addr: " MACSTR ", freq: %d, "
-                   "ht_supported: %d, vht_supported: %d, ht: %d, vht: %d, kick: %d",
-                   MAC2STR(client->bssid.u8), MAC2STR(client->client_addr.u8), client->freq,
-                   client->ht_supported, client->vht_supported, client->ht, client->vht, client->kick_count);
+    DAWN_LOG_INFO(" - bssid: " MACSTR ", client_addr: " MACSTR ", freq: %d, "
+                  "ht_supported: %d, vht_supported: %d, ht: %d, vht: %d, kick: %d",
+                  MAC2STR(client->bssid.u8), MAC2STR(client->client_addr.u8), client->freq,
+                  client->ht_supported, client->vht_supported, client->ht, client->vht, client->kick_count);
 }
 
 static bool kick_client(ap_t *kicking_ap, client_t *client, char *neighbor_report, bool *bad_own_score)
