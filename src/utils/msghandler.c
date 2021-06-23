@@ -132,8 +132,6 @@ static const struct blobmsg_policy client_policy[__CLIENT_MAX] = {
 static void handle_set_probe(struct blob_attr *message);
 static int handle_uci_config(struct blob_attr *message);
 static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry_t *notify_req);
-static uint8_t get_rrm_capability(struct blob_attr *head, int len);
-static uint8_t get_rrm_capability_first_byte(void *data, int len, int type);
 static int parse_clients_message(struct blob_attr *head, int len, const char *bssid,
                              uint32_t freq, uint8_t ht_supported, uint8_t vht_supported);
 static void create_client_from_hostapd_message(struct blob_attr **tb, dawn_mac_t client_addr,
@@ -505,9 +503,7 @@ static void create_client_from_hostapd_message(struct blob_attr **tb, dawn_mac_t
         client->aid = blobmsg_get_u32(tb[CLIENT_AID]);
     }
     if (tb[CLIENT_RRM]) {
-        client->rrm_capability =
-                get_rrm_capability(blobmsg_data(tb[CLIENT_RRM]),
-                                   blobmsg_data_len(tb[CLIENT_RRM]));
+        client->rrm_capability = blobmsg_get_u32(blobmsg_data(tb[CLIENT_RRM]));
     }
     if (tb[CLIENT_SIGNATURE]) {
         strncpy(client->signature, blobmsg_data(tb[CLIENT_SIGNATURE]), SIGNATURE_LEN);
@@ -517,27 +513,6 @@ static void create_client_from_hostapd_message(struct blob_attr **tb, dawn_mac_t
     if (client != client_list_insert(client, time(NULL))) {
         dawn_free(client);
     }
-}
-
-static uint8_t get_rrm_capability(struct blob_attr *head, int len)
-{
-    return get_rrm_capability_first_byte(blobmsg_data(head), blobmsg_data_len(head), blob_id(head));
-}
-
-static uint8_t get_rrm_capability_first_byte(void *data, int len, int type)
-{
-    uint8_t ret = 0;
-
-    switch (type) {
-    case BLOBMSG_TYPE_INT32:
-        ret = *((uint8_t *) data);
-        break;
-    default:
-        DAWN_LOG_ERROR("Wrong type of rrm array");
-        break;
-    }
-
-    return ret;
 }
 
 enum {

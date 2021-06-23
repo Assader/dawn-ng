@@ -743,7 +743,6 @@ bool allow_list_insert(dawn_mac_t mac)
     return true;
 }
 
-/* TODO: How big is it in a large network? */
 bool allow_list_contains(dawn_mac_t mac)
 {
     return allow_list_get_entry(mac) != NULL;

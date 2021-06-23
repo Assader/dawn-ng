@@ -531,6 +531,7 @@ static bool subscribe_to_hostapd_interface(const char *ifname)
 
     if (!ubus_hostapd_subscribe(hostapd_entry)) {
         list_del(&hostapd_entry->list);
+        ubus_unregister_subscriber(ctx, &hostapd_entry->subscriber);
         goto error;
     }
 
