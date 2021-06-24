@@ -269,8 +269,6 @@ static void del_client_interface(uint32_t id, dawn_mac_t client_addr, uint32_t r
 
 int dawn_run_uloop(void)
 {
-    uloop_init();
-
     ctx = ubus_connect(NULL);
     if (ctx == NULL) {
         DAWN_LOG_ERROR("Failed to connect to ubus");

@@ -19,6 +19,8 @@ static void signal_handler(int sig);
 
 int main(int argc, char *argv[])
 {
+    uloop_init();
+
 #ifdef DAWN_LOG_TO_SYSLOG
     openlog("dawn-ng", LOG_PID, LOG_DAEMON);
 #endif
