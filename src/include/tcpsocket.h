@@ -26,4 +26,6 @@ bool tcp_run_server(uint16_t port);
  */
 int tcp_send(const char *message, size_t msglen);
 
+void print_tcp_array(void);
+
 #endif /* DAWN_TCPSOCKET_H */

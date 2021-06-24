@@ -47,7 +47,6 @@ static void client_to_server_read(struct ustream *stream, int bytes);
 static void client_to_server_state(struct ustream *stream);
 static void client_to_server_close(struct ustream *stream);
 static tcp_connection_t *get_tcp_entry_by_addr(struct in_addr entry);
-static void print_tcp_array(void);
 
 bool tcp_run_server(uint16_t port)
 {
@@ -127,27 +126,41 @@ int tcp_send(const char *message, size_t msglen)
     tcp_connection_t *con, *tmp;
     int bytes_sent = 0;
 
-    print_tcp_array();
-
     list_for_each_entry_safe(con, tmp, &tcp_connection_list, list) {
         if (con->connected) {
             size_t net_msglen = htonl(msglen);
-            bytes_sent += ustream_write(&con->stream.stream, (char *) &net_msglen, sizeof (net_msglen), 0);
-            bytes_sent += ustream_write(&con->stream.stream, message, msglen, 0);
-            DAWN_LOG_DEBUG("Ustream sent: %d", bytes_sent);
-            if (bytes_sent <= 0) {
+            int sent0 = ustream_write(&con->stream.stream, (char *) &net_msglen, sizeof (net_msglen), 0);
+            int sent1 = ustream_write(&con->stream.stream, message, msglen, 0);
+            DAWN_LOG_DEBUG("Ustream sent: %d, %d", sent0, sent1);
+            if (sent0 <= 0 || sent1 <= 0) {
                 DAWN_LOG_ERROR("Failed to send message via ustream");
                 if (con->stream.stream.write_error) {
                     ustream_free(&con->stream.stream);
                     list_del(&con->list);
                     close(con->fd.fd);
                     dawn_free(con);
+                    continue;
                 }
             }
+            bytes_sent += sent0 + sent1;
         }
     }
 
     return bytes_sent;
+}
+
+void print_tcp_array(void)
+{
+    char ip_addr[INET_ADDRSTRLEN];
+    tcp_connection_t *connection;
+
+    DAWN_LOG_INFO("Printing TCP connections:");
+    list_for_each_entry(connection, &tcp_connection_list, list) {
+        DAWN_LOG_INFO(" - host: %s, port: %d, connected: %s",
+                      inet_ntop(connection->sock_addr.sin_family, &connection->sock_addr.sin_addr,
+                                ip_addr, sizeof (ip_addr)),
+                      ntohs(connection->sock_addr.sin_port), connection->connected? "true" : "false");
+    }
 }
 
 static void server_cb(struct uloop_fd *fd, unsigned int events)
@@ -190,15 +203,16 @@ static void client_notify_read(struct ustream *stream, int bytes)
 
             DAWN_LOG_DEBUG("Commencing message...");
 
-            uint32_t avail_len = ustream_pending_data(stream, false);
-            /* Ensure recv sizeof(uint32_t) */
+            int avail_len = ustream_pending_data(stream, false);
             if (avail_len < sizeof (msg_length)) {
-                DAWN_LOG_WARNING("Incomplete message, available: %d, expected minimal length: %zu",
-                        avail_len, sizeof (msg_length));
+                /* Severity level is `debug' because somehow this callback is being called when
+                 * some `bytes' are received, but... you cant really get them. */
+                DAWN_LOG_DEBUG("Incomplete message, available: %d, expected minimal length: %zu",
+                               avail_len, sizeof (msg_length));
                 break;
             }
 
-            /* Read msg length bytes */
+            /* Read message length. */
             if (ustream_read(stream, (char *) &msg_length, sizeof (msg_length)) != sizeof (msg_length)) {
                 DAWN_LOG_ERROR("Failed to read message length");
                 break;
@@ -365,18 +379,4 @@ static tcp_connection_t *get_tcp_entry_by_addr(struct in_addr addr)
     }
 
     return NULL;
-}
-
-static void print_tcp_array(void)
-{
-    char ip_addr[INET_ADDRSTRLEN];
-    tcp_connection_t *connection;
-
-    DAWN_LOG_DEBUG("Printing TCP connections:");
-    list_for_each_entry(connection, &tcp_connection_list, list) {
-        DAWN_LOG_DEBUG(" - host: %s, port: %d, connected: %s",
-                       inet_ntop(connection->sock_addr.sin_family, &connection->sock_addr.sin_addr,
-                                 ip_addr, sizeof (ip_addr)),
-                       ntohs(connection->sock_addr.sin_port), connection->connected? "true" : "false");
-    }
 }

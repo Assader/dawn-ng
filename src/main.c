@@ -88,6 +88,7 @@ static void signal_handler(int sig)
         dawn_memory_audit();
         break;
     case SIGUSR2:
+        print_tcp_array();
         print_probe_list();
         print_ap_list();
         print_client_list();

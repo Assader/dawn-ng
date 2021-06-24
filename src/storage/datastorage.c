@@ -829,9 +829,9 @@ void print_probe_list(void)
 
 static void print_probe_entry(probe_entry_t *probe)
 {
-    DAWN_LOG_INFO(" - bssid: " MACSTR ", client_addr: " MACSTR ", signal: %d, "
+    DAWN_LOG_INFO(" - client_addr: " MACSTR ", bssid: " MACSTR ", signal: %d, "
                   "freq: %d, counter: %d, vht: %d",
-                  MAC2STR(probe->bssid.u8), MAC2STR(probe->client_addr.u8),
+                  MAC2STR(probe->client_addr.u8), MAC2STR(probe->bssid.u8),
                   probe->signal, probe->freq, probe->counter, probe->vht_capabilities);
 }
 

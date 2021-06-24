@@ -157,7 +157,7 @@ bool handle_network_message(const char *message)
     method = blobmsg_data(tb[NETWORK_METHOD]);
     data = blobmsg_data(tb[NETWORK_DATA]);
 
-    DAWN_LOG_DEBUG("Handling network message: %s / %s", method, message);
+    DAWN_LOG_DEBUG("Handling network message: %s / %s", method, data);
 
     blob_buf_init(&data_buf, 0);
     blobmsg_add_json_from_string(&data_buf, data);
