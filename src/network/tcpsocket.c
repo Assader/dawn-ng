@@ -53,7 +53,7 @@ bool tcp_run_server(uint16_t port)
 {
     char port_str[12];
 
-    DAWN_LOG_DEBUG("Starting tcp server");
+    DAWN_LOG_DEBUG("Starting TCP server on port %u", port);
 
     sprintf(port_str, "%u", port);
 
@@ -71,13 +71,10 @@ bool tcp_run_server(uint16_t port)
 
 bool tcp_add_conncection(const char *ipv4, uint16_t port)
 {
-    struct sockaddr_in serv_addr;
+    struct sockaddr_in serv_addr = {0};
     tcp_connection_t *tcp_entry;
     char port_str[12];
 
-    sprintf(port_str, "%u", port);
-
-    memset(&serv_addr, 0, sizeof (serv_addr));
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_addr.s_addr = inet_addr(ipv4);
     serv_addr.sin_port = htons(port);
@@ -88,9 +85,9 @@ bool tcp_add_conncection(const char *ipv4, uint16_t port)
             goto exit;
         }
         else {
-            /* Delete already existing entry */
-            close(tcp_entry->fd.fd);
+            /* Delete existing entry. */
             list_del(&tcp_entry->list);
+            close(tcp_entry->fd.fd);
             dawn_free(tcp_entry);
         }
     }
@@ -101,18 +98,21 @@ bool tcp_add_conncection(const char *ipv4, uint16_t port)
         goto error;
     }
 
+    sprintf(port_str, "%u", port);
+
+    tcp_entry->fd.cb = connect_cb;
     tcp_entry->fd.fd = usock(USOCK_TCP | USOCK_NONBLOCK, ipv4, port_str);
     if (tcp_entry->fd.fd < 0) {
-        DAWN_LOG_ERROR("Failed to connect using usock");
+        DAWN_LOG_ERROR("Failed to create TCP connection using usock");
         goto error;
     }
 
     tcp_entry->sock_addr = serv_addr;
-    tcp_entry->fd.cb = connect_cb;
-    uloop_fd_add(&tcp_entry->fd, ULOOP_WRITE | ULOOP_EDGE_TRIGGER);
 
-    DAWN_LOG_INFO("Establishing new TCP connection to %s:%u", ipv4, port);
     list_add(&tcp_entry->list, &tcp_connection_list);
+
+    DAWN_LOG_INFO("Establishing new TCP connection to %s:%u...", ipv4, port);
+    uloop_fd_add(&tcp_entry->fd, ULOOP_WRITE | ULOOP_EDGE_TRIGGER);
 
 exit:
     return true;
@@ -139,8 +139,8 @@ int tcp_send(const char *message, size_t msglen)
                 DAWN_LOG_ERROR("Failed to send message via ustream");
                 if (con->stream.stream.write_error) {
                     ustream_free(&con->stream.stream);
-                    close(con->fd.fd);
                     list_del(&con->list);
+                    close(con->fd.fd);
                     dawn_free(con);
                 }
             }
@@ -153,21 +153,31 @@ int tcp_send(const char *message, size_t msglen)
 static void server_cb(struct uloop_fd *fd, unsigned int events)
 {
     unsigned int sl = sizeof (struct sockaddr_in);
-    static tcp_client_t client;
+    tcp_client_t *client;
     int sfd;
 
-    sfd = accept(server.fd, (struct sockaddr *) &client.sock_addr, &sl);
-    if (sfd == -1) {
-        DAWN_LOG_ERROR("Failed to accept connection");
+    client = dawn_calloc(1, sizeof (*client));
+    if (client == NULL) {
+        DAWN_LOG_ERROR("Failed to allocate memory");
         return;
     }
 
-    client.s.stream.string_data = 1;
-    client.s.stream.notify_read = client_notify_read;
-    client.s.stream.notify_write = client_notify_write;
-    client.s.stream.notify_state = client_notify_state;
-    ustream_fd_init(&client.s, sfd);
-    DAWN_LOG_INFO("New tcp connection");
+    sfd = accept(server.fd, (struct sockaddr *) &client->sock_addr, &sl);
+    if (sfd == -1) {
+        DAWN_LOG_ERROR("Failed to accept TCP connection");
+        dawn_free(client);
+        return;
+    }
+
+    client->s.stream.string_data = 1;
+    client->s.stream.notify_read = client_notify_read;
+    client->s.stream.notify_write = client_notify_write;
+    client->s.stream.notify_state = client_notify_state;
+    ustream_fd_init(&client->s, sfd);
+
+    char ip_str[INET6_ADDRSTRLEN];
+    inet_ntop(client->sock_addr.sin_family, &client->sock_addr.sin_addr, ip_str, sizeof (ip_str));
+    DAWN_LOG_INFO("Accepted new client TCP connection from %s:%u", ip_str, ntohs(client->sock_addr.sin_port));
 }
 
 static void client_notify_read(struct ustream *stream, int bytes)
@@ -266,9 +276,9 @@ static void client_notify_state(struct ustream *stream)
         return;
     }
 
-    DAWN_LOG_WARNING("EOF! Pending: %d", stream->w.data_bytes);
+    DAWN_LOG_WARNING("EOF! Pending: %d", stream->r.data_bytes);
 
-    if (stream->w.data_bytes == 0) {
+    if (stream->r.data_bytes == 0) {
         client_close(stream);
     }
 }
@@ -277,7 +287,10 @@ static void client_close(struct ustream *stream)
 {
     tcp_client_t *client = container_of(stream, tcp_client_t, s.stream);
 
-    DAWN_LOG_INFO("Client connection closed");
+    char ip_str[INET6_ADDRSTRLEN];
+    inet_ntop(client->sock_addr.sin_family, &client->sock_addr.sin_addr, ip_str, sizeof (ip_str));
+    DAWN_LOG_INFO("Client connection from %s:u is closed", ip_str, ntohs(client->sock_addr.sin_port));
+
     ustream_free(stream);
     close(client->s.fd.fd);
     dawn_free(client);
@@ -287,22 +300,25 @@ static void connect_cb(struct uloop_fd *fd, unsigned int events)
 {
     tcp_connection_t *entry = container_of(fd, tcp_connection_t, fd);
 
+    uloop_fd_delete(&entry->fd);
+
     if (fd->eof || fd->error) {
         DAWN_LOG_ERROR("Connection failed, %s", fd->eof? "EOF" : "ERROR");
-        close(entry->fd.fd);
         list_del(&entry->list);
+        close(entry->fd.fd);
         dawn_free(entry);
         return;
     }
 
-    DAWN_LOG_INFO("Connection established");
-    uloop_fd_delete(&entry->fd);
+    char ip_str[INET6_ADDRSTRLEN];
+    inet_ntop(entry->sock_addr.sin_family, &entry->sock_addr.sin_addr, ip_str, sizeof (ip_str));
+    DAWN_LOG_INFO("Client TCP connection to %s:%u is established", ip_str, ntohs(entry->sock_addr.sin_port));
 
     entry->stream.stream.notify_read = client_to_server_read;
     entry->stream.stream.notify_state = client_to_server_state;
+    entry->connected = true;
 
     ustream_fd_init(&entry->stream, entry->fd.fd);
-    entry->connected = true;
 }
 
 static void client_to_server_read(struct ustream *stream, int bytes)
@@ -328,10 +344,13 @@ static void client_to_server_close(struct ustream *stream)
 {
     tcp_connection_t *connection = container_of(stream, tcp_connection_t, stream.stream);
 
-    DAWN_LOG_INFO("Connection to server closed");
+    char ip_str[INET6_ADDRSTRLEN];
+    inet_ntop(connection->sock_addr.sin_family, &connection->sock_addr.sin_addr, ip_str, sizeof (ip_str));
+    DAWN_LOG_INFO("Client TCP connection to %s:%u is closed", ip_str, ntohs(connection->sock_addr.sin_port));
+
     ustream_free(stream);
-    close(connection->fd.fd);
     list_del(&connection->list);
+    close(connection->fd.fd);
     dawn_free(connection);
 }
 
