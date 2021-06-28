@@ -24,7 +24,7 @@ bool iwinfo_get_rssi(const char *ifname, dawn_mac_t client_addr, int *rssi);
  * + INT_MIN if client was not found.
  * + 0 if the client is not supporting this feature.
  */
-int iwinfo_get_expected_throughput(dawn_mac_t client_addr);
+bool iwinfo_get_expected_throughput(const char *ifname, dawn_mac_t client_addr, int *throughput);
 
 /**
  * Get rx and tx bandwidth using the mac of the client.
