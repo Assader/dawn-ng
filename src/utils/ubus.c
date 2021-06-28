@@ -440,6 +440,19 @@ bool ap_is_local(dawn_mac_t bssid)
     return local;
 }
 
+const char *get_ifname_by_bssid(dawn_mac_t bssid)
+{
+    hostapd_instance_t *instance;
+
+    list_for_each_entry(instance, &hostapd_instance_list, list) {
+        if (dawn_macs_are_equal(instance->bssid, bssid)) {
+            return instance->iface_name;
+        }
+    }
+
+    return NULL;
+}
+
 static void uloop_add_data_callbacks(void)
 {
     uloop_timeout_add(&client_timer);
