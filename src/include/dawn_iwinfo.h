@@ -34,7 +34,7 @@ int iwinfo_get_expected_throughput(dawn_mac_t client_addr);
  * @param tx_rate - float pointer for returning the tx rate
  * @return true if successful, false otherwise.
  */
-bool iwinfo_get_bandwidth(dawn_mac_t client_addr, float *rx_rate, float *tx_rate);
+bool iwinfo_get_bandwidth(const char *ifname, dawn_mac_t client_addr, float *rx_rate, float *tx_rate);
 
 int iwinfo_get_bssid(const char *ifname, uint8_t *bssid);
 int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax);

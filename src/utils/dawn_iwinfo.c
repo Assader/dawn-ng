@@ -6,81 +6,53 @@
 #include "dawn_log.h"
 #include "memory_utils.h"
 
-static bool get_bandwidth(const char *ifname, dawn_mac_t client_addr, float *rx_rate, float *tx_rate);
 static int get_rssi(const char *ifname, dawn_mac_t client_addr);
 static int get_expected_throughput(const char *ifname, dawn_mac_t client_addr);
 
-bool iwinfo_get_bandwidth(dawn_mac_t client_addr, float *rx_rate, float *tx_rate)
+bool iwinfo_get_bandwidth(const char *ifname, dawn_mac_t client_addr, float *rx_rate, float *tx_rate)
 {
+    const struct iwinfo_ops *backend;
     bool success = false;
-    struct dirent *entry;
-    DIR *dirp;
-
-    dirp = opendir(general_config.hostapd_dir);
-    if (dirp == NULL) {
-        DAWN_LOG_ERROR("Failed to open %s", general_config.hostapd_dir);
-        goto exit;
-    }
-
-    while ((entry = readdir(dirp)) != NULL) {
-        if (entry->d_type == DT_SOCK) {
-            if (get_bandwidth(entry->d_name, client_addr, rx_rate, tx_rate)) {
-                success = true;
-                break;
-            }
-        }
-    }
-
-    closedir(dirp);
-
-exit:
-    return success;
-}
-
-static bool get_bandwidth(const char *ifname, dawn_mac_t client_addr, float *rx_rate, float *tx_rate)
-{
-    struct iwinfo_assoclist_entry *e;
-    const struct iwinfo_ops *iw;
-    bool success = false;
-    char *buf = NULL;
+    char *buff = NULL;
     int len;
 
-    if (strcmp(ifname, "global") == 0) {
-        goto exit;
+    backend = iwinfo_backend(ifname);
+    if (backend == NULL) {
+        DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
+        goto cleanup;
     }
 
-    iw = iwinfo_backend(ifname);
-
-    buf = dawn_malloc(IWINFO_BUFSIZE);
-    if (buf == NULL) {
+    buff = dawn_malloc(IWINFO_BUFSIZE);
+    if (buff == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
-        goto exit;
+        goto cleanup;
     }
 
-    if (iw->assoclist(ifname, buf, &len)) {
-        DAWN_LOG_WARNING("No information available");
-        goto exit;
+    if (backend->assoclist(ifname, buff, &len) != 0) {
+        DAWN_LOG_ERROR("Failed to get assoclist for `%s' interface", ifname);
+        goto cleanup;
     }
 
     if (len <= 0) {
-        DAWN_LOG_WARNING("No station connected");
-        goto exit;
+        DAWN_LOG_WARNING("No station connected at `%s' interface", ifname);
+        goto cleanup;
     }
 
     for (int i = 0; i < len; i += sizeof (struct iwinfo_assoclist_entry)) {
-        e = (struct iwinfo_assoclist_entry *) &buf[i];
+        struct iwinfo_assoclist_entry *client = (struct iwinfo_assoclist_entry *) &buff[i];
 
-        if (macs_are_equal(client_addr.u8, e->mac)) {
-            *rx_rate = e->rx_rate.rate / 1000;
-            *tx_rate = e->tx_rate.rate / 1000;
+        if (macs_are_equal(client_addr.u8, client->mac)) {
+            *rx_rate = client->rx_rate.rate / 1000;
+            *tx_rate = client->tx_rate.rate / 1000;
             success = true;
             break;
         }
     }
 
-exit:
+cleanup:
+    dawn_free(buff);
     iwinfo_finish();
-    dawn_free(buf);
+
     return success;
 }
 

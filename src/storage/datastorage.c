@@ -128,9 +128,10 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
             ++client->kick_count;
             DAWN_LOG_INFO(MACSTR " kick count is %d", MAC2STR(client->client_addr.u8), client->kick_count);
             if (client->kick_count >= behaviour_config.min_kick_count) {
+                const char *ifname = get_ifname_by_bssid(client->bssid);
                 float rx_rate, tx_rate;
                 /* TODO: refactor iwinfo_get_bw. There is no need to go throu all interfaces as soon as we know BSSID. */
-                if (!iwinfo_get_bandwidth(client->client_addr, &rx_rate, &tx_rate)) {
+                if (!iwinfo_get_bandwidth(ifname, client->client_addr, &rx_rate, &tx_rate)) {
                     DAWN_LOG_WARNING("Failed to get bandwidth for client " MACSTR
                                      ". Unable to decide if it is transmitting or not.", MAC2STR(client->client_addr.u8));
                     continue;
