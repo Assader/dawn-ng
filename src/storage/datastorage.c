@@ -482,8 +482,9 @@ void iwinfo_update_clients(dawn_mac_t bssid)
             break;
         }
 
-        int rssi = iwinfo_get_rssi(client->client_addr);
-        if (rssi != INT_MIN) {
+        int rssi;
+        const char *ifname = get_ifname_by_bssid(client->bssid);
+        if (iwinfo_get_rssi(ifname, client->client_addr, &rssi)) {
             if (!probe_list_update_rssi(client->bssid, client->client_addr, rssi)) {
                 DAWN_LOG_WARNING("Found no probe from " MACSTR " to " MACSTR,
                                  MAC2STR(client->client_addr.u8), MAC2STR(client->bssid.u8));

@@ -13,7 +13,7 @@
  * @param client_addr - mac adress of the client
  * @return The RSSI of the client if successful. INT_MIN if client was not found.
  */
-int iwinfo_get_rssi(dawn_mac_t client_addr);
+bool iwinfo_get_rssi(const char *ifname, dawn_mac_t client_addr, int *rssi);
 
 /**
  * Get expected throughut using the mac adress of the client.
