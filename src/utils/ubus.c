@@ -627,16 +627,23 @@ static bool ubus_hostapd_subscribe(hostapd_instance_t *hostapd_entry)
         return false;
     }
 
+    iwinfo_get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid.u8);
+    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, sizeof (hostapd_entry->iface_name));
+    hostapd_entry->ht_support = iwinfo_ht_supported(hostapd_entry->iface_name);
+    hostapd_entry->vht_support = iwinfo_vht_supported(hostapd_entry->iface_name);
+
+    if (general_config.operational_ssid[0] != '\0' &&
+            strcmp(hostapd_entry->ssid, general_config.operational_ssid) != 0) {
+        DAWN_LOG_INFO("Operational SSID on `%s' interface does not match `%s'. Skipping it",
+                      hostapd_entry->iface_name, general_config.operational_ssid);
+        return false;
+    }
+
     if (ubus_subscribe(ctx, &hostapd_entry->subscriber, hostapd_entry->id)) {
         DAWN_LOG_ERROR("Failed to subscribe to hostapd notifications for interface `%s'",
                        hostapd_entry->iface_name);
         return false;
     }
-
-    iwinfo_get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid.u8);
-    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, sizeof (hostapd_entry->iface_name));
-    hostapd_entry->ht_support = iwinfo_ht_supported(hostapd_entry->iface_name);
-    hostapd_entry->vht_support = iwinfo_vht_supported(hostapd_entry->iface_name);
 
     ubus_enable_bss_management(hostapd_entry->id);
     ubus_get_own_neighbor_report(hostapd_entry->id);
