@@ -88,6 +88,96 @@ cleanup:
     dawn_unregmem(context);
 }
 
+bool dawn_uci_get_general(general_config_t *config)
+{
+    struct uci_section *general = uci_lookup_section(uci_ctx, uci_pkg, "general");
+
+    if (general == NULL) {
+        DAWN_LOG_ERROR("Failed to lookup `general' section");
+        return false;
+    }
+
+    const char *tmp = uci_lookup_option_string(uci_ctx, general, "network_ip");
+    if (tmp != NULL) {
+        strncpy(config->network_ip, tmp, sizeof (config->network_ip));
+    }
+
+    tmp = uci_lookup_option_string(uci_ctx, general, "hostapd_dir");
+    if (tmp == NULL) {
+        DAWN_LOG_ERROR("Failed to read `hostapd_dir' from config");
+        return false;
+    }
+    strncpy(config->hostapd_dir, tmp, sizeof (config->hostapd_dir));
+
+    tmp = uci_lookup_option_string(uci_ctx, general, "operational_ssid");
+    if (tmp != NULL) {
+        strncpy(config->operational_ssid, tmp, sizeof (config->operational_ssid));
+    }
+
+#define dawn_uci_lookup_general(option, def) \
+    config->option = uci_lookup_option_int(uci_ctx, general, #option, def);
+
+    dawn_uci_lookup_general(network_proto, DAWN_SOCKET_TCP);
+    dawn_uci_lookup_general(network_port, 1026);
+    dawn_uci_lookup_general(use_encryption, 1);
+    dawn_uci_lookup_general(log_level, DAWN_LOG_LEVEL_WARNING);
+
+    if ((config->network_proto == DAWN_SOCKET_BROADCAST ||
+         config->network_proto == DAWN_SOCKET_MULTICAST) &&
+            strcmp(config->network_ip, "") == 0) {
+        DAWN_LOG_ERROR("Broadcast/multicast protocol type is set, but no IP address is given");
+        return false;
+    }
+
+    dawn_set_log_level(config->log_level);
+
+    return true;
+}
+
+bool dawn_uci_get_crypto(char *key, char *init_vector)
+{
+    struct uci_context *uci_crypto_context;
+    char path[] = {"dawn.@crypto[0]"};
+    struct uci_ptr crypto;
+    bool result = false;
+
+    /* CHECK: Here we are using separated uci context to leave as less traces in memory as possible. */
+    uci_crypto_context = uci_alloc_context();
+    if (uci_crypto_context == NULL) {
+        DAWN_LOG_ERROR("Failed to allocate uci context");
+        goto exit;
+    }
+    dawn_regmem(uci_crypto_context);
+
+    /* This only context performs crypto section lookup. */
+    if (uci_lookup_ptr(uci_crypto_context, &crypto, path, true) != UCI_OK || crypto.s == NULL) {
+        DAWN_LOG_ERROR("Failed to lookup `crypto' section");
+        goto cleanup;
+    }
+
+    const char *tmp = uci_lookup_option_string(uci_crypto_context, crypto.s, "key");
+    if (tmp == NULL) {
+        DAWN_LOG_ERROR("Failed to read key from config");
+        goto cleanup;
+    }
+    strncpy(key, tmp, MAX_KEY_LENGTH);
+
+    tmp = uci_lookup_option_string(uci_crypto_context, crypto.s, "init_vector");
+    if (tmp == NULL) {
+        DAWN_LOG_ERROR("Failed to read init vector from config");
+        secure_zero(key, MAX_KEY_LENGTH);
+        goto cleanup;
+    }
+    strncpy(init_vector, tmp, MAX_KEY_LENGTH);
+
+    result = true;
+cleanup:
+    uci_free_context(uci_crypto_context);
+    dawn_unregmem(uci_crypto_context);
+exit:
+    return result;
+}
+
 bool dawn_uci_get_intervals(time_intervals_config_t *config)
 {
     struct uci_section *intervals = uci_lookup_section(uci_ctx, uci_pkg, "intervals");
@@ -172,91 +262,6 @@ bool dawn_uci_get_behaviour(behaviour_config_t *config)
     dawn_uci_lookup_behaviour(scan_channel, 0);
 
     return true;
-}
-
-bool dawn_uci_get_general(general_config_t *config)
-{
-    struct uci_section *general = uci_lookup_section(uci_ctx, uci_pkg, "general");
-
-    if (general == NULL) {
-        DAWN_LOG_ERROR("Failed to lookup `general' section");
-        return false;
-    }
-
-    const char *tmp = uci_lookup_option_string(uci_ctx, general, "network_ip");
-    if (tmp != NULL) {
-        strncpy(config->network_ip, tmp, INET_ADDRSTRLEN);
-    }
-
-    tmp = uci_lookup_option_string(uci_ctx, general, "hostapd_dir");
-    if (tmp == NULL) {
-        DAWN_LOG_ERROR("Failed to read `hostapd_dir' from config");
-        return false;
-    }
-    strncpy(config->hostapd_dir, tmp, sizeof (config->hostapd_dir));
-
-#define dawn_uci_lookup_general(option, def) \
-    config->option = uci_lookup_option_int(uci_ctx, general, #option, def);
-
-    dawn_uci_lookup_general(network_proto, DAWN_SOCKET_TCP);
-    dawn_uci_lookup_general(network_port, 1026);
-    dawn_uci_lookup_general(use_encryption, 1);
-    dawn_uci_lookup_general(log_level, DAWN_LOG_LEVEL_WARNING);
-
-    if ((config->network_proto == DAWN_SOCKET_BROADCAST ||
-         config->network_proto == DAWN_SOCKET_MULTICAST) &&
-            strcmp(config->network_ip, "") == 0) {
-        DAWN_LOG_ERROR("Broadcast/multicast protocol type is set, but no IP address is given");
-        return false;
-    }
-
-    dawn_set_log_level(config->log_level);
-
-    return true;
-}
-
-bool dawn_uci_get_crypto(char *key, char *init_vector)
-{
-    struct uci_context *uci_crypto_context;
-    char path[] = {"dawn.@crypto[0]"};
-    struct uci_ptr crypto;
-    bool result = false;
-
-    /* CHECK: Here we are using separated uci context to leave as less traces in memory as possible. */
-    uci_crypto_context = uci_alloc_context();
-    if (uci_crypto_context == NULL) {
-        DAWN_LOG_ERROR("Failed to allocate uci context");
-        goto exit;
-    }
-    dawn_regmem(uci_crypto_context);
-
-    /* This only context performs crypto section lookup. */
-    if (uci_lookup_ptr(uci_crypto_context, &crypto, path, true) != UCI_OK || crypto.s == NULL) {
-        DAWN_LOG_ERROR("Failed to lookup `crypto' section");
-        goto cleanup;
-    }
-
-    const char *tmp = uci_lookup_option_string(uci_crypto_context, crypto.s, "key");
-    if (tmp == NULL) {
-        DAWN_LOG_ERROR("Failed to read key from config");
-        goto cleanup;
-    }
-    strncpy(key, tmp, MAX_KEY_LENGTH);
-
-    tmp = uci_lookup_option_string(uci_crypto_context, crypto.s, "init_vector");
-    if (tmp == NULL) {
-        DAWN_LOG_ERROR("Failed to read init vector from config");
-        secure_zero(key, MAX_KEY_LENGTH);
-        goto cleanup;
-    }
-    strncpy(init_vector, tmp, MAX_KEY_LENGTH);
-
-    result = true;
-cleanup:
-    uci_free_context(uci_crypto_context);
-    dawn_unregmem(uci_crypto_context);
-exit:
-    return result;
 }
 
 int dawn_uci_set_config(char *uci_cmd)

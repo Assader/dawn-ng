@@ -81,7 +81,7 @@ typedef struct {
     uint32_t id;
     char iface_name[IFNAMSIZ];
     dawn_mac_t bssid;
-    char ssid[SSID_MAX_LEN];
+    char ssid[IWINFO_ESSID_MAX_SIZE];
     uint8_t ht_support;
     uint8_t vht_support;
     uint64_t last_channel_time;
@@ -634,7 +634,7 @@ static bool ubus_hostapd_subscribe(hostapd_instance_t *hostapd_entry)
     }
 
     iwinfo_get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid.u8);
-    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, SSID_MAX_LEN);
+    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, sizeof (hostapd_entry->iface_name));
     hostapd_entry->ht_support = iwinfo_ht_supported(hostapd_entry->iface_name);
     hostapd_entry->vht_support = iwinfo_vht_supported(hostapd_entry->iface_name);
 

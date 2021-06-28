@@ -10,6 +10,7 @@
 #include <time.h>
 #include <libubox/list.h>
 #include <libubox/blob.h>
+#include <iwinfo.h>
 
 #include "mac_utils.h"
 
@@ -23,6 +24,7 @@ typedef struct {
     int use_encryption;
     int log_level;
     char hostapd_dir[64];
+    char operational_ssid[IWINFO_ESSID_MAX_SIZE];
 } general_config_t;
 
 typedef struct {
@@ -112,7 +114,6 @@ typedef struct {
 typedef auth_entry_t assoc_entry_t;
 
 enum {
-    SSID_MAX_LEN = 32,
     NEIGHBOR_REPORT_LEN = 200,
 };
 
@@ -124,7 +125,7 @@ typedef struct {
     struct list_head list;
 
     dawn_mac_t bssid;
-    uint8_t ssid[SSID_MAX_LEN];
+    uint8_t ssid[IWINFO_ESSID_MAX_SIZE];
 
     uint32_t freq;                /* TODO: Never evaluated? */
     uint8_t ht_support;
