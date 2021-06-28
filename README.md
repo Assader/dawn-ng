@@ -20,58 +20,207 @@ WIP
 
 ## Configuration
 
-| Option | Description |
-| --- | --- |
-| general ||
-| network_proto | Network communication protocol. 0 - broadcast UDP, 1 - multicast UDP, 2 - TCP. |
-| network_ip | This option must be set to broadcast or multicast IP if network_proto is set to 0 or 1 respectively. This option may be set if network_proto is set to 2 and connection to specific server is required. |
-| network_port | --- |
-| use_encryption | If 1 is set, network messages will be encrypted. No encryption could be usefull for debugging purposes. |
-| log_level | Numbers from 4 to 0 represents: debug, info, warning, error and none. |
-| hostapd_dir | Path to hostapd socket directory. |
-| operational_ssid | If this option is set, dawn-ng will only operate on interfaces which SSID matches `operational_ssid'. Otherwise, dawn-ng is operating on every available wireless interface. |
-| crypto ||
-| key | --- |
-| init_vector | --- |
-| intervals ||
-| update_clients | Period of time between two hostapd get_clients requests. |
-| discover_dawn_instances | If network_proto is set to 2, dawn-ng will try to find another dawn-ng instances via umdns. |
-| update_chan_utilisation | --- |
-| request_beacon_reports | --- |
-| remove_old_probes | --- |
-| remove_old_aps | --- |
-| move_to_allow_list | If use_driver_recog is set to 1 and auth/assoc request is denied because there is a better AP to connect, the request is being stored. If STA was unable to connect within move_to_allow_list seconds, it is considered to be dumb and placed to allow list. STAs from allow list are capable to connect to any AP they want and never get kicked. |
-| mteric ||
-| --- | The value is added to the score... |
-| ap_weight |  ... unconditionally for this AP. |
-| ht_support | ... if both STA and AP support HT. |
-| vht_support | ... if both STA and AP support VHT. |
-| chan_util_val | --- |
-| chan_util | ... if channel utilization is below chan_util_val. |
-| max_chan_util_val | --- |
-| max_chan_util | ... if channel utilization is above max_chan_util_val. |
-| freq | ... if AP frequency is above 5000 Hz. |
-| rssi_val | --- |
-| rssi | ... if client RSSI is better than rssi_val. |
-| low_rssi_val | --- |
-| low_rssi | if client RSSI is worse than low_rssi_val. |
-| behaviour ||
-| kicking | Kick STA if better AP is available and STA's bandwidth is below bandwidth_threshold. |
-| aggressive_kicking | Kick STA if better AP is available and the score is negative, nevermind the bandwidth. |
-| bandwidth_threshold | --- |
-| use_station_count | If set to 1 and the scores of client for two APs are equal, prefer *less busy* AP. |
-| max_station_diff | An amount of STAs one AP must have over an other to consider the first one to be *less busy*. |
-| min_probe_count | Minimal amount of probes STA must send before dawn-ng will make any decision about it. |
-| eval_probe_req | If better AP is available for STA that sent probe, probe response will contain flag that AP is full and can not handle any new STA. |
-| eval_auth_req | If better AP is available authentication will be denied with reason specified in deny_auth_reason. |
-| eval_assoc_req | If better AP is available association will be denied with reason specified in deny_assoc_reason. |
-| use_driver_recog | --- |
-| chan_util_avg_period | Number of periods update_chan_utilisation seconds long within an average channel utilization value is calculated. |
-| set_hostapd_nr | If set to 1, neighbor report of AP will be filled based on collected information. |
-| op_class | --- |
-| duration | --- |
-| mode | --- |
-| scan_channel | --- |
+<table>
+    <tr>
+        <th> Option </th>
+        <th> Description </th>
+    </tr>
+    <tr>
+        <th colspan="2"> general </th>
+    </tr>
+    <tr>
+        <td> network_proto </td>
+        <td> Network communication protocol. 0 - broadcast UDP, 1 - multicast UDP, 2 - TCP. </td>
+    </tr>
+    <tr>
+        <td> network_ip </td>
+        <td> This option must be set to broadcast or multicast IP if network_proto is set to 0 or 1 respectively. This option may be set if network_proto is set to 2 and connection to specific server is required. </td>
+    </tr>
+    <tr>
+        <td> network_port </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> use_encryption </td>
+        <td> If 1 is set, network messages will be encrypted. No encryption could be usefull for debugging purposes. </td>
+    </tr>
+    <tr>
+        <td> log_level </td>
+        <td> Numbers from 4 to 0 represents: debug, info, warning, error and none. </td>
+    </tr>
+    <tr>
+        <td> hostapd_dir </td>
+        <td> Path to hostapd socket directory. </td>
+    </tr>
+    <tr>
+        <td> operational_ssid </td>
+        <td> If this option is set, dawn-ng will only operate on interfaces which SSID matches `operational_ssid`. Otherwise, dawn-ng is operating on every available wireless interface. </td>
+    </tr>
+    <tr>
+        <th colspan="2"> ctypto </th>
+    </tr>
+    <tr>
+        <td> key </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> init_vector </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <th colspan="2"> intervals </th>
+    </tr>
+    <tr>
+        <td> update_clients </td>
+        <td> Period of time between two hostapd get_clients requests. </td>
+    </tr>
+    <tr>
+        <td> discover_dawn_instances </td>
+        <td> If network_proto is set to 2, dawn-ng will try to find another dawn-ng instances via umdns. </td>
+    </tr>
+    <tr>
+        <td> update_chan_utilisation </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> request_beacon_reports </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> remove_old_probes </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> remove_old_aps </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> move_to_allow_list </td>
+        <td> If use_driver_recog is set to 1 and auth/assoc request is denied because there is a better AP to connect, the request is being stored. If STA was unable to connect within move_to_allow_list seconds, it is considered to be dumb and placed to allow list. STAs from allow list are capable to connect to any AP they want and never get kicked. </td>
+    </tr>
+    <tr>
+        <th colspan="2"> metric </th>
+    </tr>
+    <tr>
+        <td>  </td>
+        <td> The value is added to the score... </td>
+    </tr>
+    <tr>
+        <td> ap_weight </td>
+        <td> ... unconditionally for this AP. </td>
+    </tr>
+    <tr>
+        <td> ht_support </td>
+        <td> ... if both STA and AP support HT. </td>
+    </tr>
+    <tr>
+        <td> vht_support </td>
+        <td> ... if both STA and AP support VHT. </td>
+    </tr>
+    <tr>
+        <td> chan_util_val </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> chan_util </td>
+        <td> ... if channel utilization is below chan_util_val </td>
+    </tr>
+    <tr>
+        <td> max_chan_util_val </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> max_chan_util </td>
+        <td> ... if channel utilization is above max_chan_util_val. </td>
+    </tr>
+    <tr>
+        <td> freq </td>
+        <td> ... if AP frequency is above 5000 Hz. </td>
+    </tr>
+    <tr>
+        <td> rssi_val </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> rssi </td>
+        <td> ... if client RSSI is better than rssi_val. </td>
+    </tr>
+    <tr>
+        <td> low_rssi_val </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> low_rssi </td>
+        <td> ... if client RSSI is worse than low_rssi_val. </td>
+    </tr>
+    <tr>
+        <th colspan="2"> behaviour </th>
+    </tr>
+    <tr>
+        <td> kicking </td>
+        <td> Kick STA if better AP is available and STA's bandwidth is below bandwidth_threshold. </td>
+    </tr>
+    <tr>
+        <td> aggressive_kicking </td>
+        <td> Kick STA if better AP is available and the score is negative, nevermind the bandwidth. </td>
+    </tr>
+    <tr>
+        <td> bandwidth_threshold </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> use_station_count </td>
+        <td> If set to 1 and the scores of client for two APs are equal, prefer <i>less busy</i> AP. </td>
+    </tr>
+    <tr>
+        <td> max_station_diff </td>
+        <td> An amount of STAs one AP must have over an other to consider the first one to be <i>less busy</i>. </td>
+    </tr>
+    <tr>
+        <td> min_probe_count </td>
+        <td> Minimal amount of probes STA must send before dawn-ng will make any decision about it. </td>
+    </tr>
+    <tr>
+        <td> eval_probe_req </td>
+        <td> If better AP is available for STA that sent probe, probe response will contain flag that AP is full and can not handle any new STA. </td>
+    </tr>
+    <tr>
+        <td> eval_auth_req </td>
+        <td> If better AP is available authentication will be denied with reason specified in deny_auth_reason. </td>
+    </tr>
+    <tr>
+        <td> eval_assoc_req </td>
+        <td> If better AP is available association will be denied with reason specified in deny_assoc_reason. </td>
+    </tr>
+    <tr>
+        <td> use_driver_recog </td>
+        <td> See `move_to_allow_list` </td>
+    </tr>
+    <tr>
+        <td> chan_util_avg_period </td>
+        <td> Number of periods update_chan_utilisation seconds long within an average channel utilization value is calculated. </td>
+    </tr>
+    <tr>
+        <td> set_hostapd_nr </td>
+        <td> If set to 1, neighbor report of AP will be filled based on collected information. </td>
+    </tr>
+    <tr>
+        <td> op_class </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> duration </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> mode </td>
+        <td>  </td>
+    </tr>
+    <tr>
+        <td> scan_channel </td>
+        <td>  </td>
+    </tr>
+</table>
 
 ## Build options
 
