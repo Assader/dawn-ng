@@ -72,7 +72,7 @@ bool iwinfo_get_rssi(const char *ifname, dawn_mac_t client_addr, int *rssi)
         goto cleanup;
     }
 
-    if (backend->assoclist(ifname, buff, &len)) {
+    if (backend->assoclist(ifname, buff, &len) != 0) {
         DAWN_LOG_ERROR("Failed to get assoclist for `%s' interface", ifname);
         goto cleanup;
     }
@@ -118,7 +118,7 @@ bool get_expected_throughput(const char *ifname, dawn_mac_t client_addr, int *th
         goto cleanup;
     }
 
-    if (backend->assoclist(ifname, buff, &len)) {
+    if (backend->assoclist(ifname, buff, &len) != 0) {
         DAWN_LOG_ERROR("Failed to get assoclist for `%s' interface", ifname);
         goto cleanup;
     }
@@ -147,19 +147,23 @@ cleanup:
 
 int iwinfo_get_bssid(const char *ifname, uint8_t *bssid)
 {
-    const struct iwinfo_ops *iw;
-    char buf[18] = "00:00:00:00:00:00";
+    char buff[18] = "00:00:00:00:00:00";
+    const struct iwinfo_ops *backend;
 
-    if (strcmp(ifname, "global") == 0) {
-        return 0;
+    backend = iwinfo_backend(ifname);
+    if (backend == NULL) {
+        DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
+        goto cleanup;
     }
 
-    iw = iwinfo_backend(ifname);
+    if (backend->bssid(ifname, buff) != 0) {
+        DAWN_LOG_ERROR("Failed to get bssid for `%s' interface", ifname);
+        goto cleanup;
+    }
 
-    iw->bssid(ifname, buf);
+    hwaddr_aton(buff, bssid);
 
-    hwaddr_aton(buf, bssid);
-
+cleanup:
     iwinfo_finish();
 
     return 0;
@@ -167,19 +171,23 @@ int iwinfo_get_bssid(const char *ifname, uint8_t *bssid)
 
 int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax)
 {
-    const struct iwinfo_ops *iw;
     char buf[IWINFO_ESSID_MAX_SIZE + 1] = {0};
+    const struct iwinfo_ops *backend;
 
-    if (strcmp(ifname, "global") == 0) {
-        return 0;
+    backend = iwinfo_backend(ifname);
+    if (backend == NULL) {
+        DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
+        goto cleanup;
     }
 
-    iw = iwinfo_backend(ifname);
-
-    iw->ssid(ifname, buf);
+    if (backend->ssid(ifname, buf) != 0) {
+        DAWN_LOG_ERROR("Failed to get ssid for `%s' interface", ifname);
+        goto cleanup;
+    }
 
     strncpy(ssid, buf, ssidmax);
 
+cleanup:
     iwinfo_finish();
 
     return 0;
@@ -187,46 +195,46 @@ int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax)
 
 int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy)
 {
-    struct iwinfo_survey_entry *e;
-    const struct iwinfo_ops *iw;
+    const struct iwinfo_ops *backend;
     int len, freq, chan_util = 0;
-    char *buf = NULL;
+    char *buff = NULL;
 
-    if (strcmp(ifname, "global") == 0) {
+    backend = iwinfo_backend(ifname);
+    if (backend == NULL) {
+        DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
         goto exit;
     }
 
-    iw = iwinfo_backend(ifname);
-
-    if (iw->frequency(ifname, &freq)) {
+    if (backend->frequency(ifname, &freq)) {
         goto exit;
     }
 
-    buf = dawn_malloc(IWINFO_BUFSIZE);
-    if (buf == NULL) {
+    buff = dawn_malloc(IWINFO_BUFSIZE);
+    if (buff == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;
     }
 
-    if (iw->survey(ifname, buf, &len)) {
-        DAWN_LOG_WARNING("Survey not possible");
+    if (backend->survey(ifname, buff, &len) != 0) {
+        DAWN_LOG_WARNING("Failed to request survey for `%s' interface", ifname);
         goto exit;
     }
 
     if (len <= 0) {
-        DAWN_LOG_WARNING("No survey results");
+        DAWN_LOG_WARNING("No survey results for `%s' interface", ifname);
         goto exit;
     }
 
     for (int i = 0; i < len; i += sizeof (struct iwinfo_survey_entry)) {
-        e = (struct iwinfo_survey_entry *) &buf[i];
+        struct iwinfo_survey_entry *survey = (struct iwinfo_survey_entry *) &buff[i];
 
-        if (e->mhz == (uint32_t) freq) {
-            uint64_t dividend = e->busy_time - *last_channel_time_busy,
-                    divisor = e->active_time - *last_channel_time;
+        /* TODO: CHECK THIS. */
+        if (survey->mhz == (uint32_t) freq) {
+            uint64_t dividend = survey->busy_time - *last_channel_time_busy,
+                    divisor = survey->active_time - *last_channel_time;
 
-            *last_channel_time = e->active_time;
-            *last_channel_time_busy = e->busy_time;
+            *last_channel_time = survey->active_time;
+            *last_channel_time_busy = survey->busy_time;
 
             if (divisor) {
                 chan_util = (int) (dividend * 255 / divisor);
@@ -237,50 +245,51 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
     }
 
 exit:
+    dawn_free(buff);
     iwinfo_finish();
-    dawn_free(buf);
+
     return chan_util;
 }
 
 bool iwinfo_ht_supported(const char *ifname)
 {
-    const struct iwinfo_ops *iw;
+    const struct iwinfo_ops *backend;
     int modes = 0;
 
-    if (strcmp(ifname, "global") == 0) {
-        goto exit;
+    backend = iwinfo_backend(ifname);
+    if (backend == NULL) {
+        DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
+        goto cleanup;
     }
 
-    iw = iwinfo_backend(ifname);
-
-    if (iw->htmodelist(ifname, &modes)) {
-        DAWN_LOG_WARNING("No HT mode information available");
+    if (backend->htmodelist(ifname, &modes) != 0) {
+        DAWN_LOG_WARNING("No HT mode information available for `%s' interface", ifname);
     }
 
+cleanup:
     iwinfo_finish();
 
-exit:
     return modes & (IWINFO_HTMODE_HT20 | IWINFO_HTMODE_HT40);
 }
 
 bool iwinfo_vht_supported(const char *ifname)
 {
-    const struct iwinfo_ops *iw;
+    const struct iwinfo_ops *backend;
     int modes = 0;
 
-    if (strcmp(ifname, "global") == 0) {
-        goto exit;
+    backend = iwinfo_backend(ifname);
+    if (backend == NULL) {
+        DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
+        goto cleanup;
     }
 
-    iw = iwinfo_backend(ifname);
-
-    if (iw->htmodelist(ifname, &modes)) {
-        DAWN_LOG_WARNING("No VHT mode information available");
+    if (backend->htmodelist(ifname, &modes) != 0) {
+        DAWN_LOG_WARNING("No VHT mode information available for `%s' interface", ifname);
     }
 
+cleanup:
     iwinfo_finish();
 
-exit:
     return modes & (IWINFO_HTMODE_VHT20 | IWINFO_HTMODE_VHT40 | IWINFO_HTMODE_VHT80 |
                     IWINFO_HTMODE_VHT80_80 | IWINFO_HTMODE_VHT160);
 }
