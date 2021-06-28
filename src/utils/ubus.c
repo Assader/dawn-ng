@@ -546,8 +546,6 @@ static bool subscribe_to_hostapd_interface(const char *ifname)
         goto error;
     }
 
-    hostapd_enable_response_mode(hostapd_entry->id);
-
     return true;
 error:
     dawn_free(hostapd_entry);
@@ -645,6 +643,7 @@ static bool ubus_hostapd_subscribe(hostapd_instance_t *hostapd_entry)
         return false;
     }
 
+    hostapd_enable_response_mode(hostapd_entry->id);
     ubus_enable_bss_management(hostapd_entry->id);
     ubus_get_own_neighbor_report(hostapd_entry->id);
 
