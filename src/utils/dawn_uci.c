@@ -3,15 +3,13 @@
 #include <uci.h>
 
 #include "crypto.h"
-#include "datastorage.h"
-#include "dawn_iwinfo.h"
 #include "dawn_log.h"
 #include "dawn_uci.h"
 #include "memory_utils.h"
 #include "networksocket.h"
 
-static struct uci_context *uci_ctx;
-static struct uci_package *uci_pkg;
+static struct uci_context *dawn_uci_ctx;
+static struct uci_package *dawn_uci_pkg;
 
 static int uci_lookup_option_int(struct uci_context *uci_context, struct uci_section *section,
                                  const char *name, int default_value);
@@ -20,21 +18,21 @@ bool dawn_uci_init(void)
 {
     int err = UCI_ERR_UNKNOWN;
 
-    uci_ctx = uci_alloc_context();
-    if (uci_ctx == NULL) {
+    dawn_uci_ctx = uci_alloc_context();
+    if (dawn_uci_ctx == NULL) {
         DAWN_LOG_ERROR("Failed to allocate uci context");
         goto exit;
     }
-    dawn_regmem(uci_ctx);
+    dawn_regmem(dawn_uci_ctx);
 
-    err = uci_load(uci_ctx, "dawn", &uci_pkg);
+    err = uci_load(dawn_uci_ctx, "dawn", &dawn_uci_pkg);
     if (err != UCI_OK) {
         DAWN_LOG_ERROR("Failed to look up dawn package: %d", err);
-        uci_free_context(uci_ctx);
-        dawn_unregmem(uci_ctx);
+        uci_free_context(dawn_uci_ctx);
+        dawn_unregmem(dawn_uci_ctx);
         goto exit;
     }
-    dawn_regmem(uci_pkg);
+    dawn_regmem(dawn_uci_pkg);
 
 exit:
     return err == UCI_OK;
@@ -42,18 +40,18 @@ exit:
 
 void dawn_uci_deinit(void)
 {
-    uci_unload(uci_ctx, uci_pkg);
-    dawn_unregmem(uci_pkg);
-    uci_free_context(uci_ctx);
-    dawn_unregmem(uci_ctx);
+    uci_unload(dawn_uci_ctx, dawn_uci_pkg);
+    dawn_unregmem(dawn_uci_pkg);
+    uci_free_context(dawn_uci_ctx);
+    dawn_unregmem(dawn_uci_ctx);
 }
 
 void dawn_uci_reset(void)
 {
-    uci_unload(uci_ctx, uci_pkg);
-    dawn_unregmem(uci_pkg);
-    uci_load(uci_ctx, "dawn", &uci_pkg);
-    dawn_regmem(uci_pkg);
+    uci_unload(dawn_uci_ctx, dawn_uci_pkg);
+    dawn_unregmem(dawn_uci_pkg);
+    uci_load(dawn_uci_ctx, "dawn", &dawn_uci_pkg);
+    dawn_regmem(dawn_uci_pkg);
 }
 
 void dawn_uci_get_hostname(char *hostname)
@@ -90,32 +88,32 @@ cleanup:
 
 bool dawn_uci_get_general(general_config_t *config)
 {
-    struct uci_section *general = uci_lookup_section(uci_ctx, uci_pkg, "general");
+    struct uci_section *general = uci_lookup_section(dawn_uci_ctx, dawn_uci_pkg, "general");
 
     if (general == NULL) {
         DAWN_LOG_ERROR("Failed to lookup `general' section");
         return false;
     }
 
-    const char *tmp = uci_lookup_option_string(uci_ctx, general, "network_ip");
+    const char *tmp = uci_lookup_option_string(dawn_uci_ctx, general, "network_ip");
     if (tmp != NULL) {
         strncpy(config->network_ip, tmp, sizeof (config->network_ip));
     }
 
-    tmp = uci_lookup_option_string(uci_ctx, general, "hostapd_dir");
+    tmp = uci_lookup_option_string(dawn_uci_ctx, general, "hostapd_dir");
     if (tmp == NULL) {
         DAWN_LOG_ERROR("Failed to read `hostapd_dir' from config");
         return false;
     }
     strncpy(config->hostapd_dir, tmp, sizeof (config->hostapd_dir));
 
-    tmp = uci_lookup_option_string(uci_ctx, general, "operational_ssid");
+    tmp = uci_lookup_option_string(dawn_uci_ctx, general, "operational_ssid");
     if (tmp != NULL) {
         strncpy(config->operational_ssid, tmp, sizeof (config->operational_ssid));
     }
 
 #define dawn_uci_lookup_general(option, def) \
-    config->option = uci_lookup_option_int(uci_ctx, general, #option, def);
+    config->option = uci_lookup_option_int(dawn_uci_ctx, general, #option, def);
 
     dawn_uci_lookup_general(network_proto, DAWN_SOCKET_TCP);
     dawn_uci_lookup_general(network_port, 1026);
@@ -180,7 +178,7 @@ exit:
 
 bool dawn_uci_get_intervals(time_intervals_config_t *config)
 {
-    struct uci_section *intervals = uci_lookup_section(uci_ctx, uci_pkg, "intervals");
+    struct uci_section *intervals = uci_lookup_section(dawn_uci_ctx, dawn_uci_pkg, "intervals");
 
     if (intervals == NULL) {
         DAWN_LOG_ERROR("Failed to lookup `intervals' section");
@@ -188,7 +186,7 @@ bool dawn_uci_get_intervals(time_intervals_config_t *config)
     }
 
 #define dawn_uci_lookup_interval(option, def) \
-    config->option = uci_lookup_option_int(uci_ctx, intervals, #option, def);
+    config->option = uci_lookup_option_int(dawn_uci_ctx, intervals, #option, def);
 
     dawn_uci_lookup_interval(update_clients, 10);
     dawn_uci_lookup_interval(discover_dawn_instances, 10);
@@ -203,7 +201,7 @@ bool dawn_uci_get_intervals(time_intervals_config_t *config)
 
 bool dawn_uci_get_metric(metric_config_t *config)
 {
-    struct uci_section *metric = uci_lookup_section(uci_ctx, uci_pkg, "metric");
+    struct uci_section *metric = uci_lookup_section(dawn_uci_ctx, dawn_uci_pkg, "metric");
 
     if (metric == NULL) {
         DAWN_LOG_ERROR("Failed to lookup `metric' section");
@@ -211,7 +209,7 @@ bool dawn_uci_get_metric(metric_config_t *config)
     }
 
 #define dawn_uci_lookup_metric(option, def) \
-    config->option = uci_lookup_option_int(uci_ctx, metric, #option, def);
+    config->option = uci_lookup_option_int(dawn_uci_ctx, metric, #option, def);
 
     dawn_uci_lookup_metric(ap_weight, 0);
     dawn_uci_lookup_metric(ht_support, 0);
@@ -231,7 +229,7 @@ bool dawn_uci_get_metric(metric_config_t *config)
 
 bool dawn_uci_get_behaviour(behaviour_config_t *config)
 {
-    struct uci_section *behaviour = uci_lookup_section(uci_ctx, uci_pkg, "behaviour");
+    struct uci_section *behaviour = uci_lookup_section(dawn_uci_ctx, dawn_uci_pkg, "behaviour");
 
     if (behaviour == NULL) {
         DAWN_LOG_ERROR("Failed to lookup `behaviour' section");
@@ -239,7 +237,7 @@ bool dawn_uci_get_behaviour(behaviour_config_t *config)
     }
 
 #define dawn_uci_lookup_behaviour(option, def) \
-    config->option = uci_lookup_option_int(uci_ctx, behaviour, #option, def);
+    config->option = uci_lookup_option_int(dawn_uci_ctx, behaviour, #option, def);
 
     dawn_uci_lookup_behaviour(kicking, 0);
     dawn_uci_lookup_behaviour(aggressive_kicking, 0);
@@ -269,12 +267,12 @@ int dawn_uci_set_config(char *uci_cmd)
     struct uci_ptr ptr;
     int ret;
 
-    ret = uci_lookup_ptr(uci_ctx, &ptr, uci_cmd, 1);
+    ret = uci_lookup_ptr(dawn_uci_ctx, &ptr, uci_cmd, 1);
     if (ret != UCI_OK) {
         goto error;
     }
 
-    ret = uci_set(uci_ctx, &ptr);
+    ret = uci_set(dawn_uci_ctx, &ptr);
     if (ret != UCI_OK) {
         goto error;
     }
@@ -288,7 +286,7 @@ error:
 
 void dawn_uci_commit_config(void)
 {
-    int ret = uci_commit(uci_ctx, &uci_pkg, 0);
+    int ret = uci_commit(dawn_uci_ctx, &dawn_uci_pkg, 0);
     if (ret != UCI_OK) {
         DAWN_LOG_ERROR("Failed commit UCI config");
     }

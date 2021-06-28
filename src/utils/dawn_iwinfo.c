@@ -99,7 +99,7 @@ cleanup:
     return success;
 }
 
-bool get_expected_throughput(const char *ifname, dawn_mac_t client_addr, int *throughput)
+bool iwinfo_get_expected_throughput(const char *ifname, dawn_mac_t client_addr, int *throughput)
 {
     const struct iwinfo_ops *backend;
     bool success = false;
