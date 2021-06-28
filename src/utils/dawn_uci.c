@@ -304,8 +304,13 @@ static int uci_lookup_option_int(struct uci_context *uci_context, struct uci_sec
         goto exit;
     }
 
-    (void) sscanf(str, "%d", &value);
+    int n = sscanf(str, "%d", &value);
 
 exit:
+    if (str == NULL || n != 1) {
+        DAWN_LOG_WARNING("Failed to get `%s' option from config. Filling it with default value %d.",
+                         name, default_value);
+    }
+
     return value;
 }
