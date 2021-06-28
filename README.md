@@ -1,5 +1,6 @@
 # dawn-ng
-dawn-ng is a fork of [DAWN](https://github.com/berlin-open-wireless-lab/DAWN) Decentralized WiFi Controller. The code is refactored, some bugs are fixed, custom features added...
+dawn-ng is a fork of [DAWN](https://github.com/berlin-open-wireless-lab/DAWN) Decentralized WiFi Controller.
+The code is refactored, some bugs are fixed, custom features added...
 
 The controller provides 802.11 k/v features over OpenWRT.
 
@@ -28,7 +29,7 @@ WIP
 | use_encryption | If 1 is set, network messages will be encrypted. No encryption could be usefull for debugging purposes. |
 | log_level | Numbers from 4 to 0 represents: debug, info, warning, error and none. |
 | hostapd_dir | Path to hostapd socket directory. |
-| operational_ssid | WIP. |
+| operational_ssid | If this option is set, dawn-ng will only operate on interfaces which SSID matches `operational_ssid'. Otherwise, dawn-ng is operating on every available wireless interface. |
 | crypto ||
 | key | --- |
 | init_vector | --- |
