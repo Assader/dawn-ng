@@ -232,7 +232,7 @@ WIP
 
 `DAWN_NO_DEBUG_LOGS` User see no debug messages if log level is lower than DEBUG, arguments for the message are still evaluated though. Compiling dawn-ng with this option may result in slight performance upgrade.
 
-`DAWN_LOCK_FREE_DATASTORAGE` WIP.
+`DAWN_LOCK_FREE_DATASTORAGE` Pthread mutexes are used to separate access to the datastorage objects, shared between network routine and uloop timed routines, ubus events. As soon as TCP network communication is done via ustream (that uses uloop), if TCP-only connections are intendent (`network_proto` == 2) this option may be used to skip every lock/unlock function.
 
 ## Signals
 
