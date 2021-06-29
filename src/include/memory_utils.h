@@ -12,7 +12,7 @@ enum dawn_memop {
     DAWN_FREE
 };
 
-#ifdef DAWN_MEMORY_AUDITING
+#ifdef DAWN_MEMORY_AUDIT
 #define dawn_malloc(size) dawn_memory_alloc(DAWN_MALLOC, __FILE__, __LINE__, 1, size, NULL)
 #define dawn_calloc(nmemb, size) dawn_memory_alloc(DAWN_CALLOC, __FILE__, __LINE__, nmemb, size, NULL)
 #define dawn_realloc(ptr, size) dawn_memory_alloc(DAWN_REALLOC, __FILE__, __LINE__, 1, size, ptr)
