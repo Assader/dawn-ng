@@ -174,7 +174,7 @@ WIP
     </tr>
     <tr>
         <td> max_station_diff </td>
-        <td> An amount of STAs one AP must have over an other to consider the first one to be <i>less busy</i>. </td>
+        <td> An amount of STAs one AP must have over an other to consider the other one to be <i>less busy</i>. </td>
     </tr>
     <tr>
         <td> min_probe_count </td>
@@ -186,11 +186,11 @@ WIP
     </tr>
     <tr>
         <td> eval_auth_req </td>
-        <td> If better AP is available authentication will be denied with reason specified in deny_auth_reason. </td>
+        <td> If better AP is available, authentication will be denied with reason specified in deny_auth_reason. </td>
     </tr>
     <tr>
         <td> eval_assoc_req </td>
-        <td> If better AP is available association will be denied with reason specified in deny_assoc_reason. </td>
+        <td> If better AP is available, association will be denied with reason specified in deny_assoc_reason. </td>
     </tr>
     <tr>
         <td> use_driver_recog </td>
@@ -224,13 +224,13 @@ WIP
 
 ## Build options
 
-`DAWN_MEMORY_AUDITING` Every *alloc memory operation is being recorded. Sending SIGUSR1 provides you an overview of allocated memory blocks, their size and where exactly in the code (file, line) the allocation was made.
+`DAWN_MEMORY_AUDIT` Every *alloc memory operation is being recorded. Sending SIGUSR1 provides you an overview of allocated memory blocks, their size and where exactly in the code (file, line) the allocation was made.
 
 `DAWN_LOG_TO_SYSLOG` Send logs to syslog. Otherwise, stderr will be used and log level will prepend the message in form of \<E\>, \<W\>, etc.
 
 `DAWN_VERBOSE_LOGS` Prepend log message with message location in form of file:function:line.
 
-`DAWN_NO_DEBUG_LOGS` WIP.
+`DAWN_NO_DEBUG_LOGS` User see no debug messages if log level is lower than DEBUG, arguments for the message are still evaluated though. Compiling dawn-ng with this option may result in slight performance upgrade.
 
 `DAWN_LOCK_FREE_DATASTORAGE` WIP.
 
