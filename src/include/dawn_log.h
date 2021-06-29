@@ -22,6 +22,11 @@ void dawn_log(int log_level, const char *file, const char *function, int line, c
 #define DAWN_LOG_INFO(...)      dawn_log(DAWN_LOG_LEVEL_INFO, __VA_ARGS__)
 #define DAWN_LOG_DEBUG(...)     dawn_log(DAWN_LOG_LEVEL_DEBUG, __VA_ARGS__)
 
+#ifdef DAWN_NO_DEBUG_LOGS
+#undef DAWN_LOG_DEBUG
+#define DAWN_LOG_DEBUG(...)
+#endif
+
 void dawn_log(int log_level, const char *format, ...);
 #endif
 void dawn_set_log_level(int log_level);
