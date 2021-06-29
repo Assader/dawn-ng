@@ -76,8 +76,9 @@ static void connect_signals(void)
     signal_action.sa_handler = signal_handler;
     sigaction(SIGUSR1, &signal_action, NULL);
     sigaction(SIGUSR2, &signal_action, NULL);
-    sigaction(SIGTERM, &signal_action, NULL);
     sigaction(SIGINT, &signal_action, NULL);
+    sigaction(SIGTERM, &signal_action, NULL);
+    sigaction(SIGHUP, &signal_action, NULL);
     signal(SIGPIPE, SIG_IGN);
 }
 
@@ -96,6 +97,9 @@ static void signal_handler(int sig)
     case SIGINT:
     case SIGTERM:
         uloop_end();
+        break;
+    case SIGHUP:
+        dawn_reload_config();
         break;
     default:
         break;
