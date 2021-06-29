@@ -29,16 +29,22 @@ typedef struct {
 } mac_entry_t;
 
 static LIST_HEAD(probe_list);
-static pthread_mutex_t probe_list_mutex;
 static LIST_HEAD(denied_req_list);
-static pthread_mutex_t denied_req_list_mutex;
 static LIST_HEAD(ap_list);
-static pthread_mutex_t ap_list_mutex;
 /* Ordered by BSSID + client MAC. */
 static LIST_HEAD(client_list);
-static pthread_mutex_t client_list_mutex;
 static LIST_HEAD(allow_list);
+
+#ifndef DAWN_LOCK_FREE_DATASTORAGE
+static pthread_mutex_t probe_list_mutex;
+static pthread_mutex_t denied_req_list_mutex;
+static pthread_mutex_t ap_list_mutex;
+static pthread_mutex_t client_list_mutex;
 static pthread_mutex_t allow_list_mutex;
+#else
+#define pthread_mutex_lock(m)
+#define pthread_mutex_unlock(m)
+#endif
 
 /* Used as a filler where a value is required but not used functionally. */
 static const dawn_mac_t dawn_mac_null = {0};
@@ -66,8 +72,9 @@ static bool is_connected_somehwere(dawn_mac_t client_addr);
 
 bool datastorage_mutex_init(void)
 {
+    int err = 0;
+#ifndef DAWN_LOCK_FREE_DATASTORAGE
     pthread_mutexattr_t mutex_attr;
-    int err;
 
     err  = pthread_mutexattr_init(&mutex_attr);
     err |= pthread_mutexattr_settype(&mutex_attr, PTHREAD_MUTEX_RECURSIVE);
@@ -83,17 +90,19 @@ bool datastorage_mutex_init(void)
     if (err != 0) {
         DAWN_LOG_ERROR("Failed to initialize mutex");
     }
-
+#endif
     return err == 0;
 }
 
 void datastorage_mutex_deinit(void)
 {
+#ifndef DAWN_LOCK_FREE_DATASTORAGE
     pthread_mutex_destroy(&probe_list_mutex);
     pthread_mutex_destroy(&denied_req_list_mutex);
     pthread_mutex_destroy(&ap_list_mutex);
     pthread_mutex_destroy(&client_list_mutex);
     pthread_mutex_destroy(&allow_list_mutex);
+#endif
 }
 
 int kick_clients(ap_t *kicking_ap, uint32_t id)
