@@ -242,7 +242,7 @@ WIP
 
 `SIGUSR2` Print dawn-ng state info: list of TCP connections, list of probe requests, list of APs, list of clietns.
 
-`SIGHUP` WIP.
+`SIGHUP` Reload UCI configuration (intervals, metric and behaviour sections).
 
 ## ubus interface
 
