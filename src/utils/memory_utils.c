@@ -164,9 +164,9 @@ void dawn_memory_audit(void)
 {
     size_t total = 0;
 
-    DAWN_LOG_DEBUG("Listing currently recorded allocations...");
+    DAWN_LOG_INFO("Listing currently recorded allocations...");
     for (struct mem_list *mem = mem_base; mem != NULL; mem = mem->next_mem) {
-        DAWN_LOG_DEBUG(" - %8ull - %c@%s:d %zu\n", mem->ref, mem->type, mem->file, mem->line, mem->size);
+        DAWN_LOG_INFO(" - %8ull - %c@%s:d %zu\n", mem->ref, mem->type, mem->file, mem->line, mem->size);
         total += mem->size;
     }
 
@@ -176,5 +176,5 @@ void dawn_memory_audit(void)
         suffix = "kbytes";
     }
 
-    DAWN_LOG_DEBUG("End of list: %zu %s", total, suffix);
+    DAWN_LOG_INFO("End of list: %zu %s", total, suffix);
 }

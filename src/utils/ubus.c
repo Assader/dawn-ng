@@ -1181,6 +1181,7 @@ static void ubus_umdns_cb(struct ubus_request *request, int type, struct blob_at
         struct blobmsg_hdr *hdr;
 
         hdr = blob_data(attr);
+        (void) hdr;
 
         blobmsg_parse(dawn_umdns_policy, __DAWN_UMDNS_MAX, tb_dawn, blobmsg_data(attr), blobmsg_len(attr));
 
