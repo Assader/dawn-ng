@@ -348,7 +348,7 @@ bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uin
     }
 
     if (tb[CLIENT_TABLE_SSID]) {
-        strcpy(ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
+        snprintf(ap_entry->ssid, sizeof (ap_entry->ssid), "%s", blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
     }
 
     if (tb[CLIENT_TABLE_COL_DOMAIN]) {
@@ -372,15 +372,18 @@ bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uin
     }
 
     if (tb[CLIENT_TABLE_NEIGHBOR]) {
-        strncpy(ap_entry->neighbor_report, blobmsg_get_string(tb[CLIENT_TABLE_NEIGHBOR]), NEIGHBOR_REPORT_LEN);
+        snprintf(ap_entry->neighbor_report, sizeof (ap_entry->neighbor_report),
+                 "%s", blobmsg_get_string(tb[CLIENT_TABLE_NEIGHBOR]));
     }
 
     if (tb[CLIENT_TABLE_IFACE]) {
-        strncpy(ap_entry->iface, blobmsg_get_string(tb[CLIENT_TABLE_IFACE]), IFNAMSIZ);
+        snprintf(ap_entry->iface, sizeof (ap_entry->iface),
+                 "%s", blobmsg_get_string(tb[CLIENT_TABLE_IFACE]));
     }
 
     if (tb[CLIENT_TABLE_HOSTNAME]) {
-        strncpy(ap_entry->hostname, blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]), HOST_NAME_MAX);
+        snprintf(ap_entry->hostname, sizeof (ap_entry->hostname),
+                 "%s", blobmsg_get_string(tb[CLIENT_TABLE_HOSTNAME]));
     }
 
     ap_list_insert(ap_entry, time(NULL));
@@ -683,7 +686,7 @@ static int handle_uci_config(struct blob_attr *message)
         {"@behaviour[0].scan_channel", tb_behaviour, UCI_SCAN_CHANNEL},
     };
 
-    for (size_t i = 0; i < ARRAY_SIZE(option_array); ++i) {
+    for (int i = 0; i < ARRAY_SIZE(option_array); ++i) {
         sprintf(cmd_buffer, "dawn.%s=%d", option_array[i].config_option,
                 blobmsg_get_u32(option_array[i].tb[option_array[i].tb_idx]));
         dawn_uci_set_config(cmd_buffer);
