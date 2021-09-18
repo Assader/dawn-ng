@@ -1,7 +1,7 @@
 #include <libubox/blobmsg_json.h>
 
-#include "dawn_uci.h"
 #include "dawn_log.h"
+#include "dawn_uci.h"
 #include "memory_utils.h"
 #include "msghandler.h"
 #include "ubus.h"
@@ -133,10 +133,11 @@ static void handle_set_probe(struct blob_attr *message);
 static int handle_uci_config(struct blob_attr *message);
 static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entry_t *notify_req);
 static int parse_clients_message(struct blob_attr *head, int len, const char *bssid,
-                             uint32_t freq, uint8_t ht_supported, uint8_t vht_supported);
-static void create_client_from_hostapd_message(struct blob_attr **tb, dawn_mac_t client_addr,
-                        const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
-                        uint8_t vht_supported);
+                                 uint32_t freq, uint8_t ht_supported, uint8_t vht_supported);
+static void create_client_from_hostapd_message(
+    struct blob_attr **tb, dawn_mac_t client_addr,
+    const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
+    uint8_t vht_supported);
 
 bool handle_network_message(const char *message)
 {
@@ -231,15 +232,9 @@ probe_entry_t *handle_hostapd_probe_request(struct blob_attr *message)
         goto error;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[PROBE_BSSID]), probe_req->bssid.u8)) {
-        goto error;
-    }
-
-    if (hwaddr_aton(blobmsg_data(tb[PROBE_CLIENT_ADDR]), probe_req->client_addr.u8)) {
-        goto error;
-    }
-
-    if (hwaddr_aton(blobmsg_data(tb[PROBE_TARGET_ADDR]), probe_req->target_addr.u8)) {
+    if (!hwaddr_aton(blobmsg_data(tb[PROBE_BSSID]), probe_req->bssid.u8) ||
+        !hwaddr_aton(blobmsg_data(tb[PROBE_CLIENT_ADDR]), probe_req->client_addr.u8) ||
+        !hwaddr_aton(blobmsg_data(tb[PROBE_TARGET_ADDR]), probe_req->target_addr.u8)) {
         goto error;
     }
 
@@ -319,7 +314,7 @@ bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uin
     }
 
     int num_stations =
-            parse_clients_message(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
+        parse_clients_message(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
                               blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
                               blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
 
@@ -329,7 +324,10 @@ bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uin
         goto exit;
     }
 
-    hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid.u8);
+    if (!hwaddr_aton(blobmsg_data(tb[CLIENT_TABLE_BSSID]), ap_entry->bssid.u8)) {
+        goto exit;
+    }
+
     ap_entry->freq = blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]);
 
     if (tb[CLIENT_TABLE_HT]) {
@@ -417,11 +415,8 @@ static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entr
         return false;
     }
 
-    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID]), notify_req->bssid.u8)) {
-        return false;
-    }
-
-    if (hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->client_addr.u8)) {
+    if (!hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_BSSID]), notify_req->bssid.u8) ||
+        !hwaddr_aton(blobmsg_data(tb[HOSTAPD_NOTIFY_CLIENT_ADDR]), notify_req->client_addr.u8)) {
         return false;
     }
 
@@ -429,7 +424,7 @@ static bool handle_hostapd_notify(struct blob_attr *message, hostapd_notify_entr
 }
 
 static int parse_clients_message(struct blob_attr *head, int len, const char *bssid,
-                             uint32_t freq, uint8_t ht_supported, uint8_t vht_supported)
+                                 uint32_t freq, uint8_t ht_supported, uint8_t vht_supported)
 {
     struct blob_attr *tb[__CLIENT_MAX], *attr;
     struct blobmsg_hdr *hdr;
@@ -450,9 +445,10 @@ static int parse_clients_message(struct blob_attr *head, int len, const char *bs
     return station_count;
 }
 
-static void create_client_from_hostapd_message(struct blob_attr **tb, dawn_mac_t client_addr,
-                        const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
-                        uint8_t vht_supported)
+static void create_client_from_hostapd_message(
+    struct blob_attr **tb, dawn_mac_t client_addr,
+    const char *bssid_addr, uint32_t freq, uint8_t ht_supported,
+    uint8_t vht_supported)
 {
     client_t *client;
 
@@ -643,43 +639,43 @@ static int handle_uci_config(struct blob_attr *message)
         struct blob_attr **tb;
         int tb_idx;
     } option_array[] = {
-    {"@intervals[0].update_clients", tb_intervals, UCI_UPDATE_CLIENTS},
-    {"@intervals[0].discover_dawn_instances", tb_intervals, UCI_DISCOVER_DAWN_INSTANCES},
-    {"@intervals[0].update_chan_utilisation", tb_intervals, UCI_UPDATE_CHAN_UTILISATION},
-    {"@intervals[0].request_beacon_reports", tb_intervals, UCI_REQUEST_BEACON_REPORTS},
-    {"@intervals[0].remove_old_probes", tb_intervals, UCI_REMOVE_OLD_PROBES},
-    {"@intervals[0].remove_old_aps", tb_intervals, UCI_REMOVE_OLD_APS},
-    {"@intervals[0].move_to_allow_list", tb_intervals, UCI_MOVE_TO_ALLOW_LIST},
-    {"@metric[0].ht_support", tb_metric, UCI_HT_SUPPORT},
-    {"@metric[0].vht_support", tb_metric, UCI_VHT_SUPPORT},
-    {"@metric[0].chan_util_val", tb_metric, UCI_CHAN_UTIL_VAL},
-    {"@metric[0].chan_util", tb_metric, UCI_CHAN_UTIL},
-    {"@metric[0].max_chan_util_val", tb_metric, UCI_MAX_CHAN_UTIL_VAL},
-    {"@metric[0].max_chan_util", tb_metric, UCI_MAX_CHAN_UTIL},
-    {"@metric[0].freq", tb_metric, UCI_FREQ},
-    {"@metric[0].rssi_val", tb_metric, UCI_RSSI_VAL},
-    {"@metric[0].rssi", tb_metric, UCI_RSSI},
-    {"@metric[0].low_rssi_val", tb_metric, UCI_LOW_RSSI_VAL},
-    {"@metric[0].low_rssi", tb_metric, UCI_LOW_RSSI},
-    {"@behaviour[0].kicking", tb_behaviour, UCI_KICKING},
-    {"@behaviour[0].aggressive_kicking", tb_behaviour, UCI_AGGRESSIVE_KICKING},
-    {"@behaviour[0].min_kick_count", tb_behaviour, UCI_MIN_KICK_COUNT},
-    {"@behaviour[0].bandwidth_threshold", tb_behaviour, UCI_BANDWIDTH_THRESHOLD},
-    {"@behaviour[0].use_station_count", tb_behaviour, UCI_USE_STATION_COUNT},
-    {"@behaviour[0].max_station_diff", tb_behaviour, UCI_MAX_STATION_DIFF},
-    {"@behaviour[0].min_probe_count", tb_behaviour, UCI_MIN_PROBE_COUNT},
-    {"@behaviour[0].eval_probe_req", tb_behaviour, UCI_EVAL_PROBE_REQ},
-    {"@behaviour[0].eval_auth_req", tb_behaviour, UCI_EVAL_AUTH_REQ},
-    {"@behaviour[0].eval_assoc_req", tb_behaviour, UCI_EVAL_ASSOC_REQ},
-    {"@behaviour[0].deny_auth_reason", tb_behaviour, UCI_DENY_AUTH_REASON},
-    {"@behaviour[0].deny_assoc_reason", tb_behaviour, UCI_DENY_ASSOC_REASON},
-    {"@behaviour[0].use_driver_recog", tb_behaviour, UCI_USE_DRIVER_RECOG},
-    {"@behaviour[0].chan_util_avg_period", tb_behaviour, UCI_CHAN_UTIL_AVG_PERIOD},
-    {"@behaviour[0].set_hostapd_nr", tb_behaviour, UCI_SET_HOSTAPD_NR},
-    {"@behaviour[0].op_class", tb_behaviour, UCI_OP_CLASS},
-    {"@behaviour[0].duration", tb_behaviour, UCI_DURATION},
-    {"@behaviour[0].mode", tb_behaviour, UCI_MODE},
-    {"@behaviour[0].scan_channel", tb_behaviour, UCI_SCAN_CHANNEL},
+        {"@intervals[0].update_clients", tb_intervals, UCI_UPDATE_CLIENTS},
+        {"@intervals[0].discover_dawn_instances", tb_intervals, UCI_DISCOVER_DAWN_INSTANCES},
+        {"@intervals[0].update_chan_utilisation", tb_intervals, UCI_UPDATE_CHAN_UTILISATION},
+        {"@intervals[0].request_beacon_reports", tb_intervals, UCI_REQUEST_BEACON_REPORTS},
+        {"@intervals[0].remove_old_probes", tb_intervals, UCI_REMOVE_OLD_PROBES},
+        {"@intervals[0].remove_old_aps", tb_intervals, UCI_REMOVE_OLD_APS},
+        {"@intervals[0].move_to_allow_list", tb_intervals, UCI_MOVE_TO_ALLOW_LIST},
+        {"@metric[0].ht_support", tb_metric, UCI_HT_SUPPORT},
+        {"@metric[0].vht_support", tb_metric, UCI_VHT_SUPPORT},
+        {"@metric[0].chan_util_val", tb_metric, UCI_CHAN_UTIL_VAL},
+        {"@metric[0].chan_util", tb_metric, UCI_CHAN_UTIL},
+        {"@metric[0].max_chan_util_val", tb_metric, UCI_MAX_CHAN_UTIL_VAL},
+        {"@metric[0].max_chan_util", tb_metric, UCI_MAX_CHAN_UTIL},
+        {"@metric[0].freq", tb_metric, UCI_FREQ},
+        {"@metric[0].rssi_val", tb_metric, UCI_RSSI_VAL},
+        {"@metric[0].rssi", tb_metric, UCI_RSSI},
+        {"@metric[0].low_rssi_val", tb_metric, UCI_LOW_RSSI_VAL},
+        {"@metric[0].low_rssi", tb_metric, UCI_LOW_RSSI},
+        {"@behaviour[0].kicking", tb_behaviour, UCI_KICKING},
+        {"@behaviour[0].aggressive_kicking", tb_behaviour, UCI_AGGRESSIVE_KICKING},
+        {"@behaviour[0].min_kick_count", tb_behaviour, UCI_MIN_KICK_COUNT},
+        {"@behaviour[0].bandwidth_threshold", tb_behaviour, UCI_BANDWIDTH_THRESHOLD},
+        {"@behaviour[0].use_station_count", tb_behaviour, UCI_USE_STATION_COUNT},
+        {"@behaviour[0].max_station_diff", tb_behaviour, UCI_MAX_STATION_DIFF},
+        {"@behaviour[0].min_probe_count", tb_behaviour, UCI_MIN_PROBE_COUNT},
+        {"@behaviour[0].eval_probe_req", tb_behaviour, UCI_EVAL_PROBE_REQ},
+        {"@behaviour[0].eval_auth_req", tb_behaviour, UCI_EVAL_AUTH_REQ},
+        {"@behaviour[0].eval_assoc_req", tb_behaviour, UCI_EVAL_ASSOC_REQ},
+        {"@behaviour[0].deny_auth_reason", tb_behaviour, UCI_DENY_AUTH_REASON},
+        {"@behaviour[0].deny_assoc_reason", tb_behaviour, UCI_DENY_ASSOC_REASON},
+        {"@behaviour[0].use_driver_recog", tb_behaviour, UCI_USE_DRIVER_RECOG},
+        {"@behaviour[0].chan_util_avg_period", tb_behaviour, UCI_CHAN_UTIL_AVG_PERIOD},
+        {"@behaviour[0].set_hostapd_nr", tb_behaviour, UCI_SET_HOSTAPD_NR},
+        {"@behaviour[0].op_class", tb_behaviour, UCI_OP_CLASS},
+        {"@behaviour[0].duration", tb_behaviour, UCI_DURATION},
+        {"@behaviour[0].mode", tb_behaviour, UCI_MODE},
+        {"@behaviour[0].scan_channel", tb_behaviour, UCI_SCAN_CHANNEL},
     };
 
     for (size_t i = 0; i < ARRAY_SIZE(option_array); ++i) {
