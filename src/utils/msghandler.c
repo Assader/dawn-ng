@@ -235,6 +235,7 @@ probe_entry_t *handle_hostapd_probe_request(struct blob_attr *message)
     if (!hwaddr_aton(blobmsg_data(tb[PROBE_BSSID]), probe_req->bssid.u8) ||
         !hwaddr_aton(blobmsg_data(tb[PROBE_CLIENT_ADDR]), probe_req->client_addr.u8) ||
         !hwaddr_aton(blobmsg_data(tb[PROBE_TARGET_ADDR]), probe_req->target_addr.u8)) {
+        DAWN_LOG_ERROR("Failed to parse addresses from hostapd probe request");
         goto error;
     }
 
@@ -309,11 +310,11 @@ bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uin
     blobmsg_parse(client_table_policy, __CLIENT_TABLE_MAX, tb, blob_data(message), blob_len(message));
 
     if (!tb[CLIENT_TABLE] || !tb[CLIENT_TABLE_BSSID] || !tb[CLIENT_TABLE_FREQ]) {
-        DAWN_LOG_ERROR("Failed parse hostapd clients message");
+        DAWN_LOG_ERROR("Failed to parse hostapd clients message");
         goto exit;
     }
 
-    int num_stations =
+    int station_count =
         parse_clients_message(blobmsg_data(tb[CLIENT_TABLE]), blobmsg_data_len(tb[CLIENT_TABLE]),
                               blobmsg_data(tb[CLIENT_TABLE_BSSID]), blobmsg_get_u32(tb[CLIENT_TABLE_FREQ]),
                               blobmsg_get_u8(tb[CLIENT_TABLE_HT]), blobmsg_get_u8(tb[CLIENT_TABLE_VHT]));
@@ -364,7 +365,7 @@ bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uin
         ap_entry->bandwidth = -1;
     }
 
-    ap_entry->station_count = num_stations;
+    ap_entry->station_count = station_count;
 
     if (tb[CLIENT_TABLE_WEIGHT]) {
         ap_entry->ap_weight = blobmsg_get_u32(tb[CLIENT_TABLE_WEIGHT]);
@@ -428,7 +429,7 @@ static int parse_clients_message(struct blob_attr *head, int len, const char *bs
 {
     struct blob_attr *tb[__CLIENT_MAX], *attr;
     struct blobmsg_hdr *hdr;
-    int station_count = 0;
+    int client_count = 0;
 
     __blob_for_each_attr(attr, head, len) {
         hdr = blob_data(attr);
@@ -439,10 +440,10 @@ static int parse_clients_message(struct blob_attr *head, int len, const char *bs
         sscanf((char *) hdr->name, DAWNMACSTR, STR2MAC(client_mac.u8));
 
         create_client_from_hostapd_message(tb, client_mac, bssid, freq, ht_supported, vht_supported);
-        ++station_count;
+        ++client_count;
     }
 
-    return station_count;
+    return client_count;
 }
 
 static void create_client_from_hostapd_message(
@@ -458,7 +459,11 @@ static void create_client_from_hostapd_message(
         return;
     }
 
-    hwaddr_aton(bssid_addr, client->bssid.u8);
+    if (!hwaddr_aton(bssid_addr, client->bssid.u8)) {
+        DAWN_LOG_ERROR("Failed to get BSSID from hostapd message");
+        return;
+    }
+
     client->client_addr = client_addr;
     client->freq = freq;
     client->ht_supported = ht_supported;
@@ -621,7 +626,7 @@ static const struct blobmsg_policy uci_behaviour_policy[__UCI_BEHAVIOUR_MAX] = {
 static int handle_uci_config(struct blob_attr *message)
 {
     struct blob_attr *tb[__UCI_TABLE_MAX], *tb_intervals[__UCI_INTERVALS_MAX],
-            *tb_metric[__UCI_METRIC_MAX], *tb_behaviour[__UCI_BEHAVIOUR_MAX];
+        *tb_metric[__UCI_METRIC_MAX], *tb_behaviour[__UCI_BEHAVIOUR_MAX];
     char cmd_buffer[1024];
 
     DAWN_LOG_INFO("Handling `uci' message");
