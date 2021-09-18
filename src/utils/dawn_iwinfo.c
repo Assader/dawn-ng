@@ -39,8 +39,8 @@ bool iwinfo_get_bandwidth(const char *ifname, dawn_mac_t client_addr, float *rx_
         struct iwinfo_assoclist_entry *client = (struct iwinfo_assoclist_entry *) &buff[i];
 
         if (macs_are_equal(client_addr.u8, client->mac)) {
-            *rx_rate = client->rx_rate.rate / 1000;
-            *tx_rate = client->tx_rate.rate / 1000;
+            *rx_rate = client->rx_rate.rate / 1000.0f;
+            *tx_rate = client->tx_rate.rate / 1000.0f;
             success = true;
             break;
         }
