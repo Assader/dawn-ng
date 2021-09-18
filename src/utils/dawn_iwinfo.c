@@ -159,9 +159,7 @@ bool iwinfo_get_bssid(const char *ifname, uint8_t *bssid)
         goto exit;
     }
 
-    hwaddr_aton(buff, bssid);
-
-    success = true;
+    success = hwaddr_aton(buff, bssid);;
 
 exit:
     return success;
