@@ -348,7 +348,7 @@ bool handle_hostapd_clients_message(struct blob_attr *message, bool do_kick, uin
     }
 
     if (tb[CLIENT_TABLE_SSID]) {
-        strcpy((char *) ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
+        strcpy(ap_entry->ssid, blobmsg_get_string(tb[CLIENT_TABLE_SSID]));
     }
 
     if (tb[CLIENT_TABLE_COL_DOMAIN]) {

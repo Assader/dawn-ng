@@ -299,7 +299,7 @@ void build_neighbor_report(struct blob_buf *b, dawn_mac_t own_bssid)
 
         void *neighbor = blobmsg_open_array(b, NULL);
         blobmsg_add_string(b, NULL, mac_buf);
-        blobmsg_add_string(b, NULL, (char *) ap->ssid);
+        blobmsg_add_string(b, NULL, ap->ssid);
         blobmsg_add_string(b, NULL, ap->neighbor_report);
         blobmsg_close_array(b, neighbor);
     }
@@ -323,7 +323,7 @@ void build_hearing_map(struct blob_buf *b)
     list_for_each_entry_safe(ap, next_ap, &ap_list, list) {
         /* Iterating through every unique SSID... */
         if (!same_ssid) {
-            ssid_table = blobmsg_open_table(b, (char *) ap->ssid);
+            ssid_table = blobmsg_open_table(b, ap->ssid);
 
             /* ... we pick clients... */
             probe_entry_t *probe;
@@ -376,7 +376,7 @@ void build_hearing_map(struct blob_buf *b)
             }
         }
 
-        same_ssid = strcmp((char *) ap->ssid, (char *) next_ap->ssid) == 0;
+        same_ssid = strcmp(ap->ssid, next_ap->ssid) == 0;
         if (!same_ssid) {
             blobmsg_close_table(b, ssid_table);
         }
@@ -401,7 +401,7 @@ void build_network_overview(struct blob_buf *b)
     list_for_each_entry_safe(ap, next_ap, &ap_list, list) {
         /* Grouping by SSID... */
         if (add_ssid) {
-            ssid_table = blobmsg_open_table(b, (char *) ap->ssid);
+            ssid_table = blobmsg_open_table(b, ap->ssid);
             add_ssid = false;
         }
 
@@ -464,7 +464,7 @@ void build_network_overview(struct blob_buf *b)
 next:
         blobmsg_close_table(b, ap_table);
 
-        if (strcmp((char *) ap->ssid, (char *) next_ap->ssid) != 0) {
+        if (strcmp(ap->ssid, next_ap->ssid) != 0) {
             blobmsg_close_table(b, ssid_table);
             add_ssid = true;
         }
@@ -1018,7 +1018,7 @@ static void ap_list_insert_entry(ap_t *ap)
 {
     ap_t *insertion_candidate;
     list_for_each_entry(insertion_candidate, &ap_list, list) {
-        int sc = strcmp((char *) insertion_candidate->ssid, (char *) ap->ssid);
+        int sc = strcmp(insertion_candidate->ssid, ap->ssid);
         if (sc > 0 || (sc == 0 && dawn_macs_compare(insertion_candidate->bssid, ap->bssid) > 0)) {
             break;
         }

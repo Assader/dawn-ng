@@ -125,7 +125,7 @@ typedef struct {
     struct list_head list;
 
     dawn_mac_t bssid;
-    uint8_t ssid[IWINFO_ESSID_MAX_SIZE];
+    char ssid[IWINFO_ESSID_MAX_SIZE + 1];
 
     uint32_t freq;                /* TODO: Never evaluated? */
     uint8_t ht_support;
