@@ -81,7 +81,7 @@ typedef struct {
     uint32_t id;
     char iface_name[IFNAMSIZ];
     dawn_mac_t bssid;
-    char ssid[IWINFO_ESSID_MAX_SIZE];
+    char ssid[IWINFO_ESSID_MAX_SIZE + 1];
     uint8_t ht_support;
     uint8_t vht_support;
     uint64_t last_channel_time;
