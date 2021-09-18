@@ -626,7 +626,7 @@ static bool ubus_hostapd_subscribe(hostapd_instance_t *hostapd_entry)
     }
 
     iwinfo_get_bssid(hostapd_entry->iface_name, hostapd_entry->bssid.u8);
-    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, sizeof (hostapd_entry->iface_name));
+    iwinfo_get_ssid(hostapd_entry->iface_name, hostapd_entry->ssid, sizeof (hostapd_entry->ssid));
     hostapd_entry->ht_support = iwinfo_ht_supported(hostapd_entry->iface_name);
     hostapd_entry->vht_support = iwinfo_vht_supported(hostapd_entry->iface_name);
 
