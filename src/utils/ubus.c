@@ -904,8 +904,11 @@ static int parse_beacon_report(struct blob_attr *message)
         return -1;
     }
 
-    hwaddr_aton(blobmsg_data(tb[BEACON_REP_BSSID]), bssid.u8);
-    hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), client_mac.u8);
+    if (!hwaddr_aton(blobmsg_data(tb[BEACON_REP_BSSID]), bssid.u8) ||
+        !hwaddr_aton(blobmsg_data(tb[BEACON_REP_ADDR]), client_mac.u8)) {
+        DAWN_LOG_ERROR("Failed to parse addresses from beacon report");
+        return -1;
+    }
 
     ap_t *ap = ap_list_get(bssid);
     if (ap == NULL) {
@@ -960,18 +963,20 @@ static bool parse_to_assoc_request(struct blob_attr *message, assoc_entry_t *ass
 static bool parse_to_auth_request(struct blob_attr *message, auth_entry_t *auth_request)
 {
     struct blob_attr *tb[__AUTH_MAX];
-    int err = EINVAL;
 
     blobmsg_parse(auth_policy, __AUTH_MAX, tb, blob_data(message), blob_len(message));
 
     if (!tb[AUTH_BSSID] || !tb[AUTH_CLIENT_ADDR] || !tb[AUTH_TARGET_ADDR]) {
         DAWN_LOG_ERROR("Hostapd auth/assoc request is missing essential data");
-        goto exit;
+        return false;
     }
 
-    err = hwaddr_aton(blobmsg_data(tb[AUTH_BSSID]), auth_request->bssid.u8);
-    err |= hwaddr_aton(blobmsg_data(tb[AUTH_CLIENT_ADDR]), auth_request->client_addr.u8);
-    err |= hwaddr_aton(blobmsg_data(tb[AUTH_TARGET_ADDR]), auth_request->target_addr.u8);
+    if (!hwaddr_aton(blobmsg_data(tb[AUTH_BSSID]), auth_request->bssid.u8) ||
+        !hwaddr_aton(blobmsg_data(tb[AUTH_CLIENT_ADDR]), auth_request->client_addr.u8) ||
+        !hwaddr_aton(blobmsg_data(tb[AUTH_TARGET_ADDR]), auth_request->target_addr.u8)) {
+        DAWN_LOG_INFO("Failed to parse addresses from authentication request");
+        return false;
+    }
 
     if (tb[AUTH_SIGNAL]) {
         auth_request->signal = blobmsg_get_u32(tb[AUTH_SIGNAL]);
@@ -981,8 +986,7 @@ static bool parse_to_auth_request(struct blob_attr *message, auth_entry_t *auth_
         auth_request->freq = blobmsg_get_u32(tb[AUTH_FREQ]);
     }
 
-exit:
-    return !err;
+    return true;
 }
 
 static void update_clients(struct uloop_timeout *t)
