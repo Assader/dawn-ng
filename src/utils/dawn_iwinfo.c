@@ -145,10 +145,11 @@ cleanup:
     return success;
 }
 
-int iwinfo_get_bssid(const char *ifname, uint8_t *bssid)
+bool iwinfo_get_bssid(const char *ifname, uint8_t *bssid)
 {
     char buff[18] = "00:00:00:00:00:00";
     const struct iwinfo_ops *backend;
+    bool success = false;
 
     backend = iwinfo_backend(ifname);
     if (backend == NULL) {
@@ -163,10 +164,12 @@ int iwinfo_get_bssid(const char *ifname, uint8_t *bssid)
 
     hwaddr_aton(buff, bssid);
 
+    success = true;
+
 cleanup:
     iwinfo_finish();
 
-    return 0;
+    return success;
 }
 
 int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax)

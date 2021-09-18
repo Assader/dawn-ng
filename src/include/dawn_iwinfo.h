@@ -36,7 +36,7 @@ bool iwinfo_get_expected_throughput(const char *ifname, dawn_mac_t client_addr, 
  */
 bool iwinfo_get_bandwidth(const char *ifname, dawn_mac_t client_addr, float *rx_rate, float *tx_rate);
 
-int iwinfo_get_bssid(const char *ifname, uint8_t *bssid);
+bool iwinfo_get_bssid(const char *ifname, uint8_t *bssid);
 int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax);
 int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy);
 bool iwinfo_ht_supported(const char *ifname);
