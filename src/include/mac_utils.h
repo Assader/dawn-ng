@@ -1,6 +1,7 @@
 #ifndef DAWN_MAC_UTILS_H
 #define DAWN_MAC_UTILS_H
 
+#include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -35,7 +36,7 @@ typedef struct {
  * @param addr
  * @return
  */
-int hwaddr_aton(const char *txt, uint8_t *addr);
+bool hwaddr_aton(const char *txt, uint8_t *addr);
 
 /**
  * Write mac to a file.

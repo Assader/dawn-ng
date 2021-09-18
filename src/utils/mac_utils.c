@@ -3,54 +3,11 @@
 #include "dawn_log.h"
 #include "mac_utils.h"
 
-/* source: https://elixir.bootlin.com/linux/v4.9/source/lib/hexdump.c#L28
-based on: hostapd src/utils/common.c */
-int hwaddr_aton(const char *txt, uint8_t *addr)
+bool hwaddr_aton(const char *txt, uint8_t *addr)
 {
-    int i;
+    int result = sscanf(txt, DAWNMACSTR, STR2MAC(addr));
 
-    for (i = 0; i < ETH_ALEN; i++) {
-        int byte = 0;
-        char pchar = *txt++;
-
-        if ((pchar >= '0') && (pchar <= '9')) {
-            byte = pchar - '0';
-        }
-        else if ((pchar >= 'a') && (pchar <= 'f')) {
-            byte = pchar - 'a' + 10;
-        }
-        else if ((pchar >= 'A') && (pchar <= 'F')) {
-            byte = pchar - 'A' + 10;
-        }
-        else {
-            return -1;
-        }
-
-        pchar = *txt++;
-        byte *= 16;
-
-        if ((pchar >= '0') && (pchar <= '9')) {
-            byte += pchar - '0';
-        }
-        else if ((pchar >= 'a') && (pchar <= 'f')) {
-            byte += pchar - 'a' + 10;
-        }
-        else if ((pchar >= 'A') && (pchar <= 'F')) {
-            byte += pchar - 'A' + 10;
-        }
-        else {
-            return -1;
-        }
-
-        *addr++ = byte;
-
-        /* TODO: Should NUL terminator be checked for? Is aa:bb:cc:dd:ee:ff00 valid input? */
-        if (i != (ETH_ALEN - 1) && *txt++ != ':') {
-            return -1;
-        }
-    }
-
-    return 0;
+    return result == 6;
 }
 
 void append_allow_list_in_file(const char *path, dawn_mac_t addr)
