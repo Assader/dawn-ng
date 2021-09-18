@@ -172,10 +172,11 @@ cleanup:
     return success;
 }
 
-int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax)
+bool iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax)
 {
     char buf[IWINFO_ESSID_MAX_SIZE + 1] = {0};
     const struct iwinfo_ops *backend;
+    bool success = false;
 
     backend = iwinfo_backend(ifname);
     if (backend == NULL) {
@@ -190,10 +191,12 @@ int iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax)
 
     strncpy(ssid, buf, ssidmax);
 
+    success = true;
+
 cleanup:
     iwinfo_finish();
 
-    return 0;
+    return success;
 }
 
 int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_time, uint64_t *last_channel_time_busy)
