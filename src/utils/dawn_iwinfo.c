@@ -189,7 +189,7 @@ bool iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax)
         goto cleanup;
     }
 
-    strncpy(ssid, buf, ssidmax);
+    snprintf(ssid, ssidmax, "%s", buf);
 
     success = true;
 
