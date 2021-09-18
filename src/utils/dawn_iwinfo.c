@@ -48,7 +48,6 @@ bool iwinfo_get_bandwidth(const char *ifname, dawn_mac_t client_addr, float *rx_
 
 cleanup:
     dawn_free(buff);
-    iwinfo_finish();
 
     return success;
 }
@@ -94,7 +93,6 @@ bool iwinfo_get_rssi(const char *ifname, dawn_mac_t client_addr, int *rssi)
 
 cleanup:
     dawn_free(buff);
-    iwinfo_finish();
 
     return success;
 }
@@ -140,7 +138,6 @@ bool iwinfo_get_expected_throughput(const char *ifname, dawn_mac_t client_addr, 
 
 cleanup:
     dawn_free(buff);
-    iwinfo_finish();
 
     return success;
 }
@@ -154,21 +151,19 @@ bool iwinfo_get_bssid(const char *ifname, uint8_t *bssid)
     backend = iwinfo_backend(ifname);
     if (backend == NULL) {
         DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
-        goto cleanup;
+        goto exit;
     }
 
     if (backend->bssid(ifname, buff) != 0) {
         DAWN_LOG_ERROR("Failed to get bssid for `%s' interface", ifname);
-        goto cleanup;
+        goto exit;
     }
 
     hwaddr_aton(buff, bssid);
 
     success = true;
 
-cleanup:
-    iwinfo_finish();
-
+exit:
     return success;
 }
 
@@ -181,21 +176,19 @@ bool iwinfo_get_ssid(const char *ifname, char *ssid, size_t ssidmax)
     backend = iwinfo_backend(ifname);
     if (backend == NULL) {
         DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
-        goto cleanup;
+        goto exit;
     }
 
     if (backend->ssid(ifname, buf) != 0) {
         DAWN_LOG_ERROR("Failed to get ssid for `%s' interface", ifname);
-        goto cleanup;
+        goto exit;
     }
 
     snprintf(ssid, ssidmax, "%s", buf);
 
     success = true;
 
-cleanup:
-    iwinfo_finish();
-
+exit:
     return success;
 }
 
@@ -208,27 +201,27 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
     backend = iwinfo_backend(ifname);
     if (backend == NULL) {
         DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
-        goto exit;
+        goto cleanup;
     }
 
-    if (backend->frequency(ifname, &freq)) {
-        goto exit;
+    if (backend->frequency(ifname, &freq) != 0) {
+        goto cleanup;
     }
 
     buff = dawn_malloc(IWINFO_BUFSIZE);
     if (buff == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
-        goto exit;
+        goto cleanup;
     }
 
     if (backend->survey(ifname, buff, &len) != 0) {
         DAWN_LOG_WARNING("Failed to request survey for `%s' interface", ifname);
-        goto exit;
+        goto cleanup;
     }
 
     if (len <= 0) {
         DAWN_LOG_WARNING("No survey results for `%s' interface", ifname);
-        goto exit;
+        goto cleanup;
     }
 
     for (int i = 0; i < len; i += sizeof (struct iwinfo_survey_entry)) {
@@ -250,9 +243,8 @@ int iwinfo_get_channel_utilization(const char *ifname, uint64_t *last_channel_ti
         }
     }
 
-exit:
+cleanup:
     dawn_free(buff);
-    iwinfo_finish();
 
     return chan_util;
 }
@@ -265,16 +257,14 @@ bool iwinfo_ht_supported(const char *ifname)
     backend = iwinfo_backend(ifname);
     if (backend == NULL) {
         DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
-        goto cleanup;
+        goto exit;
     }
 
     if (backend->htmodelist(ifname, &modes) != 0) {
         DAWN_LOG_WARNING("No HT mode information available for `%s' interface", ifname);
     }
 
-cleanup:
-    iwinfo_finish();
-
+exit:
     return modes & (IWINFO_HTMODE_HT20 | IWINFO_HTMODE_HT40);
 }
 
@@ -286,16 +276,14 @@ bool iwinfo_vht_supported(const char *ifname)
     backend = iwinfo_backend(ifname);
     if (backend == NULL) {
         DAWN_LOG_ERROR("Failed to lookup `%s' interface iwinfo backend", ifname);
-        goto cleanup;
+        goto exit;
     }
 
     if (backend->htmodelist(ifname, &modes) != 0) {
         DAWN_LOG_WARNING("No VHT mode information available for `%s' interface", ifname);
     }
 
-cleanup:
-    iwinfo_finish();
-
+exit:
     return modes & (IWINFO_HTMODE_VHT20 | IWINFO_HTMODE_VHT40 | IWINFO_HTMODE_VHT80 |
                     IWINFO_HTMODE_VHT80_80 | IWINFO_HTMODE_VHT160);
 }

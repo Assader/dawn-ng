@@ -66,6 +66,8 @@ int main(int argc, char *argv[])
 
     datastorage_mutex_deinit();
 
+    iwinfo_finish();
+
     return 0;
 }
 
@@ -105,4 +107,3 @@ static void signal_handler(int sig)
         break;
     }
 }
-
