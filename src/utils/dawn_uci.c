@@ -97,7 +97,7 @@ bool dawn_uci_get_general(general_config_t *config)
 
     const char *tmp = uci_lookup_option_string(dawn_uci_ctx, general, "network_ip");
     if (tmp != NULL) {
-        strncpy(config->network_ip, tmp, sizeof (config->network_ip));
+        snprintf(config->network_ip, sizeof (config->network_ip), "%s", tmp);
     }
 
     tmp = uci_lookup_option_string(dawn_uci_ctx, general, "hostapd_dir");
@@ -105,11 +105,11 @@ bool dawn_uci_get_general(general_config_t *config)
         DAWN_LOG_ERROR("Failed to read `hostapd_dir' from config");
         return false;
     }
-    strncpy(config->hostapd_dir, tmp, sizeof (config->hostapd_dir));
+    snprintf(config->hostapd_dir, sizeof (config->hostapd_dir), "%s", tmp);
 
     tmp = uci_lookup_option_string(dawn_uci_ctx, general, "operational_ssid");
     if (tmp != NULL) {
-        strncpy(config->operational_ssid, tmp, sizeof (config->operational_ssid));
+        snprintf(config->operational_ssid, sizeof (config->operational_ssid), "%s", tmp);
     }
 
 #define dawn_uci_lookup_general(option, def) \
@@ -122,7 +122,7 @@ bool dawn_uci_get_general(general_config_t *config)
 
     if ((config->network_proto == DAWN_SOCKET_BROADCAST ||
          config->network_proto == DAWN_SOCKET_MULTICAST) &&
-            strcmp(config->network_ip, "") == 0) {
+        strcmp(config->network_ip, "") == 0) {
         DAWN_LOG_ERROR("Broadcast/multicast protocol type is set, but no IP address is given");
         return false;
     }
@@ -288,7 +288,7 @@ void dawn_uci_commit_config(void)
 {
     int ret = uci_commit(dawn_uci_ctx, &dawn_uci_pkg, 0);
     if (ret != UCI_OK) {
-        DAWN_LOG_ERROR("Failed commit UCI config");
+        DAWN_LOG_ERROR("Failed to commit UCI config");
     }
 }
 
