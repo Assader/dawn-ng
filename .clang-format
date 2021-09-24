@@ -2,4 +2,11 @@ BasedOnStyle: llvm
 BreakBeforeBraces: Stroustrup
 ColumnLimit: 0
 IndentWidth: 4
-
+SpaceAfterCStyleCast: true
+PointerAlignment: Right
+ForEachMacros:
+  - 'list_for_each_entry'
+  - 'list_for_each_entry_safe'
+  - 'list_for_each_entry_first'
+  - '__blob_for_each_attr'
+  - 'blobmsg_for_each_attr'
