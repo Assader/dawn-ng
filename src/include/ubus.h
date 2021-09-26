@@ -46,7 +46,7 @@ int send_set_probe(dawn_mac_t client_addr);
  * @param duration
  * @return - 0 = asynchronous (client has been told to remove itself, and caller should manage arrays); 1 = synchronous (caller should assume arrays are updated)
  */
-int wnm_disassoc_imminent(uint32_t id, dawn_mac_t client_addr, char *dest_ap, uint32_t duration);
+int wnm_disassoc_imminent(uint32_t id, dawn_mac_t client_addr, const char *dest_ap, uint32_t duration);
 
 /**
  * Send control message to all hosts to add the mac to a don't control list.

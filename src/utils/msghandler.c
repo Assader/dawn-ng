@@ -434,7 +434,7 @@ static int parse_clients_message(struct blob_attr *head, int len, const char *bs
     struct blobmsg_hdr *hdr;
     int client_count = 0;
 
-    __blob_for_each_attr(attr, head, len) {
+    __blob_for_each_attr (attr, head, len) {
         hdr = blob_data(attr);
 
         blobmsg_parse(client_policy, __CLIENT_MAX, tb, blobmsg_data(attr), blobmsg_len(attr));

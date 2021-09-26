@@ -63,25 +63,25 @@ error:
     return false;
 }
 
-char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
+char *gcrypt_encrypt_msg(const char *message, size_t message_length, int *out_length)
 {
     size_t blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
     gcry_error_t err;
     char *out = NULL;
 
     /* Check if message fits cipher alignment requirements... */
-    if ((msg_length & (blklen - 1u)) != 0u) {
+    if ((message_length & (blklen - 1u)) != 0u) {
         /* ... and append some trash if it does not. */
-        msg_length += blklen - (msg_length & (blklen - 1u));
+        message_length += blklen - (message_length & (blklen - 1u));
     }
 
-    out = dawn_malloc(msg_length);
+    out = dawn_malloc(message_length);
     if (out == NULL) {
         DAWN_LOG_ERROR("Failed to allocate memory");
         goto exit;
     }
 
-    err = gcry_cipher_encrypt(gcry_cipher_hd, out, msg_length, msg, msg_length);
+    err = gcry_cipher_encrypt(gcry_cipher_hd, out, message_length, message, message_length);
     if (err != GPG_ERR_NO_ERROR) {
         DAWN_LOG_ERROR("Failed to encrypt message: %s/%s", gcry_strsource(err), gcry_strerror(err));
         dawn_free(out);
@@ -89,23 +89,23 @@ char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length)
         goto exit;
     }
 
-    *out_length = msg_length;
+    *out_length = message_length;
 
 exit:
     return out;
 }
 
-bool gcrypt_decrypt_msg(char *msg, size_t msg_length)
+bool gcrypt_decrypt_msg(char *message, size_t message_length)
 {
     size_t blklen = gcry_cipher_get_algo_blklen(GCRY_CIPHER);
     gcry_error_t err;
 
-    if ((msg_length & (blklen - 1u)) != 0u) {
+    if ((message_length & (blklen - 1u)) != 0u) {
         DAWN_LOG_ERROR("Message length does not fit alignment requirements! Won't decrypt");
         return false;
     }
 
-    err = gcry_cipher_decrypt(gcry_cipher_hd, msg, msg_length, NULL, 0);
+    err = gcry_cipher_decrypt(gcry_cipher_hd, message, message_length, NULL, 0);
     if (err != GPG_ERR_NO_ERROR) {
         DAWN_LOG_ERROR("Failed to decrypt message: %s/%s", gcry_strsource(err), gcry_strerror(err));
         return false;

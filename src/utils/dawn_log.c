@@ -1,7 +1,7 @@
 #include "dawn_log.h"
 
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
 #include <syslog.h>

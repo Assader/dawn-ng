@@ -26,7 +26,7 @@ bool gcrypt_init(char *key, char *init_vector);
  * @param out_length
  * @return the encrypted string.
  */
-char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length);
+char *gcrypt_encrypt_msg(const char *message, size_t message_length, int *out_length);
 
 /**
  * Function that decrypts a message.
@@ -35,7 +35,7 @@ char *gcrypt_encrypt_msg(const char *msg, size_t msg_length, int *out_length);
  * @param msg_length
  * @return the decrypted string.
  */
-bool gcrypt_decrypt_msg(char *msg, size_t msg_length);
+bool gcrypt_decrypt_msg(char *message, size_t message_length);
 
 void secure_zero(void *s, size_t n);
 

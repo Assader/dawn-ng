@@ -15,7 +15,7 @@
 #include "mac_utils.h"
 
 #define list_for_each_entry_first(pointer, first, field) \
-    list_for_each_entry(pointer, first->list.prev, field)
+    list_for_each_entry (pointer, first->list.prev, field)
 
 typedef struct {
     int network_proto;

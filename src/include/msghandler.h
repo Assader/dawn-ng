@@ -2,6 +2,7 @@
 #define DAWN_MSGHANDLER_H
 
 #include <stdbool.h>
+
 #include <libubus.h>
 
 #include "datastorage.h"

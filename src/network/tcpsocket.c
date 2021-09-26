@@ -126,7 +126,7 @@ int tcp_send(const char *message, size_t msglen)
     tcp_connection_t *con, *tmp;
     int bytes_sent = 0;
 
-    list_for_each_entry_safe(con, tmp, &tcp_connection_list, list) {
+    list_for_each_entry_safe (con, tmp, &tcp_connection_list, list) {
         if (con->connected) {
             size_t net_msglen = htonl(msglen);
             int sent0 = ustream_write(&con->stream.stream, (char *) &net_msglen, sizeof (net_msglen), 0);
@@ -155,7 +155,7 @@ void print_tcp_array(void)
     tcp_connection_t *connection;
 
     DAWN_LOG_INFO("Printing TCP connections:");
-    list_for_each_entry(connection, &tcp_connection_list, list) {
+    list_for_each_entry (connection, &tcp_connection_list, list) {
         DAWN_LOG_INFO(" - host: %s, port: %d, connected: %s",
                       inet_ntop(connection->sock_addr.sin_family, &connection->sock_addr.sin_addr,
                                 ip_addr, sizeof (ip_addr)),
@@ -372,7 +372,7 @@ static tcp_connection_t *get_tcp_entry_by_addr(struct in_addr addr)
 {
     tcp_connection_t *connection;
 
-    list_for_each_entry(connection, &tcp_connection_list, list) {
+    list_for_each_entry (connection, &tcp_connection_list, list) {
         if (addr.s_addr == connection->sock_addr.sin_addr.s_addr) {
             return connection;
         }
