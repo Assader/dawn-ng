@@ -184,28 +184,15 @@ cleanup:
  If the pointer is set, it will be filled with neighbor report of the best AP. */
 bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor_report, bool *bad_own_score)
 {
-    probe_entry_t fake_probe = {0};
     bool kick = false;
 
     pthread_mutex_lock(&probe_list_mutex);
 
     probe_entry_t *own_probe = probe_list_get_entry(client_mac, kicking_ap->bssid, true);
     if (own_probe == NULL) {
-        DAWN_LOG_INFO(MACSTR " sent no probe to " MACSTR ". Using client entry instead",
+        DAWN_LOG_INFO(MACSTR " sent no probe to " MACSTR ". Unable to evaluate metric",
                       MAC2STR(client_mac.u8), MAC2STR(kicking_ap->bssid.u8));
-
-        client_t *client = client_list_get(client_mac);
-
-        fake_probe.client_addr = client->client_addr;
-        fake_probe.ht_capabilities = client->ht;
-        fake_probe.vht_capabilities = client->vht;
-        fake_probe.freq = client->freq;
-        if (!iwinfo_get_rssi(0, client_mac, &fake_probe.signal)) {
-            goto cleanup;
-        }
-        /* TODO: Insert it to the probe array maybe? */
-
-        own_probe = &fake_probe;
+        goto cleanup;
     }
 
     int own_score = eval_probe_metric(own_probe, kicking_ap);
@@ -490,7 +477,7 @@ next:
 
 void iwinfo_update_clients(dawn_mac_t bssid)
 {
-    DAWN_LOG_INFO("Updating info for clients at " MACSTR " AP", MAC2STR(bssid.u8));
+    DAWN_LOG_INFO("Updating RSSI for clients at " MACSTR " AP", MAC2STR(bssid.u8));
 
     pthread_mutex_lock(&client_list_mutex);
 
@@ -508,8 +495,23 @@ void iwinfo_update_clients(dawn_mac_t bssid)
         const char *ifname = get_ifname_by_bssid(client->bssid);
         if (iwinfo_get_rssi(ifname, client->client_addr, &rssi)) {
             if (!probe_list_update_rssi(client->bssid, client->client_addr, rssi)) {
-                DAWN_LOG_WARNING("Found no probe from " MACSTR " to " MACSTR,
-                                 MAC2STR(client->client_addr.u8), MAC2STR(client->bssid.u8));
+                DAWN_LOG_INFO("Found no probe from " MACSTR " to " MACSTR ". Creating...",
+                              MAC2STR(client->client_addr.u8), MAC2STR(client->bssid.u8));
+
+                probe_entry_t *probe = dawn_malloc(sizeof (probe_entry_t));
+                if (probe == NULL) {
+                    DAWN_LOG_ERROR("Failed to allocate memory");
+                    continue;
+                }
+
+                probe->client_addr = client->client_addr;
+                probe->bssid = client->bssid;
+                probe->ht_capabilities = client->ht;
+                probe->vht_capabilities = client->vht;
+                probe->freq = client->freq;
+                probe->signal = rssi;
+
+                probe_list_insert(probe, true, true, time(NULL));
             }
         }
     }
@@ -575,7 +577,7 @@ probe_entry_t *probe_list_insert(probe_entry_t *probe, bool inc_counter, bool sa
     probe_entry_t *tmp_probe = probe_list_get_entry(probe->client_addr, probe->bssid, true);
     if (tmp_probe != NULL) {
         if (inc_counter) {
-            tmp_probe->counter++;
+            ++tmp_probe->counter;
         }
 
         if (probe->signal) {
@@ -627,7 +629,7 @@ auth_entry_t *denied_req_list_insert(auth_entry_t *entry, time_t expiry)
     auth_entry_t *i = denied_req_list_get_entry(entry->bssid, entry->client_addr);
     if (i != NULL) {
         entry = i;
-        entry->counter++;
+        ++entry->counter;
     }
     else {
         entry->counter = 1;
@@ -756,7 +758,6 @@ cleanup:
     }
 }
 
-/* TODO: This list only ever seems to get longer. Why do we need it? */
 bool allow_list_insert(dawn_mac_t mac)
 {
     pthread_mutex_lock(&allow_list_mutex);
