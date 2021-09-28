@@ -49,10 +49,10 @@ bool dawn_network_init(const char *ip, uint16_t port, int sock_type)
             goto exit;
         }
 
+        success = true;
         DAWN_LOG_INFO("Network init done. Operating on %s:%d", ip, port);
     }
 
-    success = true;
 exit:
     return success;
 }
