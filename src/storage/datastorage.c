@@ -54,7 +54,7 @@ static int eval_probe_metric(probe_entry_t *probe, ap_t *ap);
 static bool station_count_imbalance_detected(ap_t *own_ap, ap_t *ap_to_compare, dawn_mac_t client_addr);
 static probe_entry_t *probe_list_get_entry(dawn_mac_t client_mac, dawn_mac_t bssid, bool check_bssid);
 static void probe_list_delete_entry(probe_entry_t *probe);
-static bool probe_list_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rssi);
+static bool probe_list_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, int rssi);
 static auth_entry_t *denied_req_list_get_entry(dawn_mac_t bssid, dawn_mac_t client_mac);
 static ap_t *ap_list_get_entry(dawn_mac_t bssid);
 static void ap_list_insert_entry(ap_t *ap);
@@ -139,7 +139,7 @@ int kick_clients(ap_t *kicking_ap, uint32_t id)
             if (client->kick_count >= behaviour_config.min_kick_count) {
                 const char *ifname = get_ifname_by_bssid(client->bssid);
                 float rx_rate, tx_rate;
-                /* TODO: refactor iwinfo_get_bw. There is no need to go throu all interfaces as soon as we know BSSID. */
+
                 if (!iwinfo_get_bandwidth(ifname, client->client_addr, &rx_rate, &tx_rate)) {
                     DAWN_LOG_WARNING("Failed to get bandwidth for client " MACSTR
                                      ". Unable to decide if it is transmitting or not.", MAC2STR(client->client_addr.u8));
@@ -971,7 +971,7 @@ static void probe_list_delete_entry(probe_entry_t *probe)
     dawn_free(probe);
 }
 
-static bool probe_list_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t rssi)
+static bool probe_list_update_rssi(dawn_mac_t bssid, dawn_mac_t client_addr, int rssi)
 {
     bool updated = false;
 

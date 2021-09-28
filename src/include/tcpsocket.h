@@ -2,8 +2,8 @@
 #define DAWN_TCPSOCKET_H
 
 #include <stdbool.h>
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /**
  * Add tcp connection.

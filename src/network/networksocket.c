@@ -1,7 +1,7 @@
 #include <errno.h>
+#include <pthread.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <pthread.h>
 #include <unistd.h>
 
 #include "broadcastsocket.h"

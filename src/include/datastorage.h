@@ -89,7 +89,7 @@ typedef struct {
     dawn_mac_t client_addr;
     dawn_mac_t bssid;
     dawn_mac_t target_addr; /* TODO: Never evaluated? */
-    uint32_t signal;
+    int signal;
     uint32_t freq;
     uint8_t ht_capabilities;
     uint8_t vht_capabilities;
