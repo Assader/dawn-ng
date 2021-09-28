@@ -244,7 +244,7 @@ bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor
                 break;
             }
 
-            strncpy(neighbor_report, candidate_ap->neighbor_report, NEIGHBOR_REPORT_LEN);
+            strcpy(neighbor_report, candidate_ap->neighbor_report);
 
             max_score = candidate_ap_score;
         }
@@ -256,7 +256,7 @@ bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor
                     break;
                 }
 
-                strncpy(neighbor_report, candidate_ap->neighbor_report, NEIGHBOR_REPORT_LEN);
+                strcpy(neighbor_report, candidate_ap->neighbor_report);
             }
         }
     }
@@ -541,14 +541,21 @@ bool probe_list_set_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t
 {
     bool updated = false;
 
-    probe_entry_t *probe = probe_list_get(bssid, client_addr);
-    if (probe != NULL) {
-        probe->rcpi = rcpi;
-        probe->rsni = rsni;
-        updated = true;
+    pthread_mutex_lock(&probe_list_mutex);
 
-        ubus_send_probe_via_network(probe);
+    probe_entry_t *probe = probe_list_get_entry(client_addr, bssid, true);
+    if (probe == NULL) {
+        goto cleanup;
     }
+
+    probe->rcpi = rcpi;
+    probe->rsni = rsni;
+    updated = true;
+
+    ubus_send_probe_via_network(probe);
+
+cleanup:
+    pthread_mutex_unlock(&probe_list_mutex);
 
     return updated;
 }
