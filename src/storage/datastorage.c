@@ -184,15 +184,28 @@ cleanup:
  If the pointer is set, it will be filled with neighbor report of the best AP. */
 bool better_ap_available(ap_t *kicking_ap, dawn_mac_t client_mac, char *neighbor_report, bool *bad_own_score)
 {
+    probe_entry_t fake_probe = {0};
     bool kick = false;
 
     pthread_mutex_lock(&probe_list_mutex);
 
     probe_entry_t *own_probe = probe_list_get_entry(client_mac, kicking_ap->bssid, true);
     if (own_probe == NULL) {
-        DAWN_LOG_WARNING(MACSTR " sent no probe to " MACSTR ". Unable to evaluate metric",
-                         MAC2STR(client_mac.u8), MAC2STR(kicking_ap->bssid.u8));
-        goto cleanup;
+        DAWN_LOG_INFO(MACSTR " sent no probe to " MACSTR ". Using client entry instead",
+                      MAC2STR(client_mac.u8), MAC2STR(kicking_ap->bssid.u8));
+
+        client_t *client = client_list_get(client_mac);
+
+        fake_probe.client_addr = client->client_addr;
+        fake_probe.ht_capabilities = client->ht;
+        fake_probe.vht_capabilities = client->vht;
+        fake_probe.freq = client->freq;
+        if (!iwinfo_get_rssi(0, client_mac, &fake_probe.signal)) {
+            goto cleanup;
+        }
+        /* TODO: Insert it to the probe array maybe? */
+
+        own_probe = &fake_probe;
     }
 
     int own_score = eval_probe_metric(own_probe, kicking_ap);
