@@ -555,7 +555,7 @@ bool probe_list_set_rcpi_rsni(dawn_mac_t bssid, dawn_mac_t client_addr, uint32_t
 
 probe_entry_t *probe_list_get(dawn_mac_t bssid, dawn_mac_t client_mac)
 {
-    pthread_mutex_unlock(&probe_list_mutex);
+    pthread_mutex_lock(&probe_list_mutex);
     probe_entry_t *probe = probe_list_get_entry(client_mac, bssid, true);
     pthread_mutex_unlock(&probe_list_mutex);
     return probe;
